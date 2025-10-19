@@ -29,6 +29,7 @@ set(FILAMENT_GENERATED_RESOURCES ${FILAMENT_ROOT}/out/filament/generated/resourc
 set(FILAMENT_GENERATED_RESOURCES_MATERIALS ${FILAMENT_ROOT}/out/filament/generated/material)
 set(FILAMENT_GENERATED_RESOURCES_DATA ${FILAMENT_ROOT}/out/filament/generated/data)
 set(FILAMENT_GENERATED_RESOURCES_MATDBG ${FILAMENT_ROOT}/out/libs/matdbg)
+set(FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS ${FILAMENT_ROOT}/out/libs/gltfio/materials)
 
 add_executable(app 
   core/src/main-sdl-2.cpp
@@ -61,6 +62,17 @@ add_library(matdbg_resources STATIC "${MATDBG_RESOURCES_SRC}")
 target_include_directories(matdbg_resources PUBLIC ${FILAMENT_GENERATED_RESOURCES_MATDBG})
 #END SETTING MATDBG RESOURCES
 
+#SETTING MATDBG RESOURCES
+set(UBER_ARCHIVE_RESOURCES_SRC
+    ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS}/uberarchive.c
+    ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS}/uberarchive.h
+)
+set_source_files_properties(${UBER_ARCHIVE_RESOURCES_SRC} PROPERTIES LANGUAGE CXX)
+
+add_library(uber_archive STATIC "${UBER_ARCHIVE_RESOURCES_SRC}")
+target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS})
+#END SETTING MATDBG RESOURCES
+
 # file(GLOB_RECURSE STB_SOURCES
 #     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.cpp"
 #     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.c"
@@ -86,6 +98,7 @@ include_directories(
   ${FILAMENT_LIBS_INCLUDE}/generatePrefilterMipmap/include
   ${FILAMENT_LIBS_INCLUDE}/geometry/include
   ${FILAMENT_LIBS_INCLUDE}/gltfio/include
+  ${FILAMENT_LIBS_ROOT}/gltfio/materials
   ${FILAMENT_LIBS_INCLUDE}/ibl/include
   ${FILAMENT_LIBS_INCLUDE}/iblprefilter/include
   ${FILAMENT_LIBS_INCLUDE}/image/include
@@ -97,13 +110,19 @@ include_directories(
   ${FILAMENT_LIBS_INCLUDE}/uberz/include
   ${FILAMENT_LIBS_INCLUDE}/utils/include
   ${FILAMENT_LIBS_INCLUDE}/viewer/include
-  ${FILAMENT_LIBS_INCLUDE}/viewer/include
+  ${FILAMENT_LIBS_INCLUDE}/mikktspace/include
   
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/libpng
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/tinyexr
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/limbassimp
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/libz
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/robin-map
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/meshoptimizer/src
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/draco/src
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/basisu/encoder/src
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/basisu/transcoder/src
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/basisu/zstd/src
 
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
@@ -150,6 +169,10 @@ link_directories(
   ${FILAMENT_LIBS_3rdPARTY}/tinyexr/tnt/Debug
   ${FILAMENT_LIBS_3rdPARTY}/libassimp/tnt/Debug
   ${FILAMENT_LIBS_3rdPARTY}/libz/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/meshoptimizer/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/draco/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/mikktspace/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug
 
   ${SDL_ROOT}/build/Debug
 )
@@ -158,6 +181,8 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_ROOT}/out/filament/Debug/filament.lib"
     "${FILAMENT_ROOT}/out/filament/backend/Debug/backend.lib"
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio.lib"
+    "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio_core.lib"
+    "${FILAMENT_LIBS_ROOT}/gltfio/Debug/uberarchive.lib"
     "${FILAMENT_LIBS_ROOT}/utils/Debug/utils.lib"
     "${FILAMENT_LIBS_ROOT}/math/Debug/math.lib"
     "${SDL_ROOT}/build/Debug/SDL2d.lib"
@@ -183,6 +208,7 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_ROOT}/uberz/Debug/uberzlib.lib"
     "${FILAMENT_LIBS_ROOT}/viewer/Debug/viewer.lib"
     
+    
     "${FILAMENT_LIBS_3rdPARTY}/zstd/tnt/Debug/zstd.lib"
     "${FILAMENT_LIBS_3rdPARTY}/civetweb/tnt/Debug/civetweb.lib"
     "${FILAMENT_LIBS_3rdPARTY}/glslang/tnt/glslang/Debug/glslangd.lib"
@@ -197,6 +223,12 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_3rdPARTY}/libassimp/tnt/Debug/assimp.lib"
     "${FILAMENT_LIBS_3rdPARTY}/libz/tnt/Debug/z.lib" 
     "${FILAMENT_LIBS_3rdPARTY}/smol-v/tnt/Debug/smol-v.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/meshoptimizer/tnt/Debug/meshoptimizer.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/draco/tnt/Debug/dracodec.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/mikktspace/Debug/mikktspace.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/basis_encoder.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/basis_transcoder.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/zstd-basisu.lib"
     opengl32
     Shlwapi
 )
@@ -204,6 +236,7 @@ target_link_libraries(app PUBLIC
 target_sources(app PRIVATE 
   ${RESOURCE_SOURCES_MATDBG} 
   ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
+  ${FILAMENT_ROOT}/out/libs/gltfio/materials/uberarchive.c
   
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
