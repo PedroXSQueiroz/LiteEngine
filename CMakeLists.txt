@@ -16,9 +16,10 @@ set(FILAMENT_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/filament")
 set(FILAMENT_LIBS_ROOT "${FILAMENT_ROOT}/out/libs")
 set(FILAMENT_LIBS_INCLUDE "${FILAMENT_ROOT}/libs")
 set(FILAMENT_LIBS_3rdPARTY "${FILAMENT_ROOT}/out/third_party/")
+set(FILAMENT_LIBS_3rdPARTY_ROOT "${FILAMENT_ROOT}/third_party/")
 set(FILAMENT_LIB_BUILD_VERSION "Debug")
 
-set(SDL3_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-3.2.24")
+set(SDL_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-2.32.10")
 
 set(JOLT_ROOT "/3rd_party/JoltPhysics")
 set(OZZ_ROOT "/3rd_party/ozz-animation")
@@ -30,7 +31,8 @@ set(FILAMENT_GENERATED_RESOURCES_DATA ${FILAMENT_ROOT}/out/filament/generated/da
 set(FILAMENT_GENERATED_RESOURCES_MATDBG ${FILAMENT_ROOT}/out/libs/matdbg)
 
 add_executable(app 
-  core/src/main.cpp
+  core/src/main-sdl-2.cpp
+  core/src/lightning/IBL.cpp
 )
 
 # file(GLOB RESOURCE_SOURCES_MATDBG 
@@ -59,7 +61,16 @@ add_library(matdbg_resources STATIC "${MATDBG_RESOURCES_SRC}")
 target_include_directories(matdbg_resources PUBLIC ${FILAMENT_GENERATED_RESOURCES_MATDBG})
 #END SETTING MATDBG RESOURCES
 
+# file(GLOB_RECURSE STB_SOURCES
+#     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.cpp"
+#     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.c"
+# )
+
+# set_source_files_properties(${STB_SOURCES} PROPERTIES LANGUAGE CXX)
+
 include_directories(
+  ${CMAKE_SOURCE_DIR}/core/src/include
+
   ${FILAMENT_ROOT}/filament/include
   ${FILAMENT_ROOT}/filament/backend/include
 
@@ -86,13 +97,21 @@ include_directories(
   ${FILAMENT_LIBS_INCLUDE}/uberz/include
   ${FILAMENT_LIBS_INCLUDE}/utils/include
   ${FILAMENT_LIBS_INCLUDE}/viewer/include
+  ${FILAMENT_LIBS_INCLUDE}/viewer/include
+  
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/libpng
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/tinyexr
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/limbassimp
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/libz
 
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
-  ${SDL3_ROOT}/include
+  ${SDL_ROOT}/include
 )
 
 link_directories(
+  
   ${FILAMENT_ROOT}/out/filament/Debug
   ${FILAMENT_ROOT}/out/filament/backend/Debug
   ${FILAMENT_LIBS_ROOT}/bluegl/Debug
@@ -126,8 +145,13 @@ link_directories(
   ${FILAMENT_LIBS_3rdPARTY}/spirv-cross/tnt/Debug
   ${FILAMENT_LIBS_3rdPARTY}/spirv-tools/source/Debug
   ${FILAMENT_LIBS_3rdPARTY}/smol-v/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/stb/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/libpng/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/tinyexr/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/libassimp/tnt/Debug
+  ${FILAMENT_LIBS_3rdPARTY}/libz/tnt/Debug
 
-  ${SDL3_ROOT}/build/Debug
+  ${SDL_ROOT}/build/Debug
 )
 
 target_link_libraries(app PUBLIC
@@ -136,7 +160,8 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio.lib"
     "${FILAMENT_LIBS_ROOT}/utils/Debug/utils.lib"
     "${FILAMENT_LIBS_ROOT}/math/Debug/math.lib"
-    "${SDL3_ROOT}/build/Debug/SDL3.lib"
+    "${SDL_ROOT}/build/Debug/SDL2d.lib"
+    "${SDL_ROOT}/build/Debug/SDL2maind.lib"
     "${FILAMENT_LIBS_ROOT}/bluegl/Debug/bluegl.lib"
     "${FILAMENT_LIBS_ROOT}/camutils/Debug/camutils.lib"
     "${FILAMENT_LIBS_ROOT}/filabridge/Debug/filabridge.lib"
@@ -166,11 +191,23 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_3rdPARTY}/spirv-cross/tnt/Debug/spirv-cross-glsl.lib"
     "${FILAMENT_LIBS_3rdPARTY}/spirv-cross/tnt/Debug/spirv-cross-msl.lib"
     "${FILAMENT_LIBS_3rdPARTY}/spirv-tools/source/Debug/SPIRV-tools.lib"
-    opengl32
+    "${FILAMENT_LIBS_3rdPARTY}/stb/tnt/Debug/stb.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/libpng/tnt/Debug/png.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/tinyexr/tnt/Debug/tinyexr.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/libassimp/tnt/Debug/assimp.lib"
+    "${FILAMENT_LIBS_3rdPARTY}/libz/tnt/Debug/z.lib" 
     "${FILAMENT_LIBS_3rdPARTY}/smol-v/tnt/Debug/smol-v.lib"
+    opengl32
+    Shlwapi
 )
 
-target_sources(app PRIVATE ${RESOURCE_SOURCES_MATDBG} ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c)
+target_sources(app PRIVATE 
+  ${RESOURCE_SOURCES_MATDBG} 
+  ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
+  
+  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
+  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
+)
 
 # target_include_directories(app PRIVATE 
 #   ${FILAMENT_GENERATED_RESOURCES}
@@ -182,7 +219,9 @@ target_sources(app PRIVATE ${RESOURCE_SOURCES_MATDBG} ${FILAMENT_ROOT}/out/libs/
 # Garante consistência do runtime em todas as targets
 set_property(TARGET app PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
 
-add_custom_command(TARGET app POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-3.2.24/build/Debug/SDL3.dll"
-    $<TARGET_FILE_DIR:app>)
+# add_custom_command(TARGET app POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#     "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-3.2.24/build/Debug/SDL3.dll"
+#     $<TARGET_FILE_DIR:app>)
+
+add_subdirectory(${FILAMENT_LIBS_3rdPARTY_ROOT}/libassimp/contrib/zlib)
