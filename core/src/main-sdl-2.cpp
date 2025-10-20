@@ -22,6 +22,7 @@
 #include <filament/Viewport.h>
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
+#include <filameshio/MeshReader.h>
 #include <filamentapp/IBL.h>
 #include <camutils/Manipulator.h>
 #include <gltfio/AssetLoader.h>
@@ -29,6 +30,8 @@
 #include <gltfio/ResourceLoader.h>
 #include <gltfio/TextureProvider.h>
 #include <uberarchive.h>
+#include <math/mat4.h>
+#include <math/vec3.h>
 
 #include <utils/EntityManager.h>
 #include <utils/NameComponentManager.h>
@@ -37,8 +40,10 @@
 
 using namespace filament;
 using namespace filament::gltfio;
+using namespace filamesh;
 using namespace camutils;
 using namespace utils;
+using namespace filament::math;
 using namespace std;
 
 // Retorna o HWND nativo da janela SDL (Windows)
@@ -49,6 +54,35 @@ void* getNativeWindow(SDL_Window* sdlWindow) {
         return nullptr;
     }
     return (void*) wmi.info.win.window;
+}
+
+bool loadFilamesh(Engine* engine, Scene* scene, const std::string& path) {
+    // 1. Ler o arquivo filamesh
+    MeshReader::MaterialRegistry materials;
+    
+    MeshReader::Mesh mesh = MeshReader::loadMeshFromFile(engine, Path(path.c_str()), materials);
+    
+    // 2. Criar MaterialInstance
+    // MaterialInstance* materialInstance = material->createInstance();
+
+    // 3. Criar entidade renderizável
+    // Entity renderable = EntityManager::get().create();
+
+    // // utils::CString* materialsNames = nullptr;
+
+    // // materials.getRegisteredMaterialNames(materialsNames);
+
+    // RenderableManager::Builder(1)
+    //     // .boundingBox(mesh.boundingBox)
+    //     .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, mesh.vertexBuffer, mesh.indexBuffer)
+    //     // .material(0, materials.getMaterialInstance(*materialsNames))
+    //     .culling(true)
+    //     .build(*engine, renderable);
+
+    // 4. Adicionar à cena
+    scene->addEntity(mesh.renderable);
+
+    return true;
 }
 
 // Carrega IBL usando filamentapp::IBL e retorna o unique_ptr para mantenção de lifetime.
@@ -90,78 +124,8 @@ static std::vector<uint8_t> readFileToBuffer(const std::string& path) {
     return buf;
 }
 
-// bool loadGlbIntoScene(Engine* engine, Scene* scene, const std::string& filepath) {
-//     try {
-//         auto buffer = readFileToBuffer(filepath); // .glb binário
 
-//         MaterialProvider* matProv = createUbershaderProvider(engine, UBERARCHIVE_DEFAULT_DATA, UBERARCHIVE_DEFAULT_SIZE);
-
-//         // 1) criar AssetLoader — (construtor/factory depende da versão; a maioria possui um create())
-//         // AssetConfiguration config = { 
-//         //         engine,
-//         //         matProv,
-//         //         new NameComponentManager(EntityManager::get())
-//         // };
-//         AssetLoader* loader = AssetLoader::create({ 
-//                 engine,
-//                 matProv,
-//                 new NameComponentManager(EntityManager::get())
-//         });
-// #if 1
-//         // Tente a factory create() se existir (algumas versões usam create())
-//         // Se o seu header não tiver create(), substitua por AssetLoader(...) conforme o seu include.
-        
-// #else
-//         // Alternativa (dependendo da sua build do gltfio):
-//         // loader = std::make_unique<AssetLoader>(engine);
-// #endif
-
-//         // 2) criar asset a partir do buffer
-//         FilamentAsset* asset = nullptr;
-//         // → Versão A (muito comum): createAssetFromBinary
-//         if constexpr(true) {
-//             // NOTE: substitua por createAsset() se for essa API na sua versão.
-//         }
-//         asset = loader->createAsset(buffer.data(), static_cast<uint32_t>(buffer.size()));
-
-//         // if (!asset) {
-//         //     std::cerr << "failed to create FilamentAsset from " << filepath << std::endl;
-//         //     loader->destroy(); // se aplicável
-//         //     return false;
-//         // }
-
-//         // 3) ResourceLoader — carrega texturas e buffers para GPU
-//         ResourceLoader resourceLoader({engine});
-//         // resourceLoader.addResourcePath("C:/Users/pixqu/Downloads/gltf_test_pbr_material/");
-//         resourceLoader.loadResources(asset); // bloco-síncrono; existe também versão assíncrona
-
-//         // 4) adicionar entidades ao scene
-//         const auto* entities = asset->getEntities();
-//         size_t count = asset->getEntityCount();
-//         if (count > 0) {
-//             scene->addEntities(entities, static_cast<uint32_t>(count));
-//         }
-
-//         // NOTE: mantenha 'loader', 'resourceLoader' e 'asset' vivos enquanto usar as entidades
-//         // normalmente você guarda FilamentAsset* em algum container até destruir com loader->destroyAsset(asset).
-
-//         return true;
-//     } catch (const std::exception& e) {
-//         std::cerr << "exception loading glb: " << e.what() << std::endl;
-//         return false;
-//     }
-// }
-
-// TextureProvider* createStbProvider(Engine* engine) {
-//     return new StbProvider(engine);
-// }
-
-// TextureProvider* createKtx2Provider(Engine* engine) {
-//     return new Ktx2Provider(engine);
-// }
-
-
-auto loadResources = [&] (Engine* engine, FilamentAsset* asset, FilamentInstance* instance, const utils::Path& filename) {
+void loadResources(Engine* engine, FilamentAsset* asset, FilamentInstance* instance, const utils::Path& filename) {
         // Load external textures and buffers.
         std::string const gltfPath = filename.getAbsolutePath();
         ResourceConfiguration configuration = {};
@@ -170,27 +134,12 @@ auto loadResources = [&] (Engine* engine, FilamentAsset* asset, FilamentInstance
         configuration.normalizeSkinningWeights = true;
 
         ResourceLoader* resourceLoader = new gltfio::ResourceLoader(configuration);
-        // app.stbDecoder = createStbProvider(engine);
-        // app.ktxDecoder = createKtx2Provider(engine);
         resourceLoader->addTextureProvider("image/png", createStbProvider(engine));
         resourceLoader->addTextureProvider("image/jpeg", createStbProvider(engine));
         resourceLoader->addTextureProvider("image/ktx2", createKtx2Provider(engine));
-        // if (!resourceLoader) {
-        // } else {
-        //     app.resourceLoader->setConfiguration(configuration);
-        // }
-
-        // if (!resourceLoader->asyncBeginLoad(asset)) {
-        //     std::cerr << "Unable to start loading resources for " << filename << std::endl;
-        //     exit(1);
-        // }
-
+        
         resourceLoader->loadResources(asset);
         resourceLoader->asyncUpdateLoad();
-
-        // if (app.recomputeAabb) {
-        //     app.asset->getInstance()->recomputeBoundingBoxes();
-        // }
 
         asset->releaseSourceData();
 
@@ -345,12 +294,12 @@ int main(int /*argc*/, char** /*argv*/) {
     filament::camutils::Manipulator<float>* cameraMan = filament::camutils::Manipulator<float>::Builder()
         .targetPosition(0, 0, 0)
         .flightMoveDamping(15.0)
-        .build(filament::camutils::Mode::ORBIT);
+        .build(filament::camutils::Mode::FREE_FLIGHT);
 
     view->setCamera(camera);
     view->setScene(scene);
     view->setViewport({0, 0, SCREEN_WIDTH, SCREEN_HEIGHT});
-    // cameraMan->setViewport(view->getViewport());
+    cameraMan->setViewport(SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Simple directional light
     Entity lightEntity = EntityManager::get().create();
@@ -373,21 +322,14 @@ int main(int /*argc*/, char** /*argv*/) {
         std::cout << "IBL loaded and applied to scene." << std::endl;
     }
 
-    // if( loadGlbIntoScene(engine, scene, "C:/Users/pixqu/Downloads/gltf_test_pbr_material/scene.gltf") ) 
-    // {
-    //     std::cout << "scene loaded" << std::endl;
-    // }
-    // else
-    // {
-    //     std::cerr << "error on load scene" << std::endl;
-    // }
-
     FilamentAsset* asset;
-    FilamentInstance* gltfInstance = loadAsset(engine, scene, asset, "C:/Users/pixqu/Downloads/gltf_test_pbr_material/scene.gltf");
+    FilamentInstance* gltfInstance = loadAsset(engine, scene, asset, "C:/Users/pixqu/Downloads/uploads_files_2395268_Yacht.glb");
     if(asset && gltfInstance)
     {
-        loadResources(engine, asset, gltfInstance, "C:/Users/pixqu/Downloads/gltf_test_pbr_material/scene.gltf");
+        loadResources(engine, asset, gltfInstance, "C:/Users/pixqu/Downloads/uploads_files_2395268_Yacht.glb");
     }
+
+    // loadFilamesh(engine, scene, "C:/Users/pixqu/Downloads/Bistro_v5_2/Bistro_v5_2/Yacht.filamesh");
 
     // Loop principal
     bool running = true;
@@ -396,10 +338,28 @@ int main(int /*argc*/, char** /*argv*/) {
     SDL_GetMouseState(&mouseX, &mouseY);
     cameraMan->grabBegin(mouseX, mouseY, false);
 
+    filament::math::float3 eye, center, up;
+    filament::math::float3 offsetEye, offsetCenter;
+    
+    bool mov_front = false, mov_back = false, mov_right = false, mov_left = false, mov_up = false, mov_down = false; 
+    
+    Uint64 prevTicks = SDL_GetPerformanceCounter();
+
+    const float VELOCITY_MOVEMENT = 7;
+    const float VELOCITY_LOOK = 5;
+    float horizontal_direction = 0, vertical_direction = 0;
+
+
     while (running) {
+        
+        Uint64 now = SDL_GetPerformanceCounter();
+        float deltaTime = (float)((now - prevTicks) / (double)SDL_GetPerformanceFrequency());
+        prevTicks = now;
+        
         SDL_Event ev;
-        filament::math::float3 eye, center, up;
         cameraMan->getLookAt(&eye, &center, &up);
+
+
         while (SDL_PollEvent(&ev)) {
             
             
@@ -411,24 +371,52 @@ int main(int /*argc*/, char** /*argv*/) {
                 break;
 
             case SDL_MOUSEMOTION:{
-                cameraMan->grabUpdate(ev.motion.x, ev.motion.y);
                 
+                
+                // cameraMan->grabUpdate(ev.motion.x, ev.motion.y);
+
+                std::cout << std::printf("mouse motion: x: %i y: %i", ev.motion.xrel, ev.motion.yrel) << std::endl;
+                
+                horizontal_direction += ev.motion.xrel * VELOCITY_LOOK * deltaTime;
+                vertical_direction += ev.motion.yrel * VELOCITY_LOOK * deltaTime;
+
+                float yaw   = horizontal_direction;
+                float pitch = vertical_direction;
+
+                offsetCenter.x = cos(pitch) * cos(yaw);
+                offsetCenter.y = sin(pitch);
+                offsetCenter.z = cos(pitch) * sin(yaw);
+
+                float3 dummyCenter(0, 0, 0);
                 //FIXME?: IS HAPPENING TWICE
-                cameraMan->getLookAt(&eye, &center, &up);
+                cameraMan->getLookAt(&eye, &dummyCenter, &up);
                 
                 break;
             }
             case SDL_KEYDOWN:{
                 
-                if(ev.key.keysym.sym == SDLK_w)
-                {
-                    std::cout << "pressed W" << std::endl;
-                    filament::math::float3 moveDirection(eye.x, eye.y, eye.z);
-                    filament::math::float3 movement = moveDirection * 0.001;
-                    center += movement;
+
+                if(ev.key.keysym.sym == SDLK_w) { mov_front = true; std::cout << "pressed w key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_s) { mov_back = true; std::cout << "pressed s key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_d) { mov_right = true; std::cout << "pressed d key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_a) { mov_left = true; std::cout << "pressed a key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_q) { mov_up = true; std::cout << "pressed q key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_e) { mov_down = true; std::cout << "pressed e key" << std::endl; }
+
                 }
+            break;
+            case SDL_KEYUP: {
+
+                    if(ev.key.keysym.sym == SDLK_w) {mov_front = false; std::cout << "released w key" << std::endl; }
+                    if(ev.key.keysym.sym == SDLK_s) {mov_back = false; std::cout << "released s key" << std::endl; }
+                    if(ev.key.keysym.sym == SDLK_d) {mov_right = false; std::cout << "released d key" << std::endl; }
+                    if(ev.key.keysym.sym == SDLK_a) {mov_left = false; std::cout << "released a key" << std::endl; }
+                    if(ev.key.keysym.sym == SDLK_q) {mov_up = false; std::cout << "released q key" << std::endl; }
+                    if(ev.key.keysym.sym == SDLK_e) {mov_down = false; std::cout << "released e key" << std::endl; }
+
+                }
+            break;
             }
-        }
         
         // if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_RESIZED) {
             //     int w = ev.window.data1;
@@ -438,7 +426,31 @@ int main(int /*argc*/, char** /*argv*/) {
             
         }
 
-        camera->lookAt(eye, center, up);
+        // cameraMan->update(deltaTime);
+
+        filament::math::vec3<float> front = normalize(offsetCenter);
+        filament::math::vec3<float> upAbsolute(0, 1, 0);
+        filament::math::vec3<float> right = normalize(cross(front, upAbsolute));
+        filament::math::vec3<float> up = cross(right, front);
+        
+        filament::math::vec3<float> movement;
+        if( mov_front ) movement += front;
+        if( mov_back ) movement -= front;
+        if( mov_right ) movement += right;
+        if( mov_left ) movement -= right;
+        if( mov_up ) movement += up;
+        if( mov_down ) movement -= up;
+
+        if(     (mov_front || mov_back || mov_right || mov_left || mov_up || mov_down) 
+            && !(mov_front && mov_back)
+            && !(mov_right && mov_left)
+            && !(mov_up && mov_down) 
+        )
+        {
+            offsetEye += normalize( movement ) * deltaTime * VELOCITY_MOVEMENT;
+        }
+
+        camera->lookAt(offsetEye, offsetEye + offsetCenter, up);
 
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
@@ -448,7 +460,7 @@ int main(int /*argc*/, char** /*argv*/) {
         // Em caso de renderização com Filament+SDL+GL we usually don't call SDL_GL_SwapWindow,
         // because Filament takes care of presenting. However Filament's OpenGL backend may
         // expect you to swap if SwapChain mapping requires it. If you see flicker, try toggling.
-        SDL_GL_SwapWindow(window);
+        // SDL_GL_SwapWindow(window);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

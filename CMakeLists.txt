@@ -1,16 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
-project(filament_jolt_ozz LANGUAGES CXX)
+project(lite_engine LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
 # Força runtime de debug /MTd (MultiThreadedDebug)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-# Garante que o nível de debug do iterador é compatível com MTd
-# add_compile_definitions(
-#     _ITERATOR_DEBUG_LEVEL=0
-#     _HAS_ITERATOR_DEBUGGING=1
-# )
 
 set(FILAMENT_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/filament")
 set(FILAMENT_LIBS_ROOT "${FILAMENT_ROOT}/out/libs")
@@ -36,21 +31,6 @@ add_executable(app
   core/src/lightning/IBL.cpp
 )
 
-# file(GLOB RESOURCE_SOURCES_MATDBG 
-#           # "${FILAMENT_GENERATED_RESOURCES}/*.c"
-#           # "${FILAMENT_GENERATED_RESOURCES}/*.h"
-#           # "${FILAMENT_GENERATED_RESOURCES}/*.bin"
-#           # "${FILAMENT_GENERATED_RESOURCES}/*.S"
-          
-#           # "${FILAMENT_GENERATED_RESOURCES_MATERIALS}/*.filamat"
-
-#           # "${FILAMENT_GENERATED_RESOURCES_DATA}/*.bin"
-
-#           "${FILAMENT_GENERATED_RESOURCES_MATDBG}/*.c"
-#           "${FILAMENT_GENERATED_RESOURCES_MATDBG}/*.h"
-#           # "${FILAMENT_GENERATED_RESOURCES_MATDBG}/*.bin"
-# )
-
 #SETTING MATDBG RESOURCES
 set(MATDBG_RESOURCES_SRC
     ${FILAMENT_GENERATED_RESOURCES_MATDBG}/matdbg_resources.c
@@ -72,13 +52,6 @@ set_source_files_properties(${UBER_ARCHIVE_RESOURCES_SRC} PROPERTIES LANGUAGE CX
 add_library(uber_archive STATIC "${UBER_ARCHIVE_RESOURCES_SRC}")
 target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS})
 #END SETTING MATDBG RESOURCES
-
-# file(GLOB_RECURSE STB_SOURCES
-#     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.cpp"
-#     "${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/*.c"
-# )
-
-# set_source_files_properties(${STB_SOURCES} PROPERTIES LANGUAGE CXX)
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/core/src/include
@@ -127,54 +100,6 @@ include_directories(
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
   ${SDL_ROOT}/include
-)
-
-link_directories(
-  
-  ${FILAMENT_ROOT}/out/filament/Debug
-  ${FILAMENT_ROOT}/out/filament/backend/Debug
-  ${FILAMENT_LIBS_ROOT}/bluegl/Debug
-  ${FILAMENT_LIBS_ROOT}/camutils/Debug
-  ${FILAMENT_LIBS_ROOT}/filabridge/Debug
-  ${FILAMENT_LIBS_ROOT}/filaflat/Debug
-  ${FILAMENT_LIBS_ROOT}/filagui/Debug
-  ${FILAMENT_LIBS_ROOT}/filamat/Debug
-  ${FILAMENT_LIBS_ROOT}/filament-matp/Debug
-  ${FILAMENT_LIBS_ROOT}/filamentapp/Debug
-  ${FILAMENT_LIBS_ROOT}/filameshio/Debug
-  ${FILAMENT_LIBS_ROOT}/generatePrefilterMipmap/Debug
-  ${FILAMENT_LIBS_ROOT}/geometry/Debug
-  ${FILAMENT_LIBS_ROOT}/gltfio/Debug
-  ${FILAMENT_LIBS_ROOT}/ibl/Debug
-  ${FILAMENT_LIBS_ROOT}/iblprefilter/Debug
-  ${FILAMENT_LIBS_ROOT}/image/Debug
-  ${FILAMENT_LIBS_ROOT}/imageio/Debug
-  ${FILAMENT_LIBS_ROOT}/ktxreader/Debug
-  ${FILAMENT_LIBS_ROOT}/matdbg/Debug
-  ${FILAMENT_LIBS_ROOT}/math/Debug
-  ${FILAMENT_LIBS_ROOT}/mathio/Debug
-  ${FILAMENT_LIBS_ROOT}/uberz/Debug
-  ${FILAMENT_LIBS_ROOT}/utils/Debug
-  ${FILAMENT_LIBS_ROOT}/viewer/Debug
-
-  ${FILAMENT_LIBS_3rdPARTY}/zstd/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/civetweb/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/glslang/tnt/glslang/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/glslang/tnt/SPIRV/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/spirv-cross/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/spirv-tools/source/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/smol-v/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/stb/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/libpng/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/tinyexr/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/libassimp/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/libz/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/meshoptimizer/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/draco/tnt/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/mikktspace/Debug
-  ${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug
-
-  ${SDL_ROOT}/build/Debug
 )
 
 target_link_libraries(app PUBLIC
@@ -242,19 +167,6 @@ target_sources(app PRIVATE
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
 )
 
-# target_include_directories(app PRIVATE 
-#   ${FILAMENT_GENERATED_RESOURCES}
-#   ${FILAMENT_GENERATED_RESOURCES_MATERIALS}
-#   ${FILAMENT_GENERATED_RESOURCES_DATA}
-#   ${FILAMENT_GENERATED_RESOURCES_MATDBG}
-# )
-
 # Garante consistência do runtime em todas as targets
 set_property(TARGET app PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
-
-# add_custom_command(TARGET app POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#     "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-3.2.24/build/Debug/SDL3.dll"
-#     $<TARGET_FILE_DIR:app>)
-
 add_subdirectory(${FILAMENT_LIBS_3rdPARTY_ROOT}/libassimp/contrib/zlib)
