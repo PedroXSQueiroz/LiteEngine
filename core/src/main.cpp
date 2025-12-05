@@ -34,6 +34,13 @@
 #include <math/vec3.h>
 #include <math/mat4.h>
 
+#if defined(_WIN32)
+extern "C" {
+    __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
+    __declspec(dllexport) unsigned long AmdPowerXpressRequestHighPerformance = 0x00000001;
+}
+#endif
+
 using namespace std;
 
 static void* getNativeWindowHandle(SDL_Window* window) {
@@ -166,6 +173,14 @@ int main(int /*argc*/, char** /*argv*/){
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
         return -1;
     }
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);   // obrigatório!!
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // depth buffer
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     
     // Criar janela SEM OpenGL - Filament gerenciará isso
     SDL_Window* window = SDL_CreateWindow(
@@ -247,6 +262,8 @@ int main(int /*argc*/, char** /*argv*/){
     int fbW = SCREEN_WIDTH, fbH = SCREEN_HEIGHT;
     SDL_GetWindowSize(window, &fbW, &fbH);
     view->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
+    // view->setClearTargets(true, true); // habilita clear color + depth
+    // view->setClearColor({0.05f, 0.05f, 0.05f, 1.0f}); // alpha = 1.0 importante
     
     // Configurar câmera DEPOIS de criar view
     camera->setProjection(45.0f, float(fbW) / float(fbH), 0.1f, 2000.0f);

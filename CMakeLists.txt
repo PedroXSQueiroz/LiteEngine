@@ -27,7 +27,7 @@ set(FILAMENT_GENERATED_RESOURCES_MATDBG ${FILAMENT_ROOT}/out/libs/matdbg)
 set(FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS ${FILAMENT_ROOT}/out/libs/gltfio/materials)
 
 add_executable(app 
-  core/src/main-sdl-2.cpp
+  core/src/main.cpp
   core/src/lightning/IBL.cpp
 )
 
