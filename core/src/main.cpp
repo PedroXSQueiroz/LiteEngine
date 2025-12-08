@@ -9,6 +9,14 @@
 #include <SDL_syswm.h>
 #define SDL_MAIN_HANDLED
 
+// Força GPU dedicada - deve estar ANTES dos includes do Filament
+// #ifdef _WIN32
+// extern "C" {
+//     __declspec(dllexport) unsigned long NvOptimusEnablement = 1;
+//     __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+// }
+// #endif
+
 #include <filament/Engine.h>
 #include <filament/SwapChain.h>
 #include <filament/View.h>
@@ -34,12 +42,8 @@
 #include <math/vec3.h>
 #include <math/mat4.h>
 
-#if defined(_WIN32)
-extern "C" {
-    __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
-    __declspec(dllexport) unsigned long AmdPowerXpressRequestHighPerformance = 0x00000001;
-}
-#endif
+// Include bluegl para OpenGL loader do Filament
+#include <bluegl/BlueGL.h>
 
 using namespace std;
 
@@ -174,15 +178,14 @@ int main(int /*argc*/, char** /*argv*/){
         return -1;
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    // Logo após SDL_Init e antes de criar engine
+    #ifdef _WIN32
+    // Forçar carregamento de opengl32.dll do sistema (não mesa/software)
+    SetEnvironmentVariableA("OPENGL_DRIVER", "opengl32");
+    #endif
 
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);   // obrigatório!!
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);    // depth buffer
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    
-    // Criar janela SEM OpenGL - Filament gerenciará isso
+    // Não criar contexto OpenGL com SDL - deixar Filament fazer isso
+    // Apenas criar a janela normal
     SDL_Window* window = SDL_CreateWindow(
         "Lite", 
         SDL_WINDOWPOS_CENTERED, 
@@ -198,6 +201,8 @@ int main(int /*argc*/, char** /*argv*/){
         std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
         return -1;
     }
+    
+    std::cout << "Window created successfully" << std::endl;
 
     /*----------------------------------------------------------------------------
     SETUP RENDERER ENGINE
@@ -210,10 +215,18 @@ int main(int /*argc*/, char** /*argv*/){
     
     std::cout << "Creating Filament engine..." << std::endl;
     
-    // Criar engine
+    // Tentar criar engine com Vulkan primeiro (melhor detecção de GPU)
     filament::Engine* engine = filament::Engine::Builder()
-        .backend(filament::Engine::Backend::OPENGL)
+        .backend(filament::Engine::Backend::VULKAN)
         .build();
+
+    // Se Vulkan falhar, fallback para OpenGL
+    if (!engine) {
+        std::cout << "Vulkan not available, falling back to OpenGL..." << std::endl;
+        engine = filament::Engine::Builder()
+            .backend(filament::Engine::Backend::OPENGL)
+            .build();
+    }
 
     if (!engine) {
         std::cerr << "Failed to create Filament engine" << std::endl;
@@ -257,13 +270,11 @@ int main(int /*argc*/, char** /*argv*/){
     // Configurar view
     view->setCamera(camera);
     view->setScene(scene);
-    view->setPostProcessingEnabled(false); // Desabilitar por enquanto para debug
+    view->setPostProcessingEnabled(false);
     
     int fbW = SCREEN_WIDTH, fbH = SCREEN_HEIGHT;
     SDL_GetWindowSize(window, &fbW, &fbH);
     view->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
-    // view->setClearTargets(true, true); // habilita clear color + depth
-    // view->setClearColor({0.05f, 0.05f, 0.05f, 1.0f}); // alpha = 1.0 importante
     
     // Configurar câmera DEPOIS de criar view
     camera->setProjection(45.0f, float(fbW) / float(fbH), 0.1f, 2000.0f);
@@ -330,7 +341,7 @@ int main(int /*argc*/, char** /*argv*/){
         .color({1.0f, 1.0f, 0.95f})
         .intensity(100000.0f)
         .direction({0.6f, -1.0f, -0.8f})
-        .castShadows(false) // Desabilitar sombras por enquanto
+        .castShadows(false)
         .build(*engine, lightEntity);
     scene->addEntity(lightEntity);
     
@@ -346,7 +357,7 @@ int main(int /*argc*/, char** /*argv*/){
     
     //NAVIGATION
     bool mov_front = false, mov_back = false, mov_right = false, mov_left = false, mov_up = false, mov_down = false;
-    const float VELOCITY_MOVEMENT = radius * 0.5f; // Ajustar baseado no tamanho do modelo
+    const float VELOCITY_MOVEMENT = radius * 0.5f;
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
     
@@ -390,7 +401,6 @@ int main(int /*argc*/, char** /*argv*/){
             }
             case SDL_KEYDOWN:{
                 if(ev.key.keysym.sym == SDLK_ESCAPE) {
-                    // Toggle mouse capture
                     SDL_bool mode = SDL_GetRelativeMouseMode();
                     SDL_SetRelativeMouseMode(mode == SDL_TRUE ? SDL_FALSE : SDL_TRUE);
                 }
@@ -433,7 +443,7 @@ int main(int /*argc*/, char** /*argv*/){
         if( mov_back ) movement -= front;
         if( mov_right ) movement += right;
         if( mov_left ) movement -= right;
-        if( mov_up ) movement += upAbsolute; // Usar up absoluto para subir/descer
+        if( mov_up ) movement += upAbsolute;
         if( mov_down ) movement -= upAbsolute;
 
         if(length(movement) > 0.001f)
@@ -446,16 +456,11 @@ int main(int /*argc*/, char** /*argv*/){
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
             renderer->endFrame();
-            
-            // if (frameCount < 5) {
-            //     std::cout << "Frame " << frameCount << " rendered successfully" << std::endl;
-            // }
             frameCount++;
         } else {
             std::cerr << "beginFrame failed!" << std::endl;
         }
 
-        // Dar tempo para o sistema processar
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     

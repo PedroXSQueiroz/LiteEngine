@@ -16,6 +16,9 @@ set(FILAMENT_LIB_BUILD_VERSION "Debug")
 
 set(SDL_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-2.32.10")
 
+# Encontrar Vulkan
+find_package(Vulkan REQUIRED)
+
 set(JOLT_ROOT "/3rd_party/JoltPhysics")
 set(OZZ_ROOT "/3rd_party/ozz-animation")
 
@@ -60,6 +63,7 @@ include_directories(
   ${FILAMENT_ROOT}/filament/backend/include
 
   ${FILAMENT_LIBS_INCLUDE}/bluegl/include
+  ${FILAMENT_LIBS_INCLUDE}/bluevk/include 
   ${FILAMENT_LIBS_INCLUDE}/camutils/include
   ${FILAMENT_LIBS_INCLUDE}/filabridge/include
   ${FILAMENT_LIBS_INCLUDE}/filaflat/include
@@ -100,11 +104,16 @@ include_directories(
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
   ${SDL_ROOT}/include
+
+  ${Vulkan_INCLUDE_DIRS} 
 )
 
 target_link_libraries(app PUBLIC
     "${FILAMENT_ROOT}/out/filament/Debug/filament.lib"
     "${FILAMENT_ROOT}/out/filament/backend/Debug/backend.lib"
+
+    "${FILAMENT_LIBS_ROOT}/bluevk/Debug/bluevk.lib"
+
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio.lib"
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio_core.lib"
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/uberarchive.lib"
@@ -156,6 +165,8 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/zstd-basisu.lib"
     opengl32
     Shlwapi
+
+    Vulkan::Vulkan 
 )
 
 target_sources(app PRIVATE 
