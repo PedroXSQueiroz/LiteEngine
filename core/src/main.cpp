@@ -9,13 +9,10 @@
 #include <SDL_syswm.h>
 #define SDL_MAIN_HANDLED
 
-// Força GPU dedicada - deve estar ANTES dos includes do Filament
-// #ifdef _WIN32
-// extern "C" {
-//     __declspec(dllexport) unsigned long NvOptimusEnablement = 1;
-//     __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
-// }
-// #endif
+#include <assimp/importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/vector3.h>
 
 #include <filament/Engine.h>
 #include <filament/SwapChain.h>
@@ -23,8 +20,11 @@
 #include <filament/Scene.h>
 #include <filament/Viewport.h>
 #include <filament/Renderer.h>
+#include <filament/IndexBuffer.h>
 #include <camutils/Manipulator.h>
 #include <utils/EntityManager.h>
+#include <filament/TransformManager.h>
+#include <filament/RenderableManager.h>
 #include <utils/NameComponentManager.h>
 #include <filament/LightManager.h>
 #include <filamentapp/IBL.h>
@@ -45,7 +45,12 @@
 // Include bluegl para OpenGL loader do Filament
 #include <bluegl/BlueGL.h>
 
+// #include <lite/services/Asset3dLoader.h>
+#include <lite/services/Asset3dLoaderAssimp.h>
+#include <lite/services/MaterialLoader.h>
+
 using namespace std;
+using namespace lite;
 
 static void* getNativeWindowHandle(SDL_Window* window) {
     SDL_SysWMinfo wmi;
@@ -61,6 +66,10 @@ static void* getNativeWindowHandle(SDL_Window* window) {
     return (void*) (uintptr_t) wmi.info.x11.window;
 #endif
 }
+
+/*---------------------------------------------------------------------------------------
+ASSETS
+---------------------------------------------------------------------------------------*/
 
 static std::ifstream::pos_type getFileSize(const char* filename) {
     std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
@@ -284,41 +293,65 @@ int main(int /*argc*/, char** /*argv*/){
     /*----------------------------------------------------------------------------
     LOAD SCENE ENTITIES
     ----------------------------------------------------------------------------*/
-    std::cout << "Loading GLTF asset..." << std::endl;
+    // std::cout << "Loading GLTF asset..." << std::endl;
     
-    filament::gltfio::FilamentAsset* asset = nullptr;
-    filament::gltfio::FilamentInstance* gltfInstance = loadAsset(
-        engine, 
-        scene, 
-        asset, 
-        "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb"
-    );
+    // filament::gltfio::FilamentAsset* asset = nullptr;
+    // filament::gltfio::FilamentInstance* gltfInstance = loadAsset(
+    //     engine, 
+    //     scene, 
+    //     asset, 
+    //     "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb"
+    // );
     
-    if(asset && gltfInstance)
-    {
-        std::cout << "Loading resources..." << std::endl;
-        loadResources(
-            engine, 
-            asset, 
-            gltfInstance, 
-            "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb"
-        );
-        std::cout << "Resources loaded successfully" << std::endl;
-    } else {
-        std::cerr << "Failed to load GLTF asset!" << std::endl;
-    }
+    // if(asset && gltfInstance)
+    // {
+    //     std::cout << "Loading resources..." << std::endl;
+    //     loadResources(
+    //         engine, 
+    //         asset, 
+    //         gltfInstance, 
+    //         "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb"
+    //     );
+    //     std::cout << "Resources loaded successfully" << std::endl;
+    // } else {
+    //     std::cerr << "Failed to load GLTF asset!" << std::endl;
+    // }
 
-    // Calcular bounding box do asset para posicionar câmera
+    filament::Material* mat = nullptr;
+    filament::MaterialInstance* matInstance = nullptr;
+    std::vector<FBXMesh> objects;
+
+    MaterialLoader* matLoader = new MaterialLoader(engine);
+
+    Asset3dLoader* loader = new Asset3dLoaderAssimp(
+        engine,
+        scene,
+        matLoader
+    );
+
+    // Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx");
+    Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
+    objects = data->m_objects;
+
+    // loadFBXWithMaterials(
+    //     engine, 
+    //     "C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx"
+    //     , scene
+    //     , objects);
+    // scene->addEntity(mesh.entity);
+
+
     filament::math::float3 center(0, 0, 0);
     float radius = 5.0f;
+    // // Calcular bounding box do asset para posicionar câmera
     
-    if (asset) {
-        auto bbox = asset->getBoundingBox();
-        center = bbox.center();
-        radius = length(bbox.extent()) * 1.5f;
-        std::cout << "Asset center: " << center.x << ", " << center.y << ", " << center.z << std::endl;
-        std::cout << "Asset radius: " << radius << std::endl;
-    }
+    // if (asset) {
+    //     auto bbox = asset->getBoundingBox();
+    //     center = bbox.center();
+    //     radius = length(bbox.extent()) * 1.5f;
+    //     std::cout << "Asset center: " << center.x << ", " << center.y << ", " << center.z << std::endl;
+    //     std::cout << "Asset radius: " << radius << std::endl;
+    // }
 
     //SETUP CAMERA - posicionar olhando para o modelo
     filament::math::float3 offsetEye = center + filament::math::float3(0, radius * 0.3f, radius);
@@ -357,7 +390,7 @@ int main(int /*argc*/, char** /*argv*/){
     
     //NAVIGATION
     bool mov_front = false, mov_back = false, mov_right = false, mov_left = false, mov_up = false, mov_down = false;
-    const float VELOCITY_MOVEMENT = radius * 0.5f;
+    const float VELOCITY_MOVEMENT = radius * 50.f;
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
     
@@ -475,8 +508,28 @@ int main(int /*argc*/, char** /*argv*/){
     engine->destroyCameraComponent(cameraEntity);
     em.destroy(cameraEntity);
     
-    if (asset) {
-        asset->releaseSourceData();
+    // if (asset) {
+    //     asset->releaseSourceData();
+    // }
+
+    // Cleanup FBX mesh
+    for(FBXMesh mesh : objects)
+    {
+        if (!mesh.entity.isNull()) {
+            engine->destroy(mesh.entity);
+        }
+        if (mesh.vertexBff) {
+            engine->destroy(mesh.vertexBff);
+        }
+        if (mesh.indexBff) {
+            engine->destroy(mesh.indexBff);
+        }
+        if (mesh.matInstance) {
+            engine->destroy(mesh.matInstance);
+        }
+        if (mesh.material) {
+            engine->destroy(mesh.material);
+        }
     }
     
     filament::Engine::destroy(&engine);

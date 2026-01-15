@@ -1,4 +1,5 @@
 #define SDL_MAIN_HANDLED
+#define STB_IMAGE_IMPLEMENTATION
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -8,6 +9,8 @@
 #include <thread>
 #include <chrono>
 #include <set>
+#include <filesystem>
+#include <limits>
 
 #include <math/vec3.h>
 #include <filament/Engine.h>
@@ -22,6 +25,8 @@
 #include <filament/Viewport.h>
 #include <filament/Material.h>
 #include <filament/RenderableManager.h>
+#include <filament/IndexBuffer.h>
+#include <filament/TransformManager.h>
 #include <filameshio/MeshReader.h>
 #include <filamentapp/IBL.h>
 #include <camutils/Manipulator.h>
@@ -32,19 +37,27 @@
 #include <uberarchive.h>
 #include <math/mat4.h>
 #include <math/vec3.h>
-
 #include <utils/EntityManager.h>
 #include <utils/NameComponentManager.h>
 #include <utils/Path.h>
 #include <utils/Panic.h>
+#include "stb_image.h"
+
+#include <assimp/importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <assimp/vector3.h>
+
 
 using namespace filament;
 using namespace filament::gltfio;
+using namespace filament::backend;
 using namespace filamesh;
 using namespace camutils;
 using namespace utils;
 using namespace filament::math;
 using namespace std;
+using namespace std::filesystem;
 
 // Retorna o HWND nativo da janela SDL (Windows)
 void* getNativeWindow(SDL_Window* sdlWindow) {
@@ -56,33 +69,178 @@ void* getNativeWindow(SDL_Window* sdlWindow) {
     return (void*) wmi.info.win.window;
 }
 
-bool loadFilamesh(Engine* engine, Scene* scene, const std::string& path) {
-    // 1. Ler o arquivo filamesh
-    MeshReader::MaterialRegistry materials;
+// bool loadFilamesh(Engine* engine, Scene* scene, const std::string& path) {
+//     // 1. Ler o arquivo filamesh
+//     MeshReader::MaterialRegistry materials;
     
-    MeshReader::Mesh mesh = MeshReader::loadMeshFromFile(engine, Path(path.c_str()), materials);
+//     MeshReader::Mesh mesh = MeshReader::loadMeshFromFile(engine, Path(path.c_str()), materials);
     
-    // 2. Criar MaterialInstance
-    // MaterialInstance* materialInstance = material->createInstance();
+//     // 2. Criar MaterialInstance
+//     // MaterialInstance* materialInstance = material->createInstance();
 
-    // 3. Criar entidade renderizável
-    // Entity renderable = EntityManager::get().create();
+//     // 3. Criar entidade renderizável
+//     // Entity renderable = EntityManager::get().create();
 
-    // // utils::CString* materialsNames = nullptr;
+//     // // utils::CString* materialsNames = nullptr;
 
-    // // materials.getRegisteredMaterialNames(materialsNames);
+//     // // materials.getRegisteredMaterialNames(materialsNames);
 
-    // RenderableManager::Builder(1)
-    //     // .boundingBox(mesh.boundingBox)
-    //     .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, mesh.vertexBuffer, mesh.indexBuffer)
-    //     // .material(0, materials.getMaterialInstance(*materialsNames))
-    //     .culling(true)
-    //     .build(*engine, renderable);
+//     // RenderableManager::Builder(1)
+//     //     // .boundingBox(mesh.boundingBox)
+//     //     .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, mesh.vertexBuffer, mesh.indexBuffer)
+//     //     // .material(0, materials.getMaterialInstance(*materialsNames))
+//     //     .culling(true)
+//     //     .build(*engine, renderable);
 
-    // 4. Adicionar à cena
-    scene->addEntity(mesh.renderable);
+//     // 4. Adicionar à cena
+//     scene->addEntity(mesh.renderable);
 
-    return true;
+//     return true;
+// }
+
+// --------------------------------------
+// Utilitário para carregar textura em Filament
+// --------------------------------------
+Texture* loadTextureFromFile(Engine& engine, const std::string& path) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, 4);
+    if (!data) {
+        std::cerr << "Erro ao carregar textura: " << path << std::endl;
+        return nullptr;
+    }
+
+    Texture* tex = Texture::Builder()
+        .width(width)
+        .height(height)
+        .levels(1)
+        .format(Texture::InternalFormat::RGBA8)
+        .build(engine);
+
+    Texture::PixelBufferDescriptor buffer(data, width * height * 4,
+        Texture::Format::RGBA, Texture::Type::UBYTE,
+        (BufferDescriptor::Callback)stbi_image_free);
+
+    tex->setImage(engine, 0, std::move(buffer));
+    tex->generateMipmaps(engine);
+    return tex;
+}
+
+// --------------------------------------
+// Carrega um FBX e aplica material do arquivo
+// --------------------------------------
+struct FBXMesh {
+    Entity entity;
+    Material* material = nullptr;
+    MaterialInstance* matInstance = nullptr;
+};
+
+FBXMesh loadFBXWithMaterials(Engine* engine, const std::string& fbxPath, Scene* scene) {
+    FBXMesh result;
+
+    Entity entity = EntityManager::get().create();  
+
+    Assimp::Importer importer;
+    const aiScene* aiScene = importer.ReadFile(fbxPath,
+        aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
+        aiProcess_CalcTangentSpace);
+
+    if (!aiScene) {
+        std::cerr << "Erro ao carregar FBX: " << importer.GetErrorString() << std::endl;
+        return result;
+    }
+
+    aiMesh* mesh = aiScene->mMeshes[0];
+    aiMaterial* aiMat = aiScene->mMaterials[mesh->mMaterialIndex];
+
+    // ---------------------------
+    // Carregar material default
+    // ---------------------------
+    std::ifstream matFile("D:/Workspace/LiteEngine/3rd_party/filament/out/filament/generated/material/defaultMaterial.filamat", std::ios::binary);
+    std::vector<uint8_t> matData((std::istreambuf_iterator<char>(matFile)), {});
+
+    Material* mat = Material::Builder()
+        .package(matData.data(), matData.size())
+        .build(*engine);
+
+    MaterialInstance* matInstance = mat->createInstance();
+
+    // ---------------------------
+    // Criar VertexBuffer e IndexBuffer
+    // ---------------------------
+    VertexBuffer::Builder vbb;
+    vbb.vertexCount(mesh->mNumVertices)
+       .bufferCount(3)
+       .attribute(VertexAttribute::POSITION, 0, VertexBuffer::AttributeType::FLOAT3)
+       .attribute(VertexAttribute::TANGENTS, 1, VertexBuffer::AttributeType::FLOAT3)
+       .attribute(VertexAttribute::UV0, 2, VertexBuffer::AttributeType::FLOAT2);
+
+    VertexBuffer* vertexBff = vbb.build(*engine);
+
+    std::vector<float3> positions(mesh->mNumVertices);
+    std::vector<float3> normals(mesh->mNumVertices);
+    std::vector<float2> uvs(mesh->mNumVertices);
+
+    float3 boundingBoxStart(
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max()
+    );
+    float3 boundingBoxEnd(
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min(),
+        std::numeric_limits<float>::min()
+    );
+
+    for (size_t i = 0; i < mesh->mNumVertices; ++i) {
+        positions[i] = {mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
+
+        if (boundingBoxStart.x < mesh->mVertices[i].x) boundingBoxStart.x = mesh->mVertices[i].x;
+        if (boundingBoxStart.y < mesh->mVertices[i].y) boundingBoxStart.y = mesh->mVertices[i].y;
+        if (boundingBoxStart.z < mesh->mVertices[i].z) boundingBoxStart.z = mesh->mVertices[i].z;
+        if (boundingBoxEnd.x > mesh->mVertices[i].x) boundingBoxEnd.x = mesh->mVertices[i].x;
+        if (boundingBoxEnd.y > mesh->mVertices[i].y) boundingBoxEnd.y = mesh->mVertices[i].y;
+        if (boundingBoxEnd.z > mesh->mVertices[i].z) boundingBoxEnd.z = mesh->mVertices[i].z;
+
+        normals[i]   = {mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
+        if (mesh->HasTextureCoords(0))
+            uvs[i] = {mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
+        else
+            uvs[i] = {0.f, 0.f};
+    }
+
+    vertexBff->setBufferAt(*engine, 0, VertexBuffer::BufferDescriptor(positions.data(), positions.size() * sizeof(float3)));
+    vertexBff->setBufferAt(*engine, 1, VertexBuffer::BufferDescriptor(normals.data(), normals.size() * sizeof(float3)));
+    vertexBff->setBufferAt(*engine, 2, VertexBuffer::BufferDescriptor(uvs.data(), uvs.size() * sizeof(float2)));
+
+    std::vector<uint32_t> indices;
+    for (size_t f = 0; f < mesh->mNumFaces; f++) {
+        for (size_t idx = 0; idx < mesh->mFaces[f].mNumIndices; idx++)
+            indices.push_back(mesh->mFaces[f].mIndices[idx]);
+    }
+
+    IndexBuffer* indexBff = IndexBuffer::Builder()
+        .indexCount(indices.size())
+        .bufferType(IndexBuffer::IndexType::UINT)
+        .build(*engine);
+
+    indexBff->setBuffer(*engine, IndexBuffer::BufferDescriptor(indices.data(), indices.size() * sizeof(uint32_t)));
+
+    // ---------------------------
+    // Criar Renderable
+    // ---------------------------
+    RenderableManager::Builder(1)
+        .boundingBox({boundingBoxStart, boundingBoxEnd})
+        .geometry(0, PrimitiveType::TRIANGLES, vertexBff, indexBff)
+        // .material(0, matInstance)
+        .build(*engine, entity);
+
+    scene->addEntity(entity);
+
+    result.entity = entity;
+    result.material = mat;
+    result.matInstance = matInstance;
+    return result;
 }
 
 // Carrega IBL usando filamentapp::IBL e retorna o unique_ptr para mantenção de lifetime.
@@ -187,43 +345,52 @@ FilamentInstance* loadAsset(Engine* engine, Scene* scene, FilamentAsset* &assetO
             std::cerr << "Unable to parse " << filename << std::endl;
             exit(1);
         }
+        
 
         // pre-compile all material variants
-        std::set<Material*> materials;
-        RenderableManager const& rcm = engine->getRenderableManager();
-        Slice<Entity> const renderables{
-                asset->getRenderableEntities(), asset->getRenderableEntityCount() };
-        for (Entity const e: renderables) {
-            auto ri = rcm.getInstance(e);
-            size_t const c = rcm.getPrimitiveCount(ri);
-            for (size_t i = 0; i < c; i++) {
-                MaterialInstance* const mi = rcm.getMaterialInstanceAt(ri, i);
-                Material* ma = const_cast<Material *>(mi->getMaterial());
-                materials.insert(ma);
-            }
-        }
-        for (Material* ma : materials) {
-            // Don't attempt to precompile shaders on WebGL.
-            // Chrome already suffers from slow shader compilation:
-            // https://github.com/google/filament/issues/6615
-            // Precompiling shaders exacerbates the problem.
-#if !defined(__EMSCRIPTEN__)
-            // First compile high priority variants
-            ma->compile(Material::CompilerPriorityQueue::HIGH,
-                    UserVariantFilterBit::DIRECTIONAL_LIGHTING |
-                    UserVariantFilterBit::DYNAMIC_LIGHTING |
-                    UserVariantFilterBit::SHADOW_RECEIVER);
+//         std::set<Material*> materials;
+//         RenderableManager const& rcm = engine->getRenderableManager();
+//         Slice<Entity> const renderables{
+//                 asset->getRenderableEntities(), asset->getRenderableEntityCount() };
+//         for (Entity const e: renderables) {
+//             auto ri = rcm.getInstance(e);
+//             size_t const c = rcm.getPrimitiveCount(ri);
+//             for (size_t i = 0; i < c; i++) {
+//                 MaterialInstance* const mi = rcm.getMaterialInstanceAt(ri, i);
+//                 Material* ma = const_cast<Material *>(mi->getMaterial());
+//                 materials.insert(ma);
+//             }
+//         }
+//         for (Material* ma : materials) {
+//             // Don't attempt to precompile shaders on WebGL.
+//             // Chrome already suffers from slow shader compilation:
+//             // https://github.com/google/filament/issues/6615
+//             // Precompiling shaders exacerbates the problem.
+// #if !defined(__EMSCRIPTEN__)
+//             // First compile high priority variants
+//             ma->compile(Material::CompilerPriorityQueue::HIGH,
+//                     UserVariantFilterBit::DIRECTIONAL_LIGHTING |
+//                     UserVariantFilterBit::DYNAMIC_LIGHTING |
+//                     UserVariantFilterBit::SHADOW_RECEIVER);
 
-            // and then, everything else at low priority, except STE, which is very uncommon.
-            ma->compile(Material::CompilerPriorityQueue::LOW,
-                    UserVariantFilterBit::FOG |
-                    UserVariantFilterBit::SKINNING |
-                    UserVariantFilterBit::SSR |
-                    UserVariantFilterBit::VSM);
-#endif
-        }
+//             // and then, everything else at low priority, except STE, which is very uncommon.
+//             ma->compile(Material::CompilerPriorityQueue::LOW,
+//                     UserVariantFilterBit::FOG |
+//                     UserVariantFilterBit::SKINNING |
+//                     UserVariantFilterBit::SSR |
+//                     UserVariantFilterBit::VSM);
+// #endif
+//         }
 
         FilamentInstance* instance = asset->getInstance();
+
+        // const utils::Entity* currentEntity = asset->getEntities();
+        // for(int entityIndex = 0; entityIndex < asset->getEntityCount(); entityIndex++)
+        // {
+        //     scene->addEntity(*currentEntity);
+        //     currentEntity++;
+        // }
+
         scene->addEntities(asset->getEntities(), asset->getEntityCount());
         buffer.clear();
         buffer.shrink_to_fit();
@@ -232,6 +399,175 @@ FilamentInstance* loadAsset(Engine* engine, Scene* scene, FilamentAsset* &assetO
 
         return instance;
     };
+
+
+struct MeshData {
+    std::vector<float> positions;
+    std::vector<float> normals;
+    std::vector<float> uvs;
+    std::vector<uint32_t> indices;
+
+    float3 location;
+};
+
+static void ProcessAssimpMesh(const aiMesh* mesh, MeshData& out) {
+    out.positions.reserve(mesh->mNumVertices * 3);
+    out.normals.reserve(mesh->mNumVertices * 3);
+    if (mesh->mTextureCoords[0]) {
+        out.uvs.reserve(mesh->mNumVertices * 2);
+    }
+
+    for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
+        aiVector3D pos = mesh->mVertices[i];
+        aiVector3D norm = mesh->mNormals ? mesh->mNormals[i] : aiVector3D(0, 1, 0);
+        out.positions.insert(out.positions.end(), {pos.x, pos.y, pos.z});
+        out.normals.insert(out.normals.end(), {norm.x, norm.y, norm.z});
+
+        if (mesh->mTextureCoords[0]) {
+            aiVector3D uv = mesh->mTextureCoords[0][i];
+            out.uvs.insert(out.uvs.end(), {uv.x, uv.y});
+        }
+    }
+
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        const aiFace& face = mesh->mFaces[i];
+        for (unsigned int j = 0; j < face.mNumIndices; ++j) {
+            out.indices.push_back(face.mIndices[j]);
+        }
+    }
+}
+
+static void ProcessAssimpNode(const aiNode* node, const aiScene* scene, std::vector<MeshData>& meshes) {
+    for (unsigned int i = 0; i < node->mNumMeshes; ++i) {
+        aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+        MeshData data;
+        ProcessAssimpMesh(mesh, data);
+        meshes.push_back(std::move(data));
+    }
+
+    for (unsigned int i = 0; i < node->mNumChildren; ++i) {
+        ProcessAssimpNode(node->mChildren[i], scene, meshes);
+    }
+}
+
+void LoadModel(filament::Engine* engine, filament::Scene* scene, const std::string& path) {
+    Assimp::Importer importer;
+    const aiScene* aiScenePtr = importer.ReadFile(
+        path,
+        aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
+        aiProcess_FlipUVs |
+        aiProcess_JoinIdenticalVertices |
+        aiProcess_ImproveCacheLocality |
+        aiProcess_LimitBoneWeights |
+        aiProcess_ConvertToLeftHanded |
+        aiProcess_ValidateDataStructure
+    );
+
+    if (!aiScenePtr || !aiScenePtr->mRootNode) {
+        std::cerr << "Erro ao carregar modelo: " << importer.GetErrorString() << std::endl;
+        return;
+    }
+
+    std::vector<MeshData> meshes;
+    ProcessAssimpNode(aiScenePtr->mRootNode, aiScenePtr, meshes);
+
+    std::cout << "Modelo carregado com " << meshes.size() << " meshes." << std::endl;
+
+    for (const auto& mesh : meshes) {
+        // Cria Entity
+        Entity entity = EntityManager::get().create();
+
+        // Vertex Buffer
+        VertexBuffer* vbo = VertexBuffer::Builder()
+            .vertexCount((uint32_t)mesh.positions.size() / 3)
+            .bufferCount(3)
+            .attribute(VertexAttribute::POSITION, 0, VertexBuffer::AttributeType::FLOAT3)
+            .attribute(VertexAttribute::TANGENTS, 1, VertexBuffer::AttributeType::FLOAT3)
+            .attribute(VertexAttribute::UV0, 2, VertexBuffer::AttributeType::FLOAT2)
+            .build(*engine);
+
+        auto* positions = new std::vector<float>(mesh.positions);
+        vbo->setBufferAt(*engine, 0, VertexBuffer::BufferDescriptor(
+            positions->data(),
+            positions->size() * sizeof(float),
+            nullptr
+        ));
+
+        auto* normals = new std::vector<float>(mesh.normals);
+        vbo->setBufferAt(*engine, 1, VertexBuffer::BufferDescriptor(
+            normals->data(),
+            normals->size() * sizeof(float),
+            nullptr
+        ));
+
+        auto* uvs = new std::vector<float>(mesh.uvs);
+        if (!uvs->empty()) {
+            vbo->setBufferAt(*engine, 2, VertexBuffer::BufferDescriptor(
+                uvs->data(),
+                uvs->size() * sizeof(float),
+                nullptr
+            ));
+        }
+
+        // Index Buffer
+        IndexBuffer* ibo = IndexBuffer::Builder()
+            .indexCount((uint32_t)mesh.indices.size())
+            .bufferType(IndexBuffer::IndexType::UINT)
+            .build(*engine);
+
+        auto* indices = new std::vector<uint32_t>(mesh.indices);
+        ibo->setBuffer(*engine, IndexBuffer::BufferDescriptor(
+            indices->data(),
+            indices->size() * sizeof(uint32_t),
+            nullptr
+        ));
+
+        // Material (usar material padrão da Filament)
+        static Material* defaultMat = nullptr;
+        if (!defaultMat) {
+            const char* matPath = "D:/Workspace/LiteEngine/core/resources/materials/basiclit.filamat"; // precisa existir
+            std::ifstream file(matPath, std::ios::binary | std::ios::ate);
+            if (file) {
+                std::streamsize size = file.tellg();
+                file.seekg(0, std::ios::beg);
+                std::vector<uint8_t> buffer(size);
+                if (file.read((char*)buffer.data(), size)) {
+                    defaultMat = Material::Builder()
+                        .package(buffer.data(), size)
+                        .build(*engine);
+                }
+            } else {
+                std::cerr << "Falha ao carregar material padrão: " << matPath << std::endl;
+                continue;
+            }
+        }
+
+        if (!defaultMat) {
+            std::cerr << "Material padrão não carregado, abortando.\n";
+            return;
+        }
+
+        MaterialInstance* matInstance = defaultMat->createInstance();
+
+        const float BOUNDINGBOX_EXTENT = 1000;
+
+        // Renderable
+        RenderableManager::Builder(1)
+            .boundingBox({{ -BOUNDINGBOX_EXTENT, -BOUNDINGBOX_EXTENT, -BOUNDINGBOX_EXTENT }, { BOUNDINGBOX_EXTENT, BOUNDINGBOX_EXTENT, BOUNDINGBOX_EXTENT }})
+            .geometry(0, RenderableManager::PrimitiveType::TRIANGLES, vbo, ibo)
+            .material(0, matInstance)
+            .build(*engine, entity);
+
+        
+        TransformManager& trans = engine->getTransformManager();
+        trans.create(entity);
+        TransformManager::Instance transInstance = trans.getInstance(entity);
+        // transInstance.
+
+        scene->addEntity(entity);
+    }
+}
 
 int main(int /*argc*/, char** /*argv*/) {
     const int SCREEN_WIDTH = 1980;
@@ -322,14 +658,25 @@ int main(int /*argc*/, char** /*argv*/) {
         std::cout << "IBL loaded and applied to scene." << std::endl;
     }
 
-    FilamentAsset* asset;
-    FilamentInstance* gltfInstance = loadAsset(engine, scene, asset, "C:/Users/pixqu/Downloads/uploads_files_2395268_Yacht.glb");
-    if(asset && gltfInstance)
-    {
-        loadResources(engine, asset, gltfInstance, "C:/Users/pixqu/Downloads/uploads_files_2395268_Yacht.glb");
-    }
+    // FilamentAsset* asset;
+    // FilamentInstance* gltfInstance = loadAsset(engine, scene, asset, "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb");
+    // if(asset && gltfInstance)
+    // {
+    //     loadResources(engine, asset, gltfInstance, "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb");
+    // }
 
     // loadFilamesh(engine, scene, "C:/Users/pixqu/Downloads/Bistro_v5_2/Bistro_v5_2/Yacht.filamesh");
+
+    Material* mat = nullptr;
+    MaterialInstance* matInstance = nullptr;
+    FBXMesh mesh = loadFBXWithMaterials(engine, "C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx", scene);
+    scene->addEntity(assetFromFbx);
+
+    // LoadModel(engine, scene, "C:/Users/pixqu/Downloads/coast_african_rock_m_17_wghiado_raw.glb");
+    // LoadModel(engine, scene, "C:/Users/pixqu/Downloads/old_wooden_pot_wgxobac_gltf_raw/Old_Wooden_Pot_wgxobac_Raw.gltf");
+
+    LoadModel(engine, scene, "C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx");
+
 
     // Loop principal
     bool running = true;
@@ -345,7 +692,7 @@ int main(int /*argc*/, char** /*argv*/) {
     
     Uint64 prevTicks = SDL_GetPerformanceCounter();
 
-    const float VELOCITY_MOVEMENT = 7;
+    const float VELOCITY_MOVEMENT = 2;
     const float VELOCITY_LOOK = 5;
     float horizontal_direction = 0, vertical_direction = 0;
 
@@ -383,6 +730,8 @@ int main(int /*argc*/, char** /*argv*/) {
                 float yaw   = horizontal_direction;
                 float pitch = vertical_direction;
 
+                
+
                 offsetCenter.x = cos(pitch) * cos(yaw);
                 offsetCenter.y = sin(pitch);
                 offsetCenter.z = cos(pitch) * sin(yaw);
@@ -403,18 +752,18 @@ int main(int /*argc*/, char** /*argv*/) {
                 if(ev.key.keysym.sym == SDLK_q) { mov_up = true; std::cout << "pressed q key" << std::endl; }
                 if(ev.key.keysym.sym == SDLK_e) { mov_down = true; std::cout << "pressed e key" << std::endl; }
 
-                }
+            }
             break;
             case SDL_KEYUP: {
 
-                    if(ev.key.keysym.sym == SDLK_w) {mov_front = false; std::cout << "released w key" << std::endl; }
-                    if(ev.key.keysym.sym == SDLK_s) {mov_back = false; std::cout << "released s key" << std::endl; }
-                    if(ev.key.keysym.sym == SDLK_d) {mov_right = false; std::cout << "released d key" << std::endl; }
-                    if(ev.key.keysym.sym == SDLK_a) {mov_left = false; std::cout << "released a key" << std::endl; }
-                    if(ev.key.keysym.sym == SDLK_q) {mov_up = false; std::cout << "released q key" << std::endl; }
-                    if(ev.key.keysym.sym == SDLK_e) {mov_down = false; std::cout << "released e key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_w) {mov_front = false; std::cout << "released w key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_s) {mov_back = false; std::cout << "released s key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_d) {mov_right = false; std::cout << "released d key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_a) {mov_left = false; std::cout << "released a key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_q) {mov_up = false; std::cout << "released q key" << std::endl; }
+                if(ev.key.keysym.sym == SDLK_e) {mov_down = false; std::cout << "released e key" << std::endl; }
 
-                }
+            }
             break;
             }
         
@@ -471,11 +820,22 @@ int main(int /*argc*/, char** /*argv*/) {
     scene->remove(lightEntity);
     engine->destroy(lightEntity);
 
+    // scene->remove(mesh.entity);
+    // engine->destroy(mesh.entity);
+
+    // if (mesh.matInstance)
+    //     engine->destroy(mesh.matInstance);
+    // if (mesh.material)
+    //     engine->destroy(mesh.material);
+
     engine->destroy(view);
     engine->destroy(scene);
     engine->destroy(renderer);
     engine->destroy(swapChain);
     engine->destroyCameraComponent(cameraEntity);
+
+
+
     EntityManager::get().destroy(cameraEntity);
 
     // ensure we keep ibl alive until now (unique_ptr destructs here)

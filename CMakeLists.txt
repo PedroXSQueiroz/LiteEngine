@@ -58,6 +58,7 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 
 include_directories(
   ${CMAKE_SOURCE_DIR}/core/src/include
+  ${CMAKE_SOURCE_DIR}/core/src/include/lite/services
 
   ${FILAMENT_ROOT}/filament/include
   ${FILAMENT_ROOT}/filament/backend/include
@@ -92,7 +93,7 @@ include_directories(
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/libpng
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/tinyexr
-  ${FILAMENT_LIBS_3rdPARTY_ROOT}/limbassimp
+  ${FILAMENT_LIBS_3rdPARTY_ROOT}/libassimp/include
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/libz
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/robin-map
   ${FILAMENT_LIBS_3rdPARTY_ROOT}/meshoptimizer/src
@@ -173,6 +174,11 @@ target_sources(app PRIVATE
   ${RESOURCE_SOURCES_MATDBG} 
   ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
   ${FILAMENT_ROOT}/out/libs/gltfio/materials/uberarchive.c
+
+  ${CMAKE_SOURCE_DIR}/core/src/services/SceneService.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
   
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c

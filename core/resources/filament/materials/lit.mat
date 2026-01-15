@@ -1,0 +1,109 @@
+material {
+    name : lit,
+    shadingModel : lit,
+    
+    parameters : [
+        // Base Color
+        {
+            type : sampler2d,
+            name : baseColorMap
+        },
+        {
+            type : float4,
+            name : baseColorFactor
+        },
+        
+        // Normal Map
+        {
+            type : sampler2d,
+            name : normalMap
+        },
+        
+        // Metallic-Roughness
+        {
+            type : sampler2d,
+            name : metallicRoughnessMap
+        },
+        {
+            type : float,
+            name : metallicFactor
+        },
+        {
+            type : float,
+            name : roughnessFactor
+        },
+        
+        // Ambient Occlusion
+        {
+            type : sampler2d,
+            name : occlusionMap
+        },
+        
+        // Emissive
+        {
+            type : sampler2d,
+            name : emissiveMap
+        },
+        {
+            type : float3,
+            name : emissiveFactor
+        }
+    ],
+    
+    requires : [
+        uv0
+    ]
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        
+        // Preparar coordenadas UV
+        highp vec2 uv = getUV0();
+        
+        // Base Color
+        vec4 baseColor = materialParams.baseColorFactor;
+        vec4 texColor = texture(materialParams_baseColorMap, uv);
+        // Se a textura tem alpha > 0, consideramos que existe
+        if (texColor.a > 0.0 || texColor.r > 0.0 || texColor.g > 0.0 || texColor.b > 0.0) {
+            baseColor *= texColor;
+        }
+        material.baseColor = baseColor;
+        
+        // Normal Map
+        vec3 normalSample = texture(materialParams_normalMap, uv).xyz;
+        if (length(normalSample) > 0.0) {
+            normalSample = normalSample * 2.0 - 1.0;
+            material.normal = normalSample;
+        }
+        
+        // Metallic and Roughness
+        float metallic = materialParams.metallicFactor;
+        float roughness = materialParams.roughnessFactor;
+        
+        vec4 mr = texture(materialParams_metallicRoughnessMap, uv);
+        if (length(mr.rgb) > 0.0) {
+            // Convention: B = metallic, G = roughness
+            metallic *= mr.b;
+            roughness *= mr.g;
+        }
+        
+        material.metallic = clamp(metallic, 0.0, 1.0);
+        material.roughness = clamp(roughness, 0.0, 1.0);
+        
+        // Ambient Occlusion
+        float ao = texture(materialParams_occlusionMap, uv).r;
+        if (ao > 0.0) {
+            material.ambientOcclusion = ao;
+        }
+        
+        // Emissive
+        vec3 emissive = materialParams.emissiveFactor;
+        vec3 emissiveTex = texture(materialParams_emissiveMap, uv).rgb;
+        if (length(emissiveTex) > 0.0) {
+            emissive *= emissiveTex;
+        }
+        material.emissive = vec4(emissive, 0.0);
+    }
+}
