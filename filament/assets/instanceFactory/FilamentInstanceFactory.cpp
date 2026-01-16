@@ -66,7 +66,10 @@ void FilamentInstanceFactory::cleanup() {
     }
 }
 
-std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(const Asset3dData& data) {
+std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(
+    const Asset3dData& rootNode,
+    const std::vector<MaterialData>& materials
+) {
     if (!m_baseMaterial) {
         std::cerr << "FilamentInstanceFactory: No base material available" << std::endl;
         return nullptr;
@@ -74,9 +77,11 @@ std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(const Asse
 
     auto instance = std::make_unique<FilamentAsset3dInstance>(m_engine, m_scene);
 
-    // Create material instances for each material
-    for (const auto& matData : data.materials) {
+    // Create material instances and build lookup map by name
+    std::unordered_map<std::string, filament::MaterialInstance*> materialMap;
+    for (const auto& matData : materials) {
         filament::MaterialInstance* matInstance = createMaterialInstance(matData);
+        materialMap[matData.name] = matInstance;
         instance->materialInstances.push_back(matInstance);
     }
 
@@ -85,10 +90,8 @@ std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(const Asse
     auto& transformManager = m_engine->getTransformManager();
     transformManager.create(instance->rootEntity);
 
-    // Process scene hierarchy starting from root
-    if (!data.nodes.empty()) {
-        processNode(data, data.rootNodeIndex, *instance, glm::mat4(1.0f));
-    }
+    // Process node hierarchy recursively
+    processNode(rootNode, *instance, materialMap, glm::mat4(1.0f));
 
     std::cout << "FilamentInstanceFactory: Created instance with "
               << instance->entities.size() << " entities" << std::endl;
@@ -130,39 +133,37 @@ void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
 }
 
 void FilamentInstanceFactory::processNode(
-    const Asset3dData& data,
-    uint32_t nodeIndex,
+    const Asset3dData& node,
     FilamentAsset3dInstance& instance,
+    const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap,
     const glm::mat4& parentTransform
 ) {
-    if (nodeIndex >= data.nodes.size()) return;
-
-    const SceneNode& node = data.nodes[nodeIndex];
     glm::mat4 worldTransform = parentTransform * node.localTransform;
 
-    // Create entities for each mesh in this node
-    for (uint32_t meshIndex : node.meshIndices) {
-        if (meshIndex >= data.meshes.size()) continue;
-
-        const MeshData& mesh = data.meshes[meshIndex];
+    // If this is a mesh node, create renderable
+    if (node.isMesh()) {
+        const MeshAsset3dData& mesh = static_cast<const MeshAsset3dData&>(node);
 
         // Create vertex buffer
         filament::VertexBuffer* vertexBuffer = createVertexBuffer(mesh);
-        if (!vertexBuffer) continue;
+        if (!vertexBuffer) return;
         instance.vertexBuffers.push_back(vertexBuffer);
 
         // Create index buffer
         filament::IndexBuffer* indexBuffer = createIndexBuffer(mesh);
-        if (!indexBuffer) continue;
+        if (!indexBuffer) return;
         instance.indexBuffers.push_back(indexBuffer);
 
-        // Get material instance
+        // Get material instance by name
         filament::MaterialInstance* matInstance = nullptr;
-        if (mesh.materialIndex >= 0 && mesh.materialIndex < static_cast<int32_t>(instance.materialInstances.size())) {
-            matInstance = instance.materialInstances[mesh.materialIndex];
+        auto it = materialMap.find(mesh.materialName);
+        if (it != materialMap.end()) {
+            matInstance = it->second;
         } else if (!instance.materialInstances.empty()) {
+            // Fallback to first material
             matInstance = instance.materialInstances[0];
         } else {
+            // Create default material instance
             matInstance = m_baseMaterial->createInstance();
             instance.materialInstances.push_back(matInstance);
         }
@@ -194,13 +195,13 @@ void FilamentInstanceFactory::processNode(
         instance.entities.push_back(entity);
     }
 
-    // Process children
-    for (uint32_t childIndex : node.childIndices) {
-        processNode(data, childIndex, instance, worldTransform);
+    // Process children recursively
+    for (const auto& child : node.children) {
+        processNode(*child, instance, materialMap, worldTransform);
     }
 }
 
-filament::VertexBuffer* FilamentInstanceFactory::createVertexBuffer(const MeshData& mesh) {
+filament::VertexBuffer* FilamentInstanceFactory::createVertexBuffer(const MeshAsset3dData& mesh) {
     if (mesh.positions.empty()) return nullptr;
 
     // Allocate persistent copies of data
@@ -266,7 +267,7 @@ filament::VertexBuffer* FilamentInstanceFactory::createVertexBuffer(const MeshDa
     return vertexBuffer;
 }
 
-filament::IndexBuffer* FilamentInstanceFactory::createIndexBuffer(const MeshData& mesh) {
+filament::IndexBuffer* FilamentInstanceFactory::createIndexBuffer(const MeshAsset3dData& mesh) {
     if (mesh.indices.empty()) return nullptr;
 
     auto* indices = new std::vector<uint32_t>(mesh.indices);

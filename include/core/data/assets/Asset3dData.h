@@ -2,8 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <optional>
-#include <cstdint>
 #include <memory>
 
 #include <glm/glm.hpp>
@@ -11,101 +9,42 @@
 
 namespace lite {
 
-    // Texture information (renderer-agnostic)
-    struct TextureInfo {
-        std::string path;                   // Relative or absolute path
-        std::vector<uint8_t> embeddedData;  // Embedded data (optional)
-        uint32_t width = 0;
-        uint32_t height = 0;
-        uint32_t channels = 0;
-        bool sRGB = true;                   // Is sRGB color space
-    };
+// Base class for 3D scene nodes
+// This IS the node - no separate SceneNode concept
+class Asset3dData {
+public:
+    virtual ~Asset3dData() = default;
 
-    // Material data (PBR properties)
-    struct MaterialData {
-        std::string name;
+    // Node identification
+    std::string name;
 
-        // PBR factors
-        glm::vec4 baseColorFactor = glm::vec4(1.0f);
-        float metallicFactor = 0.0f;
-        float roughnessFactor = 1.0f;
-        glm::vec3 emissiveFactor = glm::vec3(0.0f);
+    // Transform (relative to parent)
+    glm::mat4 localTransform = glm::mat4(1.0f);
 
-        // Textures (optional)
-        std::optional<TextureInfo> baseColorTexture;
-        std::optional<TextureInfo> normalTexture;
-        std::optional<TextureInfo> metallicRoughnessTexture;
-        std::optional<TextureInfo> occlusionTexture;
-        std::optional<TextureInfo> emissiveTexture;
-    };
+    // Hierarchy
+    Asset3dData* parent = nullptr;  // Raw pointer (does not own)
+    std::vector<std::unique_ptr<Asset3dData>> children;
 
-    // Mesh geometry data
-    struct MeshData {
-        std::string name;
-
-        // Geometry
-        std::vector<glm::vec3> positions;
-        std::vector<glm::vec3> normals;
-        std::vector<glm::vec2> uvs;
-        std::vector<uint32_t> indices;
-
-        // Bounding box
-        glm::vec3 boundsMin = glm::vec3(0.0f);
-        glm::vec3 boundsMax = glm::vec3(0.0f);
-        glm::vec3 center = glm::vec3(0.0f);
-        float radius = 0.0f;
-
-        // Material reference
-        int32_t materialIndex = -1;
-    };
-
-    // Scene node (hierarchy)
-    struct SceneNode {
-        std::string name;
-        glm::mat4 localTransform = glm::mat4(1.0f);     // Transform relative to parent
-        std::vector<uint32_t> meshIndices;               // Indices of meshes in this node
-        std::vector<uint32_t> childIndices;              // Indices of child nodes
-        int32_t parentIndex = -1;                        // -1 = root
-    };
-
-    // Main container for imported 3D asset data
-    class Asset3dData {
-    public:
-        std::vector<SceneNode> nodes;
-        std::vector<MeshData> meshes;
-        std::vector<MaterialData> materials;
-
-        uint32_t rootNodeIndex = 0;
-        std::string sourcePath;
-
-        // Helper: get root node
-        const SceneNode& getRootNode() const {
-            return nodes[rootNodeIndex];
+    // Calculate world transform recursively
+    glm::mat4 getWorldTransform() const {
+        if (!parent) {
+            return localTransform;
         }
+        return parent->getWorldTransform() * localTransform;
+    }
 
-        // Helper: calculate world transform for a node
-        glm::mat4 getWorldTransform(uint32_t nodeIndex) const {
-            if (nodeIndex >= nodes.size()) {
-                return glm::mat4(1.0f);
-            }
+    // Add child node with automatic parent assignment
+    template<typename T, typename... Args>
+    T* addChild(Args&&... args) {
+        auto child = std::make_unique<T>(std::forward<Args>(args)...);
+        child->parent = this;
+        T* ptr = child.get();
+        children.push_back(std::move(child));
+        return ptr;
+    }
 
-            const SceneNode& node = nodes[nodeIndex];
-            if (node.parentIndex < 0) {
-                return node.localTransform;
-            }
-
-            return getWorldTransform(node.parentIndex) * node.localTransform;
-        }
-
-        // Helper: get total mesh count
-        size_t getTotalMeshCount() const {
-            return meshes.size();
-        }
-
-        // Helper: get total material count
-        size_t getTotalMaterialCount() const {
-            return materials.size();
-        }
-    };
+    // Type identification
+    virtual bool isMesh() const { return false; }
+};
 
 } // namespace lite

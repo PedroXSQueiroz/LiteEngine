@@ -52,6 +52,7 @@
 
 // New agnostic architecture
 #include <core/data/assets/Asset3dData.h>
+#include <core/data/assets/MaterialData.h>
 #include <core/data/assets/Asset3dInstance.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
@@ -305,12 +306,13 @@ int main(int /*argc*/, char** /*argv*/){
     auto instanceFactory = std::make_unique<FilamentInstanceFactory>(engine, scene);
 
     // Import 3D asset (renderer-agnostic data)
-    auto importData = importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
+    Asset3dData rootNode;
+    std::vector<MaterialData> materials;
 
-    // Instantiate to GPU (Filament-specific)
     std::unique_ptr<Asset3dInstance> assetInstance;
-    if (importData) {
-        assetInstance = instanceFactory->instantiate(*importData);
+    if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
+        // Instantiate to GPU (Filament-specific)
+        assetInstance = instanceFactory->instantiate(rootNode, materials);
     }
 
 

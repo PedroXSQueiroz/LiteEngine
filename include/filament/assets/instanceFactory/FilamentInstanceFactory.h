@@ -2,6 +2,8 @@
 
 #include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
 #include <core/data/assets/Asset3dData.h>
+#include <core/data/assets/MeshAsset3dData.h>
+#include <core/data/assets/MaterialData.h>
 #include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
 
 #include <string>
@@ -14,57 +16,61 @@
 
 namespace lite {
 
-    class FilamentInstanceFactory : public Asset3dInstanceFactory {
-    public:
-        FilamentInstanceFactory(
-            filament::Engine* engine,
-            filament::Scene* scene,
-            const std::string& defaultMaterialPath = ""
-        );
+class FilamentInstanceFactory : public Asset3dInstanceFactory {
+public:
+    FilamentInstanceFactory(
+        filament::Engine* engine,
+        filament::Scene* scene,
+        const std::string& defaultMaterialPath = ""
+    );
 
-        ~FilamentInstanceFactory() override;
+    ~FilamentInstanceFactory() override;
 
-        std::unique_ptr<Asset3dInstance> instantiate(const Asset3dData& data) override;
-        void destroy(Asset3dInstance* instance) override;
+    std::unique_ptr<Asset3dInstance> instantiate(
+        const Asset3dData& rootNode,
+        const std::vector<MaterialData>& materials
+    ) override;
 
-        // Cleanup all cached resources
-        void cleanup();
+    void destroy(Asset3dInstance* instance) override;
 
-    private:
-        // Create vertex buffer from mesh data
-        filament::VertexBuffer* createVertexBuffer(const MeshData& mesh);
+    // Cleanup all cached resources
+    void cleanup();
 
-        // Create index buffer from mesh data
-        filament::IndexBuffer* createIndexBuffer(const MeshData& mesh);
+private:
+    // Create vertex buffer from mesh data
+    filament::VertexBuffer* createVertexBuffer(const MeshAsset3dData& mesh);
 
-        // Load or get cached texture
-        filament::Texture* loadTexture(const TextureInfo& texInfo);
+    // Create index buffer from mesh data
+    filament::IndexBuffer* createIndexBuffer(const MeshAsset3dData& mesh);
 
-        // Create material instance from material data
-        filament::MaterialInstance* createMaterialInstance(const MaterialData& matData);
+    // Load or get cached texture
+    filament::Texture* loadTexture(const TextureInfo& texInfo);
 
-        // Process a node and create entities
-        void processNode(
-            const Asset3dData& data,
-            uint32_t nodeIndex,
-            FilamentAsset3dInstance& instance,
-            const glm::mat4& parentTransform
-        );
+    // Create material instance from material data
+    filament::MaterialInstance* createMaterialInstance(const MaterialData& matData);
 
-        // GLM to Filament type conversions
-        static filament::math::float3 toFilament(const glm::vec3& v);
-        static filament::math::float4 toFilament(const glm::vec4& v);
-        static filament::math::mat4f toFilament(const glm::mat4& m);
+    // Process a node recursively and create entities
+    void processNode(
+        const Asset3dData& node,
+        FilamentAsset3dInstance& instance,
+        const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap,
+        const glm::mat4& parentTransform
+    );
 
-        filament::Engine* m_engine;
-        filament::Scene* m_scene;
-        std::string m_defaultMaterialPath;
+    // GLM to Filament type conversions
+    static filament::math::float3 toFilament(const glm::vec3& v);
+    static filament::math::float4 toFilament(const glm::vec4& v);
+    static filament::math::mat4f toFilament(const glm::mat4& m);
 
-        // Base material (loaded once)
-        filament::Material* m_baseMaterial = nullptr;
+    filament::Engine* m_engine;
+    filament::Scene* m_scene;
+    std::string m_defaultMaterialPath;
 
-        // Caches
-        std::unordered_map<std::string, filament::Texture*> m_textureCache;
-    };
+    // Base material (loaded once)
+    filament::Material* m_baseMaterial = nullptr;
+
+    // Caches
+    std::unordered_map<std::string, filament::Texture*> m_textureCache;
+};
 
 } // namespace lite

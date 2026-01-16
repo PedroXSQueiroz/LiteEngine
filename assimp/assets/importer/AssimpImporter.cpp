@@ -6,7 +6,20 @@
 
 namespace lite {
 
-std::unique_ptr<Asset3dData> AssimpImporter::import(const std::string& filePath) {
+// Helper to count meshes recursively
+static size_t countMeshes(const Asset3dData& node) {
+    size_t count = node.isMesh() ? 1 : 0;
+    for (const auto& child : node.children) {
+        count += countMeshes(*child);
+    }
+    return count;
+}
+
+bool AssimpImporter::import(
+    const std::string& filePath,
+    Asset3dData& rootNode,
+    std::vector<MaterialData>& materials
+) {
     const aiScene* scene = m_importer.ReadFile(filePath,
         aiProcess_Triangulate |
         aiProcess_GenSmoothNormals |
@@ -16,11 +29,10 @@ std::unique_ptr<Asset3dData> AssimpImporter::import(const std::string& filePath)
 
     if (!scene || !scene->HasMeshes()) {
         std::cerr << "AssimpImporter: Failed to load file: " << m_importer.GetErrorString() << std::endl;
-        return nullptr;
+        return false;
     }
 
-    auto data = std::make_unique<Asset3dData>();
-    data->sourcePath = filePath;
+    m_currentScene = scene;
 
     // Extract base directory for texture paths
     size_t lastSlash = filePath.find_last_of("/\\");
@@ -29,24 +41,25 @@ std::unique_ptr<Asset3dData> AssimpImporter::import(const std::string& filePath)
         : ".";
 
     // Process all materials first
+    materials.clear();
     for (unsigned int i = 0; i < scene->mNumMaterials; ++i) {
-        data->materials.push_back(processMaterial(scene->mMaterials[i], baseDirectory));
+        materials.push_back(processMaterial(scene->mMaterials[i], baseDirectory));
     }
 
-    // Process all meshes
-    for (unsigned int i = 0; i < scene->mNumMeshes; ++i) {
-        data->meshes.push_back(processMesh(scene->mMeshes[i], scene));
-    }
+    // Clear any existing children in rootNode
+    rootNode.children.clear();
+    rootNode.name = "root";
+    rootNode.localTransform = glm::mat4(1.0f);
 
     // Process scene hierarchy starting from root
-    processNode(scene->mRootNode, scene, *data, -1, baseDirectory);
+    processNode(scene->mRootNode, scene, rootNode, baseDirectory);
 
     std::cout << "AssimpImporter: Loaded " << filePath << std::endl;
-    std::cout << "  Nodes: " << data->nodes.size() << std::endl;
-    std::cout << "  Meshes: " << data->meshes.size() << std::endl;
-    std::cout << "  Materials: " << data->materials.size() << std::endl;
+    std::cout << "  Meshes: " << countMeshes(rootNode) << std::endl;
+    std::cout << "  Materials: " << materials.size() << std::endl;
 
-    return data;
+    m_currentScene = nullptr;
+    return true;
 }
 
 bool AssimpImporter::canImport(const std::string& extension) const {
@@ -73,54 +86,59 @@ std::vector<std::string> AssimpImporter::getSupportedExtensions() const {
 void AssimpImporter::processNode(
     const aiNode* node,
     const aiScene* scene,
-    Asset3dData& data,
-    int32_t parentIndex,
+    Asset3dData& parentNode,
     const std::string& baseDirectory
 ) {
-    SceneNode sceneNode;
-    sceneNode.name = node->mName.C_Str();
-    sceneNode.localTransform = toGlmMatrix(node->mTransformation);
-    sceneNode.parentIndex = parentIndex;
+    // Determine the current node to add children to
+    Asset3dData* currentNode = &parentNode;
 
-    // Store mesh indices
+    // If this is not the root node, create a container node
+    if (node != scene->mRootNode) {
+        currentNode = parentNode.addChild<Asset3dData>();
+        currentNode->name = node->mName.C_Str();
+        currentNode->localTransform = toGlmMatrix(node->mTransformation);
+    }
+
+    // Create MeshAsset3dData for each mesh in this node
     for (unsigned int i = 0; i < node->mNumMeshes; ++i) {
-        sceneNode.meshIndices.push_back(node->mMeshes[i]);
+        const aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+
+        auto* meshNode = currentNode->addChild<MeshAsset3dData>();
+        meshNode->name = mesh->mName.C_Str();
+        // Mesh inherits transform from parent, localTransform = identity
+
+        // Populate geometry data
+        populateMeshData(meshNode, mesh);
+
+        // Material reference by name
+        if (mesh->mMaterialIndex < scene->mNumMaterials) {
+            aiString matName;
+            scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_NAME, matName);
+            meshNode->materialName = matName.C_Str();
+        }
     }
 
-    // Add this node to the data
-    uint32_t currentNodeIndex = static_cast<uint32_t>(data.nodes.size());
-    data.nodes.push_back(sceneNode);
-
-    // Update parent's child indices
-    if (parentIndex >= 0) {
-        data.nodes[parentIndex].childIndices.push_back(currentNodeIndex);
-    }
-
-    // Process children
+    // Process children recursively
     for (unsigned int i = 0; i < node->mNumChildren; ++i) {
-        processNode(node->mChildren[i], scene, data, currentNodeIndex, baseDirectory);
+        processNode(node->mChildren[i], scene, *currentNode, baseDirectory);
     }
 }
 
-MeshData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* scene) {
-    MeshData meshData;
-    meshData.name = mesh->mName.C_Str();
-    meshData.materialIndex = mesh->mMaterialIndex;
-
+void AssimpImporter::populateMeshData(MeshAsset3dData* meshNode, const aiMesh* mesh) {
     // Initialize bounds
     glm::vec3 boundsMin(std::numeric_limits<float>::max());
     glm::vec3 boundsMax(std::numeric_limits<float>::lowest());
 
     // Reserve space
-    meshData.positions.reserve(mesh->mNumVertices);
-    meshData.normals.reserve(mesh->mNumVertices);
-    meshData.uvs.reserve(mesh->mNumVertices);
+    meshNode->positions.reserve(mesh->mNumVertices);
+    meshNode->normals.reserve(mesh->mNumVertices);
+    meshNode->uvs.reserve(mesh->mNumVertices);
 
     // Process vertices
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
         // Position
         glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
-        meshData.positions.push_back(pos);
+        meshNode->positions.push_back(pos);
 
         // Update bounds
         boundsMin = glm::min(boundsMin, pos);
@@ -128,23 +146,23 @@ MeshData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* scene) {
 
         // Normal
         if (mesh->HasNormals()) {
-            meshData.normals.emplace_back(
+            meshNode->normals.emplace_back(
                 mesh->mNormals[i].x,
                 mesh->mNormals[i].y,
                 mesh->mNormals[i].z
             );
         } else {
-            meshData.normals.emplace_back(0.0f, 1.0f, 0.0f);
+            meshNode->normals.emplace_back(0.0f, 1.0f, 0.0f);
         }
 
         // UV
         if (mesh->HasTextureCoords(0)) {
-            meshData.uvs.emplace_back(
+            meshNode->uvs.emplace_back(
                 mesh->mTextureCoords[0][i].x,
                 mesh->mTextureCoords[0][i].y
             );
         } else {
-            meshData.uvs.emplace_back(0.0f, 0.0f);
+            meshNode->uvs.emplace_back(0.0f, 0.0f);
         }
     }
 
@@ -152,19 +170,17 @@ MeshData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* scene) {
     for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
         const aiFace& face = mesh->mFaces[f];
         if (face.mNumIndices == 3) {
-            meshData.indices.push_back(face.mIndices[0]);
-            meshData.indices.push_back(face.mIndices[1]);
-            meshData.indices.push_back(face.mIndices[2]);
+            meshNode->indices.push_back(face.mIndices[0]);
+            meshNode->indices.push_back(face.mIndices[1]);
+            meshNode->indices.push_back(face.mIndices[2]);
         }
     }
 
     // Calculate bounding data
-    meshData.boundsMin = boundsMin;
-    meshData.boundsMax = boundsMax;
-    meshData.center = (boundsMin + boundsMax) * 0.5f;
-    meshData.radius = glm::length(boundsMax - boundsMin) * 0.5f;
-
-    return meshData;
+    meshNode->boundsMin = boundsMin;
+    meshNode->boundsMax = boundsMax;
+    meshNode->center = (boundsMin + boundsMax) * 0.5f;
+    meshNode->radius = glm::length(boundsMax - boundsMin) * 0.5f;
 }
 
 MaterialData AssimpImporter::processMaterial(
