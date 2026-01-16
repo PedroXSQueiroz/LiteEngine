@@ -59,7 +59,7 @@
 #include <core/data/assets/Asset3dInstance.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
-#include <lite/ui/UIRendererThreaded.h>
+#include <core/ui/UIRendererThreaded.h>
 #include "include/cef_app.h"
 
 using namespace std;

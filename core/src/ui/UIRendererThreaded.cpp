@@ -1,7 +1,7 @@
 // IMPORTANTE: Definir NOMINMAX antes de qualquer include para evitar conflito com CEF
 #define NOMINMAX
 
-#include <lite/ui/UIRendererThreaded.h>
+#include <core/ui/UIRendererThreaded.h>
 #include <fstream>
 #include <iostream>
 #include <filament/TextureSampler.h>
