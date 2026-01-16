@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\src\gtest-all.cc">
+      <Filter>cef_gtest</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\teamcity\src\teamcity_gtest.cpp">
+      <Filter>cef_gtest</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\teamcity\src\teamcity_messages.cpp">
+      <Filter>cef_gtest</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\teamcity\include\teamcity_gtest.h">
+      <Filter>cef_gtest</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\teamcity\src\teamcity_messages.h">
+      <Filter>cef_gtest</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\Workspace\LiteEngine\3rd_party\cef\tests\gtest\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="cef_gtest">
+      <UniqueIdentifier>{D965C689-DD38-377F-8EE7-7BDED1DA0EC4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

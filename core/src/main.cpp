@@ -1,9 +1,15 @@
+// NOMINMAX deve vir antes de qualquer include Windows/CEF
+#define NOMINMAX
+
 #include <memory.h>
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
 #include <thread>
 #include <chrono>
+
+// CEF - para controle de subprocessos
+#include "include/cef_app.h"
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -48,6 +54,7 @@
 // #include <lite/services/Asset3dLoader.h>
 #include <lite/services/Asset3dLoaderAssimp.h>
 #include <lite/services/MaterialLoader.h>
+#include <lite/ui/UIRenderer.h>
 
 using namespace std;
 using namespace lite;
@@ -174,14 +181,25 @@ filament::gltfio::FilamentInstance* loadAsset(
     return instance;
 }
 
-int main(int /*argc*/, char** /*argv*/){
-    
+int main(int argc, char** argv){
+
+    /*----------------------------------------------------------------------------
+    CEF SUBPROCESS HANDLING - DEVE SER O PRIMEIRO!
+    ----------------------------------------------------------------------------*/
+    // Se este processo é um subprocesso do CEF, deixa o CEF processar e sai
+    CefMainArgs cef_args(GetModuleHandle(nullptr));
+    int exit_code = CefExecuteProcess(cef_args, nullptr, nullptr);
+    if (exit_code >= 0) {
+        // É um subprocesso CEF, sair sem criar janelas
+        return exit_code;
+    }
+
     /*----------------------------------------------------------------------------
     SETUP WINDOW
     ----------------------------------------------------------------------------*/
     const int SCREEN_WIDTH = 1980;
     const int SCREEN_HEIGHT = 1080;
-    
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
         return -1;
@@ -379,8 +397,19 @@ int main(int /*argc*/, char** /*argv*/){
     scene->addEntity(lightEntity);
     
     std::cout << "Lighting setup complete" << std::endl;
+
+    /*----------------------------------------------------------------------------
+    SETUP UI RENDERER (CEF)
+    ----------------------------------------------------------------------------*/
+    lite::UIRenderer* uiRenderer = new lite::UIRenderer(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
+    if (!uiRenderer->initialize()) {
+        std::cerr << "Failed to initialize UIRenderer" << std::endl;
+    } else {
+        uiRenderer->loadHtml("<h1 style='color:red'>Hello World</h1>");
+    }
+
     std::cout << "Starting main loop..." << std::endl;
-    
+
     /*----------------------------------------------------------------------------
     MAIN LOOP
     ----------------------------------------------------------------------------*/
@@ -488,6 +517,13 @@ int main(int /*argc*/, char** /*argv*/){
 
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
+
+            // UI Overlay (CEF)
+            if (uiRenderer) {
+                uiRenderer->update();
+                uiRenderer->render(renderer);
+            }
+
             renderer->endFrame();
             frameCount++;
         } else {
@@ -498,7 +534,13 @@ int main(int /*argc*/, char** /*argv*/){
     }
     
     std::cout << "Shutting down..." << std::endl;
-    
+
+    // Cleanup UI
+    if (uiRenderer) {
+        delete uiRenderer;
+        uiRenderer = nullptr;
+    }
+
     // Cleanup
     engine->destroy(lightEntity);
     engine->destroy(renderer);

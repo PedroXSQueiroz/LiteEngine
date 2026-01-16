@@ -2,11 +2,9 @@ cmake_minimum_required(VERSION 3.15)
 project(lite_engine LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
-
-# Força runtime de debug /MTd (MultiThreadedDebug)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-
+# ==================== PATHS EXISTENTES ====================
 set(FILAMENT_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/filament")
 set(FILAMENT_LIBS_ROOT "${FILAMENT_ROOT}/out/libs")
 set(FILAMENT_LIBS_INCLUDE "${FILAMENT_ROOT}/libs")
@@ -15,54 +13,72 @@ set(FILAMENT_LIBS_3rdPARTY_ROOT "${FILAMENT_ROOT}/third_party/")
 set(FILAMENT_LIB_BUILD_VERSION "Debug")
 
 set(SDL_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/SDL-release-2.32.10")
-
-# Encontrar Vulkan
 find_package(Vulkan REQUIRED)
 
 set(JOLT_ROOT "/3rd_party/JoltPhysics")
 set(OZZ_ROOT "/3rd_party/ozz-animation")
 
+# ==================== CEF CONFIGURATION ====================
+# IMPORTANTE: Definir CEF_ROOT ANTES de find_package
+set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/cef")
 
+# Adicionar pasta cmake local ao module path
+list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+
+# Agora pode usar find_package
+find_package(CEF REQUIRED)
+
+# ==================== FILAMENT RESOURCES ====================
 set(FILAMENT_GENERATED_RESOURCES ${FILAMENT_ROOT}/out/filament/generated/resources)
 set(FILAMENT_GENERATED_RESOURCES_MATERIALS ${FILAMENT_ROOT}/out/filament/generated/material)
 set(FILAMENT_GENERATED_RESOURCES_DATA ${FILAMENT_ROOT}/out/filament/generated/data)
 set(FILAMENT_GENERATED_RESOURCES_MATDBG ${FILAMENT_ROOT}/out/libs/matdbg)
 set(FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS ${FILAMENT_ROOT}/out/libs/gltfio/materials)
 
+# ==================== LIBCEF_DLL_WRAPPER ====================
+# Adicionar subdirectory do libcef_dll_wrapper
+add_subdirectory(${CEF_ROOT}/libcef_dll libcef_dll_wrapper)
+
+# ==================== EXECUTÁVEL PRINCIPAL ====================
 add_executable(app 
   core/src/main.cpp
   core/src/lightning/IBL.cpp
+  # core/src/cef/CefHandler.cpp
+  # core/src/cef/CefRenderHandler.cpp
+  # core/src/cef/CefJSBridge.cpp
 )
 
-#SETTING MATDBG RESOURCES
+# ==================== MATDBG RESOURCES ====================
 set(MATDBG_RESOURCES_SRC
     ${FILAMENT_GENERATED_RESOURCES_MATDBG}/matdbg_resources.c
     ${FILAMENT_GENERATED_RESOURCES_MATDBG}/matdbg_resources.h
 )
 set_source_files_properties(${MATDBG_RESOURCES_SRC} PROPERTIES LANGUAGE CXX)
-
 add_library(matdbg_resources STATIC "${MATDBG_RESOURCES_SRC}")
 target_include_directories(matdbg_resources PUBLIC ${FILAMENT_GENERATED_RESOURCES_MATDBG})
-#END SETTING MATDBG RESOURCES
 
-#SETTING MATDBG RESOURCES
+# ==================== UBER ARCHIVE ====================
 set(UBER_ARCHIVE_RESOURCES_SRC
     ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS}/uberarchive.c
     ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS}/uberarchive.h
 )
 set_source_files_properties(${UBER_ARCHIVE_RESOURCES_SRC} PROPERTIES LANGUAGE CXX)
-
 add_library(uber_archive STATIC "${UBER_ARCHIVE_RESOURCES_SRC}")
 target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS})
-#END SETTING MATDBG RESOURCES
 
-include_directories(
+# ==================== INCLUDE DIRECTORIES ====================
+target_include_directories(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/include
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/services
+  ${CMAKE_SOURCE_DIR}/core/src/include/lite/cef
+  ${CMAKE_SOURCE_DIR}/core/src/include/lite/ui
 
+  # CEF
+  ${CEF_INCLUDE_PATH}
+
+  # FILAMENT
   ${FILAMENT_ROOT}/filament/include
   ${FILAMENT_ROOT}/filament/backend/include
-
   ${FILAMENT_LIBS_INCLUDE}/bluegl/include
   ${FILAMENT_LIBS_INCLUDE}/bluevk/include 
   ${FILAMENT_LIBS_INCLUDE}/camutils/include
@@ -109,12 +125,16 @@ include_directories(
   ${Vulkan_INCLUDE_DIRS} 
 )
 
-target_link_libraries(app PUBLIC
+# ==================== LINK LIBRARIES ====================
+target_link_libraries(app PRIVATE
+    # CEF - IMPORTANTE: libcef_dll_wrapper ANTES de libcef.lib
+    libcef_dll_wrapper
+    ${CEF_LIB_DEBUG}
+
+    # FILAMENT (suas libs existentes)
     "${FILAMENT_ROOT}/out/filament/Debug/filament.lib"
     "${FILAMENT_ROOT}/out/filament/backend/Debug/backend.lib"
-
     "${FILAMENT_LIBS_ROOT}/bluevk/Debug/bluevk.lib"
-
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio.lib"
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/gltfio_core.lib"
     "${FILAMENT_LIBS_ROOT}/gltfio/Debug/uberarchive.lib"
@@ -143,7 +163,6 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_ROOT}/uberz/Debug/uberzlib.lib"
     "${FILAMENT_LIBS_ROOT}/viewer/Debug/viewer.lib"
     
-    
     "${FILAMENT_LIBS_3rdPARTY}/zstd/tnt/Debug/zstd.lib"
     "${FILAMENT_LIBS_3rdPARTY}/civetweb/tnt/Debug/civetweb.lib"
     "${FILAMENT_LIBS_3rdPARTY}/glslang/tnt/glslang/Debug/glslangd.lib"
@@ -164,12 +183,17 @@ target_link_libraries(app PUBLIC
     "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/basis_encoder.lib"
     "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/basis_transcoder.lib"
     "${FILAMENT_LIBS_3rdPARTY}/basisu/tnt/Debug/zstd-basisu.lib"
+    
+    # Windows libs
     opengl32
     Shlwapi
-
+    comctl32
+    rpcrt4
+    
     Vulkan::Vulkan 
 )
 
+# ==================== SOURCES ====================
 target_sources(app PRIVATE 
   ${RESOURCE_SOURCES_MATDBG} 
   ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
@@ -179,11 +203,50 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
   ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
   ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
-  
-  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
-  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
+
+  # UI
+  ${CMAKE_SOURCE_DIR}/core/src/ui/UIRenderer.cpp
 )
 
-# Garante consistência do runtime em todas as targets
+# ==================== CEF HELPER EXECUTABLES ====================
+# Criar executável helper do CEF (necessário para sub-processos)
+# add_executable(app_helper 
+#     core/src/cef/helper_main.cpp
+# )
+
+# target_include_directories(app_helper PRIVATE ${CEF_INCLUDE_PATH})
+# target_link_libraries(app_helper PRIVATE
+#     libcef_dll_wrapper
+#     ${CEF_LIB_DEBUG}
+# )
+
+# ==================== CEF POST-BUILD ====================
+# Copiar recursos do CEF para o diretório de build
+add_custom_command(TARGET app POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CEF_ROOT}/Release" 
+    "$<TARGET_FILE_DIR:app>"
+    COMMENT "Copying CEF binaries..."
+)
+
+add_custom_command(TARGET app POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CEF_ROOT}/Resources" 
+    "$<TARGET_FILE_DIR:app>"
+    COMMENT "Copying CEF resources..."
+)
+
+# Copiar helper executável (comentado - app_helper não está sendo compilado)
+# add_custom_command(TARGET app POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy
+#     "$<TARGET_FILE:app_helper>"
+#     "$<TARGET_FILE_DIR:app>/app_helper.exe"
+#     COMMENT "Copying CEF helper..."
+# )
+
+# Runtime consistency
 set_property(TARGET app PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
+set_property(TARGET libcef_dll_wrapper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
+# set_property(TARGET app_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
+
 add_subdirectory(${FILAMENT_LIBS_3rdPARTY_ROOT}/libassimp/contrib/zlib)
