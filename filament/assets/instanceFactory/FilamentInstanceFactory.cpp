@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+#include <functional>
 
 namespace lite {
 
@@ -76,6 +77,8 @@ std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(
     }
 
     auto instance = std::make_unique<FilamentAsset3dInstance>(m_engine, m_scene);
+    instance->name = rootNode.name;
+    instance->localTransform = rootNode.localTransform;
 
     // Create material instances and build lookup map by name
     std::unordered_map<std::string, filament::MaterialInstance*> materialMap;
@@ -85,16 +88,21 @@ std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(
         instance->materialInstances.push_back(matInstance);
     }
 
-    // Create root entity
-    instance->rootEntity = utils::EntityManager::get().create();
-    auto& transformManager = m_engine->getTransformManager();
-    transformManager.create(instance->rootEntity);
+    // Process node hierarchy recursively - creates FilamentMeshAsset3dInstance for meshes
+    processNode(rootNode, *instance, materialMap);
 
-    // Process node hierarchy recursively
-    processNode(rootNode, *instance, materialMap, glm::mat4(1.0f));
+    // Count total meshes created
+    size_t meshCount = 0;
+    std::function<void(const Asset3dInstance&)> countMeshes = [&](const Asset3dInstance& node) {
+        if (node.isMesh()) meshCount++;
+        for (const auto& child : node.children) {
+            countMeshes(*child);
+        }
+    };
+    countMeshes(*instance);
 
     std::cout << "FilamentInstanceFactory: Created instance with "
-              << instance->entities.size() << " entities" << std::endl;
+              << meshCount << " meshes" << std::endl;
 
     return instance;
 }
@@ -105,99 +113,141 @@ void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
     auto* filamentInstance = dynamic_cast<FilamentAsset3dInstance*>(instance);
     if (!filamentInstance) return;
 
-    // Remove entities from scene and destroy
-    for (auto& entity : filamentInstance->entities) {
-        m_scene->remove(entity);
-        m_engine->destroy(entity);
-    }
+    // Recursively destroy mesh resources in hierarchy
+    std::function<void(Asset3dInstance&)> destroyNode = [&](Asset3dInstance& node) {
+        // First destroy children
+        for (auto& child : node.children) {
+            destroyNode(*child);
+        }
 
-    // Destroy vertex buffers
-    for (auto* vb : filamentInstance->vertexBuffers) {
-        if (vb) m_engine->destroy(vb);
-    }
+        // If this is a mesh, destroy its GPU resources
+        if (node.isMesh()) {
+            auto* meshInstance = dynamic_cast<FilamentMeshAsset3dInstance*>(&node);
+            if (meshInstance) {
+                // Remove from scene
+                m_scene->remove(meshInstance->entity);
 
-    // Destroy index buffers
-    for (auto* ib : filamentInstance->indexBuffers) {
-        if (ib) m_engine->destroy(ib);
-    }
+                // Destroy GPU resources
+                if (meshInstance->vertexBuffer) {
+                    m_engine->destroy(meshInstance->vertexBuffer);
+                }
+                if (meshInstance->indexBuffer) {
+                    m_engine->destroy(meshInstance->indexBuffer);
+                }
+                // Note: materialInstance is shared, destroyed below
 
-    // Destroy material instances
+                // Destroy entity
+                m_engine->destroy(meshInstance->entity);
+            }
+        }
+    };
+    destroyNode(*filamentInstance);
+
+    // Destroy shared material instances
     for (auto* mi : filamentInstance->materialInstances) {
         if (mi) m_engine->destroy(mi);
     }
-
-    // Destroy root entity
-    m_engine->destroy(filamentInstance->rootEntity);
 
     std::cout << "FilamentInstanceFactory: Instance destroyed" << std::endl;
 }
 
 void FilamentInstanceFactory::processNode(
     const Asset3dData& node,
-    FilamentAsset3dInstance& instance,
-    const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap,
-    const glm::mat4& parentTransform
+    Asset3dInstance& parentInstance,
+    const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap
 ) {
-    glm::mat4 worldTransform = parentTransform * node.localTransform;
+    // Get root instance for accessing shared materials
+    FilamentAsset3dInstance* rootInstance = nullptr;
+    Asset3dInstance* current = &parentInstance;
+    while (current) {
+        if (auto* root = dynamic_cast<FilamentAsset3dInstance*>(current)) {
+            rootInstance = root;
+            break;
+        }
+        current = current->parent;
+    }
 
-    // If this is a mesh node, create renderable
+    // If this is a mesh node, create FilamentMeshAsset3dInstance
     if (node.isMesh()) {
         const MeshAsset3dData& mesh = static_cast<const MeshAsset3dData&>(node);
 
+        // Create mesh instance as child
+        auto* meshInstance = parentInstance.addChild<FilamentMeshAsset3dInstance>(m_engine, m_scene);
+        meshInstance->name = mesh.name;
+        meshInstance->localTransform = mesh.localTransform;
+        meshInstance->materialName = mesh.materialName;
+
         // Create vertex buffer
-        filament::VertexBuffer* vertexBuffer = createVertexBuffer(mesh);
-        if (!vertexBuffer) return;
-        instance.vertexBuffers.push_back(vertexBuffer);
+        meshInstance->vertexBuffer = createVertexBuffer(mesh);
+        if (!meshInstance->vertexBuffer) return;
 
         // Create index buffer
-        filament::IndexBuffer* indexBuffer = createIndexBuffer(mesh);
-        if (!indexBuffer) return;
-        instance.indexBuffers.push_back(indexBuffer);
+        meshInstance->indexBuffer = createIndexBuffer(mesh);
+        if (!meshInstance->indexBuffer) return;
 
         // Get material instance by name
-        filament::MaterialInstance* matInstance = nullptr;
         auto it = materialMap.find(mesh.materialName);
         if (it != materialMap.end()) {
-            matInstance = it->second;
-        } else if (!instance.materialInstances.empty()) {
+            meshInstance->materialInstance = it->second;
+        } else if (rootInstance && !rootInstance->materialInstances.empty()) {
             // Fallback to first material
-            matInstance = instance.materialInstances[0];
+            meshInstance->materialInstance = rootInstance->materialInstances[0];
         } else {
             // Create default material instance
-            matInstance = m_baseMaterial->createInstance();
-            instance.materialInstances.push_back(matInstance);
+            meshInstance->materialInstance = m_baseMaterial->createInstance();
+            if (rootInstance) {
+                rootInstance->materialInstances.push_back(meshInstance->materialInstance);
+            }
         }
 
         // Create entity
-        utils::Entity entity = utils::EntityManager::get().create();
+        meshInstance->entity = utils::EntityManager::get().create();
 
         // Build renderable
         filament::RenderableManager::Builder(1)
             .boundingBox({{toFilament(mesh.boundsMin)}, {toFilament(mesh.boundsMax)}})
             .geometry(0, filament::RenderableManager::PrimitiveType::TRIANGLES,
-                      vertexBuffer, indexBuffer, 0, mesh.indices.size())
-            .material(0, matInstance)
+                      meshInstance->vertexBuffer, meshInstance->indexBuffer, 0, mesh.indices.size())
+            .material(0, meshInstance->materialInstance)
             .culling(false)
             .castShadows(false)
             .receiveShadows(true)
-            .build(*m_engine, entity);
+            .build(*m_engine, meshInstance->entity);
 
-        // Set transform
+        // Set transform using world transform from hierarchy
+        glm::mat4 worldTransform = meshInstance->getWorldTransform();
         auto& transformManager = m_engine->getTransformManager();
-        transformManager.create(entity);
-        auto transformInstance = transformManager.getInstance(entity);
+        transformManager.create(meshInstance->entity);
+        auto transformInstance = transformManager.getInstance(meshInstance->entity);
         if (transformInstance) {
             transformManager.setTransform(transformInstance, toFilament(worldTransform));
         }
 
         // Add to scene
-        m_scene->addEntity(entity);
-        instance.entities.push_back(entity);
-    }
+        m_scene->addEntity(meshInstance->entity);
 
-    // Process children recursively
-    for (const auto& child : node.children) {
-        processNode(*child, instance, materialMap, worldTransform);
+        // Process children of this mesh node (if any)
+        for (const auto& child : node.children) {
+            processNode(*child, *meshInstance, materialMap);
+        }
+    } else {
+        // Non-mesh node - create intermediate Asset3dInstance to maintain hierarchy
+        // Only create if this node has children or a non-identity transform
+        if (!node.children.empty() || node.localTransform != glm::mat4(1.0f)) {
+            auto* intermediateInstance = parentInstance.addChild<Asset3dInstance>();
+            intermediateInstance->name = node.name;
+            intermediateInstance->localTransform = node.localTransform;
+
+            // Process children recursively
+            for (const auto& child : node.children) {
+                processNode(*child, *intermediateInstance, materialMap);
+            }
+        } else {
+            // Skip this empty node, process children directly on parent
+            for (const auto& child : node.children) {
+                processNode(*child, parentInstance, materialMap);
+            }
+        }
     }
 }
 

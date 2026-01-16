@@ -206,6 +206,11 @@ target_sources(app PRIVATE
   # ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
   # ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
 
+  # ${CMAKE_SOURCE_DIR}/core/src/services/SceneService.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
+
   # Agnostic architecture
   ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
@@ -217,48 +222,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/ui/UIRendererThreaded.cpp
 )
 
-# ==================== CEF HELPER EXECUTABLES ====================
-# Criar executável helper do CEF (necessário para sub-processos)
-# add_executable(app_helper 
-#     core/src/cef/helper_main.cpp
-# )
-
-# target_include_directories(app_helper PRIVATE ${CEF_INCLUDE_PATH})
-# target_link_libraries(app_helper PRIVATE
-#     libcef_dll_wrapper
-#     ${CEF_LIB_DEBUG}
-# )
-
-# ==================== CEF POST-BUILD ====================
-# Copiar recursos do CEF para o diretório de build
-add_custom_command(TARGET app POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CEF_ROOT}/Release" 
-    "$<TARGET_FILE_DIR:app>"
-    COMMENT "Copying CEF binaries..."
-)
-
-add_custom_command(TARGET app POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    "${CEF_ROOT}/Resources" 
-    "$<TARGET_FILE_DIR:app>"
-    COMMENT "Copying CEF resources..."
-  # Agnostic architecture
-  ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
-  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
-  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
-  ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
-)
-
-# Copiar helper executável (comentado - app_helper não está sendo compilado)
-# add_custom_command(TARGET app POST_BUILD
-#     COMMAND ${CMAKE_COMMAND} -E copy
-#     "$<TARGET_FILE:app_helper>"
-#     "$<TARGET_FILE_DIR:app>/app_helper.exe"
-#     COMMENT "Copying CEF helper..."
-# )
-
-# Runtime consistency
+# Garante consistência do runtime em todas as targets
 set_property(TARGET app PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
 set_property(TARGET libcef_dll_wrapper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
 # set_property(TARGET app_helper PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreadedDebug")
