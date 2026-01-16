@@ -51,9 +51,10 @@
 // #include <lite/services/MaterialLoader.h>
 
 // New agnostic architecture
-#include <lite/core/Asset3dImportData.h>
-#include <lite/importers/AssimpImporter.h>
-#include <lite/renderers/filament/FilamentInstantiator.h>
+#include <core/data/assets/Asset3dData.h>
+#include <core/data/assets/Asset3dInstance.h>
+#include <assimp/assets/importer/AssimpImporter.h>
+#include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 
 using namespace std;
 using namespace lite;
@@ -323,9 +324,9 @@ int main(int /*argc*/, char** /*argv*/){
     //     std::cerr << "Failed to load GLTF asset!" << std::endl;
     // }
 
-    // New agnostic architecture: Importer + Instantiator
+    // New agnostic architecture: Importer + InstanceFactory
     auto importer = std::make_unique<AssimpImporter>();
-    auto instantiator = std::make_unique<FilamentInstantiator>(engine, scene);
+    auto instanceFactory = std::make_unique<FilamentInstanceFactory>(engine, scene);
 
     // Import 3D asset (renderer-agnostic data)
     auto importData = importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
@@ -333,7 +334,7 @@ int main(int /*argc*/, char** /*argv*/){
     // Instantiate to GPU (Filament-specific)
     std::unique_ptr<Asset3dInstance> assetInstance;
     if (importData) {
-        assetInstance = instantiator->instantiate(*importData);
+        assetInstance = instanceFactory->instantiate(*importData);
     }
 
 
@@ -510,10 +511,10 @@ int main(int /*argc*/, char** /*argv*/){
 
     // Cleanup 3D asset instance using the new architecture
     if (assetInstance) {
-        instantiator->destroy(assetInstance.get());
+        instanceFactory->destroy(assetInstance.get());
         assetInstance.reset();
     }
-    instantiator.reset();
+    instanceFactory.reset();
     importer.reset();
     
     filament::Engine::destroy(&engine);

@@ -1,4 +1,4 @@
-#include <lite/importers/AssimpImporter.h>
+#include <assimp/assets/importer/AssimpImporter.h>
 
 #include <iostream>
 #include <algorithm>
@@ -6,7 +6,7 @@
 
 namespace lite {
 
-std::unique_ptr<Asset3dImportData> AssimpImporter::import(const std::string& filePath) {
+std::unique_ptr<Asset3dData> AssimpImporter::import(const std::string& filePath) {
     const aiScene* scene = m_importer.ReadFile(filePath,
         aiProcess_Triangulate |
         aiProcess_GenSmoothNormals |
@@ -19,7 +19,7 @@ std::unique_ptr<Asset3dImportData> AssimpImporter::import(const std::string& fil
         return nullptr;
     }
 
-    auto data = std::make_unique<Asset3dImportData>();
+    auto data = std::make_unique<Asset3dData>();
     data->sourcePath = filePath;
 
     // Extract base directory for texture paths
@@ -73,7 +73,7 @@ std::vector<std::string> AssimpImporter::getSupportedExtensions() const {
 void AssimpImporter::processNode(
     const aiNode* node,
     const aiScene* scene,
-    Asset3dImportData& data,
+    Asset3dData& data,
     int32_t parentIndex,
     const std::string& baseDirectory
 ) {
@@ -102,8 +102,8 @@ void AssimpImporter::processNode(
     }
 }
 
-MeshImportData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* scene) {
-    MeshImportData meshData;
+MeshData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* scene) {
+    MeshData meshData;
     meshData.name = mesh->mName.C_Str();
     meshData.materialIndex = mesh->mMaterialIndex;
 
@@ -167,11 +167,11 @@ MeshImportData AssimpImporter::processMesh(const aiMesh* mesh, const aiScene* sc
     return meshData;
 }
 
-MaterialImportData AssimpImporter::processMaterial(
+MaterialData AssimpImporter::processMaterial(
     const aiMaterial* material,
     const std::string& baseDirectory
 ) {
-    MaterialImportData matData;
+    MaterialData matData;
 
     // Get material name
     aiString matName;

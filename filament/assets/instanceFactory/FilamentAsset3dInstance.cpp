@@ -1,4 +1,4 @@
-#include <lite/renderers/filament/FilamentAsset3dInstance.h>
+#include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
 
 #include <filament/TransformManager.h>
 #include <filament/RenderableManager.h>

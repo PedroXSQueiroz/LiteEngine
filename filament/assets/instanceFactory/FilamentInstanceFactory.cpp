@@ -1,4 +1,4 @@
-#include <lite/renderers/filament/FilamentInstantiator.h>
+#include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 
 #include <filament/VertexBuffer.h>
 #include <filament/IndexBuffer.h>
@@ -15,7 +15,7 @@
 
 namespace lite {
 
-FilamentInstantiator::FilamentInstantiator(
+FilamentInstanceFactory::FilamentInstanceFactory(
     filament::Engine* engine,
     filament::Scene* scene,
     const std::string& defaultMaterialPath
@@ -39,18 +39,18 @@ FilamentInstantiator::FilamentInstantiator(
             .build(*m_engine);
 
         if (m_baseMaterial) {
-            std::cout << "FilamentInstantiator: Base material loaded" << std::endl;
+            std::cout << "FilamentInstanceFactory: Base material loaded" << std::endl;
         }
     } else {
-        std::cerr << "FilamentInstantiator: Failed to load base material: " << m_defaultMaterialPath << std::endl;
+        std::cerr << "FilamentInstanceFactory: Failed to load base material: " << m_defaultMaterialPath << std::endl;
     }
 }
 
-FilamentInstantiator::~FilamentInstantiator() {
+FilamentInstanceFactory::~FilamentInstanceFactory() {
     cleanup();
 }
 
-void FilamentInstantiator::cleanup() {
+void FilamentInstanceFactory::cleanup() {
     // Cleanup texture cache
     for (auto& [path, texture] : m_textureCache) {
         if (texture) {
@@ -66,9 +66,9 @@ void FilamentInstantiator::cleanup() {
     }
 }
 
-std::unique_ptr<Asset3dInstance> FilamentInstantiator::instantiate(const Asset3dImportData& data) {
+std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(const Asset3dData& data) {
     if (!m_baseMaterial) {
-        std::cerr << "FilamentInstantiator: No base material available" << std::endl;
+        std::cerr << "FilamentInstanceFactory: No base material available" << std::endl;
         return nullptr;
     }
 
@@ -90,13 +90,13 @@ std::unique_ptr<Asset3dInstance> FilamentInstantiator::instantiate(const Asset3d
         processNode(data, data.rootNodeIndex, *instance, glm::mat4(1.0f));
     }
 
-    std::cout << "FilamentInstantiator: Created instance with "
+    std::cout << "FilamentInstanceFactory: Created instance with "
               << instance->entities.size() << " entities" << std::endl;
 
     return instance;
 }
 
-void FilamentInstantiator::destroy(Asset3dInstance* instance) {
+void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
     if (!instance) return;
 
     auto* filamentInstance = dynamic_cast<FilamentAsset3dInstance*>(instance);
@@ -126,11 +126,11 @@ void FilamentInstantiator::destroy(Asset3dInstance* instance) {
     // Destroy root entity
     m_engine->destroy(filamentInstance->rootEntity);
 
-    std::cout << "FilamentInstantiator: Instance destroyed" << std::endl;
+    std::cout << "FilamentInstanceFactory: Instance destroyed" << std::endl;
 }
 
-void FilamentInstantiator::processNode(
-    const Asset3dImportData& data,
+void FilamentInstanceFactory::processNode(
+    const Asset3dData& data,
     uint32_t nodeIndex,
     FilamentAsset3dInstance& instance,
     const glm::mat4& parentTransform
@@ -144,7 +144,7 @@ void FilamentInstantiator::processNode(
     for (uint32_t meshIndex : node.meshIndices) {
         if (meshIndex >= data.meshes.size()) continue;
 
-        const MeshImportData& mesh = data.meshes[meshIndex];
+        const MeshData& mesh = data.meshes[meshIndex];
 
         // Create vertex buffer
         filament::VertexBuffer* vertexBuffer = createVertexBuffer(mesh);
@@ -200,7 +200,7 @@ void FilamentInstantiator::processNode(
     }
 }
 
-filament::VertexBuffer* FilamentInstantiator::createVertexBuffer(const MeshImportData& mesh) {
+filament::VertexBuffer* FilamentInstanceFactory::createVertexBuffer(const MeshData& mesh) {
     if (mesh.positions.empty()) return nullptr;
 
     // Allocate persistent copies of data
@@ -266,7 +266,7 @@ filament::VertexBuffer* FilamentInstantiator::createVertexBuffer(const MeshImpor
     return vertexBuffer;
 }
 
-filament::IndexBuffer* FilamentInstantiator::createIndexBuffer(const MeshImportData& mesh) {
+filament::IndexBuffer* FilamentInstanceFactory::createIndexBuffer(const MeshData& mesh) {
     if (mesh.indices.empty()) return nullptr;
 
     auto* indices = new std::vector<uint32_t>(mesh.indices);
@@ -290,7 +290,7 @@ filament::IndexBuffer* FilamentInstantiator::createIndexBuffer(const MeshImportD
     return indexBuffer;
 }
 
-filament::Texture* FilamentInstantiator::loadTexture(const TextureInfo& texInfo) {
+filament::Texture* FilamentInstanceFactory::loadTexture(const TextureInfo& texInfo) {
     if (texInfo.path.empty()) return nullptr;
 
     // Check cache
@@ -366,7 +366,7 @@ filament::Texture* FilamentInstantiator::loadTexture(const TextureInfo& texInfo)
     return texture;
 }
 
-filament::MaterialInstance* FilamentInstantiator::createMaterialInstance(const MaterialImportData& matData) {
+filament::MaterialInstance* FilamentInstanceFactory::createMaterialInstance(const MaterialData& matData) {
     if (!m_baseMaterial) return nullptr;
 
     filament::MaterialInstance* instance = m_baseMaterial->createInstance();
@@ -425,15 +425,15 @@ filament::MaterialInstance* FilamentInstantiator::createMaterialInstance(const M
 }
 
 // Type conversion helpers
-filament::math::float3 FilamentInstantiator::toFilament(const glm::vec3& v) {
+filament::math::float3 FilamentInstanceFactory::toFilament(const glm::vec3& v) {
     return {v.x, v.y, v.z};
 }
 
-filament::math::float4 FilamentInstantiator::toFilament(const glm::vec4& v) {
+filament::math::float4 FilamentInstanceFactory::toFilament(const glm::vec4& v) {
     return {v.x, v.y, v.z, v.w};
 }
 
-filament::math::mat4f FilamentInstantiator::toFilament(const glm::mat4& m) {
+filament::math::mat4f FilamentInstanceFactory::toFilament(const glm::mat4& m) {
     filament::math::mat4f result;
     std::memcpy(&result, &m, sizeof(float) * 16);
     return result;

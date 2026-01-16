@@ -1,8 +1,8 @@
 #pragma once
 
-#include <lite/core/Asset3dInstantiator.h>
-#include <lite/core/Asset3dImportData.h>
-#include <lite/renderers/filament/FilamentAsset3dInstance.h>
+#include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
+#include <core/data/assets/Asset3dData.h>
+#include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
 
 #include <string>
 #include <unordered_map>
@@ -14,17 +14,17 @@
 
 namespace lite {
 
-    class FilamentInstantiator : public Asset3dInstantiator {
+    class FilamentInstanceFactory : public Asset3dInstanceFactory {
     public:
-        FilamentInstantiator(
+        FilamentInstanceFactory(
             filament::Engine* engine,
             filament::Scene* scene,
             const std::string& defaultMaterialPath = ""
         );
 
-        ~FilamentInstantiator() override;
+        ~FilamentInstanceFactory() override;
 
-        std::unique_ptr<Asset3dInstance> instantiate(const Asset3dImportData& data) override;
+        std::unique_ptr<Asset3dInstance> instantiate(const Asset3dData& data) override;
         void destroy(Asset3dInstance* instance) override;
 
         // Cleanup all cached resources
@@ -32,20 +32,20 @@ namespace lite {
 
     private:
         // Create vertex buffer from mesh data
-        filament::VertexBuffer* createVertexBuffer(const MeshImportData& mesh);
+        filament::VertexBuffer* createVertexBuffer(const MeshData& mesh);
 
         // Create index buffer from mesh data
-        filament::IndexBuffer* createIndexBuffer(const MeshImportData& mesh);
+        filament::IndexBuffer* createIndexBuffer(const MeshData& mesh);
 
         // Load or get cached texture
         filament::Texture* loadTexture(const TextureInfo& texInfo);
 
         // Create material instance from material data
-        filament::MaterialInstance* createMaterialInstance(const MaterialImportData& matData);
+        filament::MaterialInstance* createMaterialInstance(const MaterialData& matData);
 
         // Process a node and create entities
         void processNode(
-            const Asset3dImportData& data,
+            const Asset3dData& data,
             uint32_t nodeIndex,
             FilamentAsset3dInstance& instance,
             const glm::mat4& parentTransform

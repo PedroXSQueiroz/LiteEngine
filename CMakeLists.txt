@@ -60,6 +60,10 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 #END SETTING MATDBG RESOURCES
 
 include_directories(
+  # New agnostic architecture headers
+  ${CMAKE_SOURCE_DIR}/include
+
+  # Legacy headers (to be deprecated)
   ${CMAKE_SOURCE_DIR}/core/src/include
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/services
 
@@ -185,9 +189,9 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
 
   # New agnostic architecture
-  ${CMAKE_SOURCE_DIR}/core/src/importers/AssimpImporter.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/renderers/filament/FilamentInstantiator.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/renderers/filament/FilamentAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
 
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c

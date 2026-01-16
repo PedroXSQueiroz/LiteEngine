@@ -1,7 +1,7 @@
 #pragma once
 
-#include <lite/core/Asset3dImporter.h>
-#include <lite/core/Asset3dImportData.h>
+#include <core/assets/importer/Asset3dImporter.h>
+#include <core/data/assets/Asset3dData.h>
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
@@ -14,7 +14,7 @@ namespace lite {
         AssimpImporter() = default;
         ~AssimpImporter() override = default;
 
-        std::unique_ptr<Asset3dImportData> import(const std::string& filePath) override;
+        std::unique_ptr<Asset3dData> import(const std::string& filePath) override;
         bool canImport(const std::string& extension) const override;
         std::vector<std::string> getSupportedExtensions() const override;
 
@@ -23,16 +23,16 @@ namespace lite {
         void processNode(
             const aiNode* node,
             const aiScene* scene,
-            Asset3dImportData& data,
+            Asset3dData& data,
             int32_t parentIndex,
             const std::string& baseDirectory
         );
 
         // Process a single mesh
-        MeshImportData processMesh(const aiMesh* mesh, const aiScene* scene);
+        MeshData processMesh(const aiMesh* mesh, const aiScene* scene);
 
         // Process a material
-        MaterialImportData processMaterial(
+        MaterialData processMaterial(
             const aiMaterial* material,
             const std::string& baseDirectory
         );

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <lite/core/Asset3dInstance.h>
+#include <core/data/assets/Asset3dInstance.h>
 
 #include <vector>
 #include <filament/Engine.h>

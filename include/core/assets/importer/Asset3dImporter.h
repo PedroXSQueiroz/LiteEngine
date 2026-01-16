@@ -2,7 +2,8 @@
 
 #include <string>
 #include <memory>
-#include <lite/core/Asset3dImportData.h>
+#include <vector>
+#include <core/data/assets/Asset3dData.h>
 
 namespace lite {
 
@@ -13,7 +14,7 @@ namespace lite {
         virtual ~Asset3dImporter() = default;
 
         // Import a 3D asset file and return renderer-agnostic data
-        virtual std::unique_ptr<Asset3dImportData> import(const std::string& filePath) = 0;
+        virtual std::unique_ptr<Asset3dData> import(const std::string& filePath) = 0;
 
         // Check if this importer can handle the given file extension
         virtual bool canImport(const std::string& extension) const = 0;

@@ -11,9 +11,6 @@
 
 namespace lite {
 
-    // Forward declaration
-    struct Asset3dImportData;
-
     // Texture information (renderer-agnostic)
     struct TextureInfo {
         std::string path;                   // Relative or absolute path
@@ -25,7 +22,7 @@ namespace lite {
     };
 
     // Material data (PBR properties)
-    struct MaterialImportData {
+    struct MaterialData {
         std::string name;
 
         // PBR factors
@@ -43,7 +40,7 @@ namespace lite {
     };
 
     // Mesh geometry data
-    struct MeshImportData {
+    struct MeshData {
         std::string name;
 
         // Geometry
@@ -72,11 +69,11 @@ namespace lite {
     };
 
     // Main container for imported 3D asset data
-    class Asset3dImportData {
+    class Asset3dData {
     public:
         std::vector<SceneNode> nodes;
-        std::vector<MeshImportData> meshes;
-        std::vector<MaterialImportData> materials;
+        std::vector<MeshData> meshes;
+        std::vector<MaterialData> materials;
 
         uint32_t rootNodeIndex = 0;
         std::string sourcePath;
