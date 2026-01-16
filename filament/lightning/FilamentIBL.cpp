@@ -1,4 +1,4 @@
-#include <lightning\IBL.h>
+#include <filament/lightning/FilamentIBL.h>
 
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
@@ -20,30 +20,58 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-
-#include <string.h>
-
-#include <utils/Log.h>
+#include <cstring>
 
 using namespace filament;
 using namespace filament::math;
 using namespace ktxreader;
 using namespace utils;
 
+namespace lite {
+
 static constexpr float IBL_INTENSITY = 30000.0f;
 
-IBL::IBL(Engine& engine) : mEngine(engine) {
+FilamentIBL::FilamentIBL(filament::Engine* engine, filament::Scene* scene)
+    : m_engine(engine)
+    , m_scene(scene)
+{
 }
 
-IBL::~IBL() {
-    mEngine.destroy(mIndirectLight);
-    mEngine.destroy(mTexture);
-    mEngine.destroy(mSkybox);
-    mEngine.destroy(mSkyboxTexture);
-    mEngine.destroy(mFogTexture);
+FilamentIBL::~FilamentIBL() {
+    if (m_engine) {
+        m_engine->destroy(m_indirectLight);
+        m_engine->destroy(m_texture);
+        m_engine->destroy(m_skybox);
+        m_engine->destroy(m_skyboxTexture);
+        m_engine->destroy(m_fogTexture);
+    }
 }
 
-bool IBL::loadFromEquirect(Path const& path) {
+bool FilamentIBL::load(const std::string& path) {
+    Path iblPath(path);
+    if (!iblPath.exists()) {
+        std::cerr << "FilamentIBL: Path does not exist: " << path << std::endl;
+        return false;
+    }
+
+    bool success = false;
+    if (iblPath.isDirectory()) {
+        success = loadFromDirectory(path);
+    } else {
+        success = loadFromEquirect(path);
+    }
+
+    if (success) {
+        m_scene->setSkybox(m_skybox);
+        m_scene->setIndirectLight(m_indirectLight);
+        std::cout << "FilamentIBL: Loaded successfully from " << path << std::endl;
+    }
+
+    return success;
+}
+
+bool FilamentIBL::loadFromEquirect(const std::string& pathStr) {
+    Path path(pathStr);
     if (!path.exists()) {
         return false;
     }
@@ -79,20 +107,20 @@ bool IBL::loadFromEquirect(Path const& path) {
     }
 
     if (data == nullptr || n != 3) {
-        std::cerr << "Could not decode image " << std::endl;
+        std::cerr << "FilamentIBL: Could not decode image" << std::endl;
         destroyer(data, size, user);
         return false;
     }
 
     if (w != h * 2) {
-        std::cerr << "not an equirectangular image!" << std::endl;
+        std::cerr << "FilamentIBL: Not an equirectangular image!" << std::endl;
         destroyer(data, size, user);
         return false;
     }
 
     // now load texture
     Texture::PixelBufferDescriptor buffer(
-            data, size,Texture::Format::RGB, Texture::Type::FLOAT, destroyer, user);
+            data, size, Texture::Format::RGB, Texture::Type::FLOAT, destroyer, user);
 
     Texture* const equirect = Texture::Builder()
             .width((uint32_t)w)
@@ -101,38 +129,38 @@ bool IBL::loadFromEquirect(Path const& path) {
             .format(Texture::InternalFormat::R11F_G11F_B10F)
             .sampler(Texture::Sampler::SAMPLER_2D)
             .usage(Texture::Usage::DEFAULT | Texture::Usage::GEN_MIPMAPPABLE)
-            .build(mEngine);
+            .build(*m_engine);
 
-    equirect->setImage(mEngine, 0, std::move(buffer));
+    equirect->setImage(*m_engine, 0, std::move(buffer));
 
-    IBLPrefilterContext context(mEngine);
+    IBLPrefilterContext context(*m_engine);
     IBLPrefilterContext::EquirectangularToCubemap equirectangularToCubemap(context);
     IBLPrefilterContext::SpecularFilter specularFilter(context);
     IBLPrefilterContext::IrradianceFilter irradianceFilter(context);
 
-    mSkyboxTexture = equirectangularToCubemap(equirect);
+    m_skyboxTexture = equirectangularToCubemap(equirect);
 
-    mEngine.destroy(equirect);
+    m_engine->destroy(equirect);
 
-    mTexture = specularFilter(mSkyboxTexture);
+    m_texture = specularFilter(m_skyboxTexture);
 
-    mFogTexture = irradianceFilter({ .generateMipmap = true }, mSkyboxTexture);
-    mFogTexture->generateMipmaps(mEngine);
+    m_fogTexture = irradianceFilter({ .generateMipmap = true }, m_skyboxTexture);
+    m_fogTexture->generateMipmaps(*m_engine);
 
-    mIndirectLight = IndirectLight::Builder()
-            .reflections(mTexture)
+    m_indirectLight = IndirectLight::Builder()
+            .reflections(m_texture)
             .intensity(IBL_INTENSITY)
-            .build(mEngine);
+            .build(*m_engine);
 
-    mSkybox = Skybox::Builder()
-            .environment(mSkyboxTexture)
+    m_skybox = Skybox::Builder()
+            .environment(m_skyboxTexture)
             .showSun(true)
-            .build(mEngine);
+            .build(*m_engine);
 
     return true;
 }
 
-bool IBL::loadFromKtx(const std::string& prefix) {
+bool FilamentIBL::loadFromKtx(const std::string& prefix) {
     Path iblPath(prefix + "_ibl.ktx");
     if (!iblPath.exists()) {
         return false;
@@ -152,38 +180,32 @@ bool IBL::loadFromKtx(const std::string& prefix) {
     Ktx1Bundle* iblKtx = createKtx(iblPath);
     Ktx1Bundle* skyKtx = createKtx(skyPath);
 
-    mSkyboxTexture = Ktx1Reader::createTexture(&mEngine, skyKtx, false);
-    mTexture = Ktx1Reader::createTexture(&mEngine, iblKtx, false);
+    m_skyboxTexture = Ktx1Reader::createTexture(m_engine, skyKtx, false);
+    m_texture = Ktx1Reader::createTexture(m_engine, iblKtx, false);
 
-    // TODO: create the fog texture, it's a bit complicated because IBLPrefilter requires
-    //       the source image to have miplevels, and it's not guaranteed here and also
-    //       not guaranteed we can generate them (e.g. texture could be compressed)
-    //IBLPrefilterContext context(mEngine);
-    //IBLPrefilterContext::IrradianceFilter irradianceFilter(context);
-    //mFogTexture = irradianceFilter({ .generateMipmap=false }, mSkyboxTexture);
-    //mFogTexture->generateMipmaps(mEngine);
-
-
-    if (!iblKtx->getSphericalHarmonics(mBands)) {
+    if (!iblKtx->getSphericalHarmonics(m_bands)) {
         return false;
     }
-    mHasSphericalHarmonics = true;
+    m_hasSphericalHarmonics = true;
 
-    mIndirectLight = IndirectLight::Builder()
-            .reflections(mTexture)
+    m_indirectLight = IndirectLight::Builder()
+            .reflections(m_texture)
             .intensity(IBL_INTENSITY)
-            .build(mEngine);
+            .build(*m_engine);
 
-    mSkybox = Skybox::Builder().environment(mSkyboxTexture).showSun(true).build(mEngine);
+    m_skybox = Skybox::Builder().environment(m_skyboxTexture).showSun(true).build(*m_engine);
 
     return true;
 }
 
-bool IBL::loadFromDirectory(const utils::Path& path) {
+bool FilamentIBL::loadFromDirectory(const std::string& pathStr) {
+    Path path(pathStr);
+
     // First check if KTX files are available.
     if (loadFromKtx(Path::concat(path, path.getName()))) {
         return true;
     }
+
     // Read spherical harmonics
     Path sh(Path::concat(path, "sh.txt"));
     if (sh.exists()) {
@@ -191,55 +213,63 @@ bool IBL::loadFromDirectory(const utils::Path& path) {
         shReader >> std::skipws;
 
         std::string line;
-        for (float3& band : mBands) {
+        for (float3& band : m_bands) {
             std::getline(shReader, line);
-            int n = sscanf(line.c_str(), "(%f,%f,%f)", &band.r, &band.g, &band.b); // NOLINT(cert-err34-c)
+            int n = sscanf(line.c_str(), "(%f,%f,%f)", &band.r, &band.g, &band.b);
             if (n != 3) return false;
         }
     } else {
         return false;
     }
-    mHasSphericalHarmonics = true;
+    m_hasSphericalHarmonics = true;
 
     // Read mip-mapped cubemap
     const std::string prefix = "m";
-    if (!loadCubemapLevel(&mTexture, path, 0, prefix + "0_")) return false;
+    if (!loadCubemapLevel(&m_texture, pathStr, 0, prefix + "0_")) return false;
 
-    size_t numLevels = mTexture->getLevels();
-    for (size_t i = 1; i<numLevels; i++) {
+    size_t numLevels = m_texture->getLevels();
+    for (size_t i = 1; i < numLevels; i++) {
         const std::string levelPrefix = prefix + std::to_string(i) + "_";
-        loadCubemapLevel(&mTexture, path, i, levelPrefix);
+        loadCubemapLevel(&m_texture, pathStr, i, levelPrefix);
     }
 
-    if (!loadCubemapLevel(&mSkyboxTexture, path)) return false;
+    if (!loadCubemapLevel(&m_skyboxTexture, pathStr)) return false;
 
-    mIndirectLight = IndirectLight::Builder()
-            .reflections(mTexture)
-            .irradiance(3, mBands)
+    m_indirectLight = IndirectLight::Builder()
+            .reflections(m_texture)
+            .irradiance(3, m_bands)
             .intensity(IBL_INTENSITY)
-            .build(mEngine);
+            .build(*m_engine);
 
-    mSkybox = Skybox::Builder().environment(mSkyboxTexture).showSun(true).build(mEngine);
+    m_skybox = Skybox::Builder().environment(m_skyboxTexture).showSun(true).build(*m_engine);
 
     return true;
 }
 
-bool IBL::loadCubemapLevel(filament::Texture** texture, const utils::Path& path, size_t level,
-        std::string const& levelPrefix) const {
+bool FilamentIBL::loadCubemapLevel(
+    filament::Texture** texture,
+    const std::string& pathStr,
+    size_t level,
+    const std::string& levelPrefix
+) const {
     uint32_t dim;
     Texture::PixelBufferDescriptor buffer;
-    if (loadCubemapLevel(texture, &buffer, &dim, path, level, levelPrefix)) {
-        (*texture)->setImage(mEngine, level, 0, 0, 0, dim, dim, 6, std::move(buffer));
+    if (loadCubemapLevel(texture, &buffer, &dim, pathStr, level, levelPrefix)) {
+        (*texture)->setImage(*m_engine, level, 0, 0, 0, dim, dim, 6, std::move(buffer));
         return true;
     }
     return false;
 }
 
-bool IBL::loadCubemapLevel(
-        filament::Texture** texture,
-        Texture::PixelBufferDescriptor* outBuffer,
-        uint32_t* dim,
-        const utils::Path& path, size_t level, std::string const& levelPrefix) const {
+bool FilamentIBL::loadCubemapLevel(
+    filament::Texture** texture,
+    Texture::PixelBufferDescriptor* outBuffer,
+    uint32_t* dim,
+    const std::string& pathStr,
+    size_t level,
+    const std::string& levelPrefix
+) const {
+    Path path(pathStr);
     static const char* faceSuffix[6] = { "px", "nx", "py", "ny", "pz", "nz" };
 
     size_t size = 0;
@@ -250,12 +280,12 @@ bool IBL::loadCubemapLevel(
         std::string faceName = levelPrefix + faceSuffix[0] + ".rgb32f";
         Path facePath(Path::concat(path, faceName));
         if (!facePath.exists()) {
-            std::cerr << "The face " << faceName << " does not exist" << std::endl;
+            std::cerr << "FilamentIBL: The face " << faceName << " does not exist" << std::endl;
             return false;
         }
         stbi_info(facePath.getAbsolutePath().c_str(), &w, &h, nullptr);
         if (w != h) {
-            std::cerr << "width != height" << std::endl;
+            std::cerr << "FilamentIBL: width != height" << std::endl;
             return false;
         }
 
@@ -272,7 +302,7 @@ bool IBL::loadCubemapLevel(
                     .levels((uint8_t)numLevels)
                     .format(Texture::InternalFormat::R11F_G11F_B10F)
                     .sampler(Texture::Sampler::SAMPLER_CUBEMAP)
-                    .build(mEngine);
+                    .build(*m_engine);
         }
     }
 
@@ -292,7 +322,7 @@ bool IBL::loadCubemapLevel(
         std::string faceName = levelPrefix + faceSuffix[j] + ".rgb32f";
         Path facePath(Path::concat(path, faceName));
         if (!facePath.exists()) {
-            std::cerr << "The face " << faceName << " does not exist" << std::endl;
+            std::cerr << "FilamentIBL: The face " << faceName << " does not exist" << std::endl;
             success = false;
             break;
         }
@@ -300,14 +330,14 @@ bool IBL::loadCubemapLevel(
         int w, h, n;
         unsigned char* data = stbi_load(facePath.getAbsolutePath().c_str(), &w, &h, &n, 4);
         if (w != h || w != size) {
-            std::cerr << "Face " << faceName << "has a wrong size " << w << " x " << h <<
-            ", instead of " << size << " x " << size << std::endl;
+            std::cerr << "FilamentIBL: Face " << faceName << " has a wrong size " << w << " x " << h
+                      << ", instead of " << size << " x " << size << std::endl;
             success = false;
             break;
         }
 
         if (data == nullptr || n != 4) {
-            std::cerr << "Could not decode face " << faceName << std::endl;
+            std::cerr << "FilamentIBL: Could not decode face " << faceName << std::endl;
             success = false;
             break;
         }
@@ -323,3 +353,5 @@ bool IBL::loadCubemapLevel(
 
     return true;
 }
+
+} // namespace lite

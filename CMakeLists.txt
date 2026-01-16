@@ -18,6 +18,10 @@ find_package(Vulkan REQUIRED)
 set(JOLT_ROOT "/3rd_party/JoltPhysics")
 set(OZZ_ROOT "/3rd_party/ozz-animation")
 
+
+# GLM - Header only math library
+set(GLM_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/glm")
+
 # ==================== CEF CONFIGURATION ====================
 # IMPORTANTE: Definir CEF_ROOT ANTES de find_package
 set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/cef")
@@ -42,10 +46,7 @@ add_subdirectory(${CEF_ROOT}/libcef_dll libcef_dll_wrapper)
 # ==================== EXECUTÁVEL PRINCIPAL ====================
 add_executable(app 
   core/src/main.cpp
-  core/src/lightning/IBL.cpp
-  # core/src/cef/CefHandler.cpp
-  # core/src/cef/CefRenderHandler.cpp
-  # core/src/cef/CefJSBridge.cpp
+  
 )
 
 # ==================== MATDBG RESOURCES ====================
@@ -68,8 +69,8 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 
 # ==================== INCLUDE DIRECTORIES ====================
 target_include_directories(app PRIVATE
-  ${CMAKE_SOURCE_DIR}/core/src/include
-  ${CMAKE_SOURCE_DIR}/core/src/include/lite/services
+  # Agnostic architecture headers
+  ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/cef
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/ui
 
@@ -121,6 +122,7 @@ target_include_directories(app PRIVATE
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
   ${SDL_ROOT}/include
+  ${GLM_ROOT}
 
   ${Vulkan_INCLUDE_DIRS} 
 )
@@ -194,15 +196,21 @@ target_link_libraries(app PRIVATE
 )
 
 # ==================== SOURCES ====================
-target_sources(app PRIVATE 
-  ${RESOURCE_SOURCES_MATDBG} 
+target_sources(app PRIVATE
+  ${RESOURCE_SOURCES_MATDBG}
   ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
   ${FILAMENT_ROOT}/out/libs/gltfio/materials/uberarchive.c
 
-  ${CMAKE_SOURCE_DIR}/core/src/services/SceneService.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/SceneService.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
+  # ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
+
+  # Agnostic architecture
+  ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
 
   # UI
   ${CMAKE_SOURCE_DIR}/core/src/ui/UIRenderer.cpp
@@ -235,6 +243,11 @@ add_custom_command(TARGET app POST_BUILD
     "${CEF_ROOT}/Resources" 
     "$<TARGET_FILE_DIR:app>"
     COMMENT "Copying CEF resources..."
+  # Agnostic architecture
+  ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
 )
 
 # Copiar helper executável (comentado - app_helper não está sendo compilado)

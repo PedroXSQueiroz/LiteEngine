@@ -30,7 +30,7 @@
 #include <filament/RenderableManager.h>
 #include <utils/NameComponentManager.h>
 #include <filament/LightManager.h>
-#include <filamentapp/IBL.h>
+#include <filament/lightning/FilamentIBL.h>
 #include <filament/IndirectLight.h>
 #include <filament/Camera.h>
 #include <gltfio/FilamentAsset.h>
@@ -48,9 +48,17 @@
 // Include bluegl para OpenGL loader do Filament
 #include <bluegl/BlueGL.h>
 
+// Old loader (to be deprecated)
 // #include <lite/services/Asset3dLoader.h>
-#include <lite/services/Asset3dLoaderAssimp.h>
-#include <lite/services/MaterialLoader.h>
+// #include <lite/services/Asset3dLoaderAssimp.h>
+// #include <lite/services/MaterialLoader.h>
+
+// New agnostic architecture
+#include <core/data/assets/Asset3dData.h>
+#include <core/data/assets/MaterialData.h>
+#include <core/data/assets/Asset3dInstance.h>
+#include <assimp/assets/importer/AssimpImporter.h>
+#include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 #include <lite/ui/UIRendererThreaded.h>
 #include "include/cef_app.h"
 
@@ -79,30 +87,6 @@ ASSETS
 static std::ifstream::pos_type getFileSize(const char* filename) {
     std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
     return in.tellg();
-}
-
-static unique_ptr<IBL> loadIBLUnique(filament::Engine* engine, const std::string& path, filament::Scene* scene) {
-    utils::Path iblPath(path);
-    if (!iblPath.exists()) {
-        std::cerr << "IBL path does not exist: " << path << std::endl;
-        return nullptr;
-    }
-
-    auto ibl = make_unique<IBL>(*engine);
-    bool ok = false;
-    if (!iblPath.isDirectory()) {
-        ok = ibl->loadFromEquirect(iblPath);
-    } else {
-        ok = ibl->loadFromDirectory(iblPath);
-    }
-    if (!ok) {
-        std::cerr << "Failed to load IBL from: " << path << std::endl;
-        return nullptr;
-    }
-
-    scene->setSkybox(ibl->getSkybox());
-    scene->setIndirectLight(ibl->getIndirectLight());
-    return ibl;
 }
 
 void loadResources(
@@ -332,28 +316,19 @@ int main(int argc, char** argv){
     //     std::cerr << "Failed to load GLTF asset!" << std::endl;
     // }
 
-    filament::Material* mat = nullptr;
-    filament::MaterialInstance* matInstance = nullptr;
-    std::vector<FBXMesh> objects;
+    // New agnostic architecture: Importer + InstanceFactory
+    auto importer = std::make_unique<AssimpImporter>();
+    auto instanceFactory = std::make_unique<FilamentInstanceFactory>(engine, scene);
 
-    MaterialLoader* matLoader = new MaterialLoader(engine);
+    // Import 3D asset (renderer-agnostic data)
+    Asset3dData rootNode;
+    std::vector<MaterialData> materials;
 
-    Asset3dLoader* loader = new Asset3dLoaderAssimp(
-        engine,
-        scene,
-        matLoader
-    );
-
-    // Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx");
-    Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
-    objects = data->m_objects;
-
-    // loadFBXWithMaterials(
-    //     engine, 
-    //     "C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx"
-    //     , scene
-    //     , objects);
-    // scene->addEntity(mesh.entity);
+    std::unique_ptr<Asset3dInstance> assetInstance;
+    if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
+        // Instantiate to GPU (Filament-specific)
+        assetInstance = instanceFactory->instantiate(rootNode, materials);
+    }
 
 
     filament::math::float3 center(0, 0, 0);
@@ -374,9 +349,9 @@ int main(int argc, char** argv){
     
     //SETUP LIGHTNING IBL
     std::string iblPath = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
-    
-    std::unique_ptr<IBL> ibl = loadIBLUnique(engine, iblPath, scene);
-    if (!ibl) {
+
+    auto ibl = std::make_unique<FilamentIBL>(engine, scene);
+    if (!ibl->load(iblPath)) {
         std::cerr << "Warning: IBL failed to load. Scene may be dark." << std::endl;
     } else {
         std::cout << "IBL loaded and applied to scene." << std::endl;
@@ -558,25 +533,13 @@ int main(int argc, char** argv){
     //     asset->releaseSourceData();
     // }
 
-    // Cleanup FBX mesh
-    for(FBXMesh mesh : objects)
-    {
-        if (!mesh.entity.isNull()) {
-            engine->destroy(mesh.entity);
-        }
-        if (mesh.vertexBff) {
-            engine->destroy(mesh.vertexBff);
-        }
-        if (mesh.indexBff) {
-            engine->destroy(mesh.indexBff);
-        }
-        if (mesh.matInstance) {
-            engine->destroy(mesh.matInstance);
-        }
-        if (mesh.material) {
-            engine->destroy(mesh.material);
-        }
+    // Cleanup 3D asset instance using the new architecture
+    if (assetInstance) {
+        instanceFactory->destroy(assetInstance.get());
+        assetInstance.reset();
     }
+    instanceFactory.reset();
+    importer.reset();
     
     filament::Engine::destroy(&engine);
     
