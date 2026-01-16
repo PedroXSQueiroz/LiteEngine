@@ -27,7 +27,7 @@
 #include <filament/RenderableManager.h>
 #include <utils/NameComponentManager.h>
 #include <filament/LightManager.h>
-#include <filamentapp/IBL.h>
+#include <filament/lightning/FilamentIBL.h>
 #include <filament/IndirectLight.h>
 #include <filament/Camera.h>
 #include <gltfio/FilamentAsset.h>
@@ -81,30 +81,6 @@ ASSETS
 static std::ifstream::pos_type getFileSize(const char* filename) {
     std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
     return in.tellg();
-}
-
-static unique_ptr<IBL> loadIBLUnique(filament::Engine* engine, const std::string& path, filament::Scene* scene) {
-    utils::Path iblPath(path);
-    if (!iblPath.exists()) {
-        std::cerr << "IBL path does not exist: " << path << std::endl;
-        return nullptr;
-    }
-
-    auto ibl = make_unique<IBL>(*engine);
-    bool ok = false;
-    if (!iblPath.isDirectory()) {
-        ok = ibl->loadFromEquirect(iblPath);
-    } else {
-        ok = ibl->loadFromDirectory(iblPath);
-    }
-    if (!ok) {
-        std::cerr << "Failed to load IBL from: " << path << std::endl;
-        return nullptr;
-    }
-
-    scene->setSkybox(ibl->getSkybox());
-    scene->setIndirectLight(ibl->getIndirectLight());
-    return ibl;
 }
 
 void loadResources(
@@ -356,9 +332,9 @@ int main(int /*argc*/, char** /*argv*/){
     
     //SETUP LIGHTNING IBL
     std::string iblPath = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
-    
-    std::unique_ptr<IBL> ibl = loadIBLUnique(engine, iblPath, scene);
-    if (!ibl) {
+
+    auto ibl = std::make_unique<FilamentIBL>(engine, scene);
+    if (!ibl->load(iblPath)) {
         std::cerr << "Warning: IBL failed to load. Scene may be dark." << std::endl;
     } else {
         std::cout << "IBL loaded and applied to scene." << std::endl;

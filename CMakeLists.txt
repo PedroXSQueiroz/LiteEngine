@@ -32,9 +32,8 @@ set(FILAMENT_GENERATED_RESOURCES_DATA ${FILAMENT_ROOT}/out/filament/generated/da
 set(FILAMENT_GENERATED_RESOURCES_MATDBG ${FILAMENT_ROOT}/out/libs/matdbg)
 set(FILAMENT_GENERATED_RESOURCES_GLTFIO_MATERIALS ${FILAMENT_ROOT}/out/libs/gltfio/materials)
 
-add_executable(app 
+add_executable(app
   core/src/main.cpp
-  core/src/lightning/IBL.cpp
 )
 
 #SETTING MATDBG RESOURCES
@@ -60,12 +59,8 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 #END SETTING MATDBG RESOURCES
 
 include_directories(
-  # New agnostic architecture headers
+  # Agnostic architecture headers
   ${CMAKE_SOURCE_DIR}/include
-
-  # Legacy headers (to be deprecated)
-  ${CMAKE_SOURCE_DIR}/core/src/include
-  ${CMAKE_SOURCE_DIR}/core/src/include/lite/services
 
   ${FILAMENT_ROOT}/filament/include
   ${FILAMENT_ROOT}/filament/backend/include
@@ -178,23 +173,16 @@ target_link_libraries(app PUBLIC
     Vulkan::Vulkan 
 )
 
-target_sources(app PRIVATE 
-  ${RESOURCE_SOURCES_MATDBG} 
+target_sources(app PRIVATE
+  ${RESOURCE_SOURCES_MATDBG}
   ${FILAMENT_ROOT}/out/libs/matdbg/matdbg_resources.c
   ${FILAMENT_ROOT}/out/libs/gltfio/materials/uberarchive.c
 
-  ${CMAKE_SOURCE_DIR}/core/src/services/SceneService.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
-
-  # New agnostic architecture
+  # Agnostic architecture
   ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
-
-  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
-  # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
+  ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
 )
 
 # Garante consistência do runtime em todas as targets
