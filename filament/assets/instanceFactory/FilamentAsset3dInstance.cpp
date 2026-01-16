@@ -1,4 +1,4 @@
-#include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
+#include <filament/data/assets/FilamentAsset3dInstance.h>
 
 #include <cstring>
 

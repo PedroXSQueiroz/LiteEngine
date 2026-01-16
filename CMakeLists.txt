@@ -61,6 +61,7 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 include_directories(
   # Agnostic architecture headers
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}
 
   ${FILAMENT_ROOT}/filament/include
   ${FILAMENT_ROOT}/filament/backend/include

@@ -4,8 +4,8 @@
 #include <core/data/assets/Asset3dData.h>
 #include <core/data/assets/MeshAsset3dData.h>
 #include <core/data/assets/MaterialData.h>
-#include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
-#include <filament/assets/instanceFactory/FilamentMeshAsset3dInstance.h>
+#include <filament/data/assets/FilamentAsset3dInstance.h>
+#include <filament/data/assets/FilamentMeshAsset3dInstance.h>
 
 #include <string>
 #include <unordered_map>

@@ -1,4 +1,4 @@
-#include <filament/assets/instanceFactory/FilamentMeshAsset3dInstance.h>
+#include <filament/data/assets/FilamentMeshAsset3dInstance.h>
 
 #include <filament/RenderableManager.h>
 
