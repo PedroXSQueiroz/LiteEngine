@@ -206,6 +206,7 @@ target_sources(app PRIVATE
 
   # UI
   ${CMAKE_SOURCE_DIR}/core/src/ui/UIRenderer.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/ui/UIRendererThreaded.cpp
 )
 
 # ==================== CEF HELPER EXECUTABLES ====================

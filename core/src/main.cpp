@@ -8,9 +8,6 @@
 #include <thread>
 #include <chrono>
 
-// CEF - para controle de subprocessos
-#include "include/cef_app.h"
-
 #include <SDL.h>
 #include <SDL_syswm.h>
 #define SDL_MAIN_HANDLED
@@ -54,7 +51,8 @@
 // #include <lite/services/Asset3dLoader.h>
 #include <lite/services/Asset3dLoaderAssimp.h>
 #include <lite/services/MaterialLoader.h>
-#include <lite/ui/UIRenderer.h>
+#include <lite/ui/UIRendererThreaded.h>
+#include "include/cef_app.h"
 
 using namespace std;
 using namespace lite;
@@ -185,12 +183,11 @@ int main(int argc, char** argv){
 
     /*----------------------------------------------------------------------------
     CEF SUBPROCESS HANDLING - DEVE SER O PRIMEIRO!
+    O CEF ainda cria subprocessos mesmo com thread separada.
     ----------------------------------------------------------------------------*/
-    // Se este processo é um subprocesso do CEF, deixa o CEF processar e sai
     CefMainArgs cef_args(GetModuleHandle(nullptr));
     int exit_code = CefExecuteProcess(cef_args, nullptr, nullptr);
     if (exit_code >= 0) {
-        // É um subprocesso CEF, sair sem criar janelas
         return exit_code;
     }
 
@@ -399,13 +396,11 @@ int main(int argc, char** argv){
     std::cout << "Lighting setup complete" << std::endl;
 
     /*----------------------------------------------------------------------------
-    SETUP UI RENDERER (CEF)
+    SETUP UI RENDERER (CEF) - Thread separada
     ----------------------------------------------------------------------------*/
-    lite::UIRenderer* uiRenderer = new lite::UIRenderer(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
-    if (!uiRenderer->initialize()) {
-        std::cerr << "Failed to initialize UIRenderer" << std::endl;
-    } else {
-        uiRenderer->loadHtml("<h1 style='color:red'>Hello World</h1>");
+    lite::UIRendererThreaded* uiRenderer = new lite::UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
+    if (!uiRenderer->start("file:///D:/Workspace/LiteEngine/core/resources/UI/index.html")) {
+        std::cerr << "Failed to start UIRenderer" << std::endl;
     }
 
     std::cout << "Starting main loop..." << std::endl;
@@ -518,9 +513,17 @@ int main(int argc, char** argv){
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
 
-            // UI Overlay (CEF)
+            // UI Overlay (CEF) - apenas atualiza textura, CEF roda em outra thread
             if (uiRenderer) {
-                uiRenderer->update();
+                uiRenderer->updateTexture();
+
+                // Enviar posicao do mouse para o JavaScript
+                int mouseX, mouseY;
+                SDL_GetMouseState(&mouseX, &mouseY);
+                uiRenderer->executeJavaScript(
+                    "updateMousePosition(" + std::to_string(mouseX) + "," + std::to_string(mouseY) + ");"
+                );
+
                 uiRenderer->render(renderer);
             }
 
@@ -535,8 +538,9 @@ int main(int argc, char** argv){
     
     std::cout << "Shutting down..." << std::endl;
 
-    // Cleanup UI
+    // Cleanup UI - para a thread do CEF primeiro
     if (uiRenderer) {
+        uiRenderer->stop();
         delete uiRenderer;
         uiRenderer = nullptr;
     }
