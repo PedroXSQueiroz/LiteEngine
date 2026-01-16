@@ -5,49 +5,43 @@
 #include <vector>
 #include <filament/Engine.h>
 #include <filament/Scene.h>
-#include <filament/VertexBuffer.h>
-#include <filament/IndexBuffer.h>
-#include <filament/Material.h>
 #include <filament/MaterialInstance.h>
 #include <filament/Texture.h>
-#include <utils/Entity.h>
 
 #include <glm/glm.hpp>
 
 namespace lite {
 
-    // Filament-specific instance of a 3D asset
-    class FilamentAsset3dInstance : public Asset3dInstance {
-    public:
-        FilamentAsset3dInstance(filament::Engine* engine, filament::Scene* scene)
-            : m_engine(engine)
-            , m_scene(scene)
-            , m_visible(true)
-            , m_transform(1.0f)
-        {}
+// Filament-specific root instance (container for mesh instances)
+// Uses hierarchy from Asset3dInstance - meshes are FilamentMeshAsset3dInstance children
+class FilamentAsset3dInstance : public Asset3dInstance {
+public:
+    FilamentAsset3dInstance(filament::Engine* engine, filament::Scene* scene)
+        : m_engine(engine)
+        , m_scene(scene)
+    {}
 
-        ~FilamentAsset3dInstance() override = default;
+    ~FilamentAsset3dInstance() override = default;
 
-        void setTransform(const glm::mat4& transform) override;
-        void setVisible(bool visible) override;
-        glm::mat4 getTransform() const override { return m_transform; }
-        bool isVisible() const override { return m_visible; }
+    void setVisible(bool visible) override;
 
-        // Filament resources
-        std::vector<utils::Entity> entities;
-        std::vector<filament::VertexBuffer*> vertexBuffers;
-        std::vector<filament::IndexBuffer*> indexBuffers;
-        std::vector<filament::MaterialInstance*> materialInstances;
-        std::vector<filament::Texture*> textures;
+    // Set transform on root (affects all children)
+    void setTransform(const glm::mat4& transform);
 
-        // Root entity for the whole asset (for hierarchy transforms)
-        utils::Entity rootEntity;
+    // Access to engine/scene for operations
+    filament::Engine* getEngine() const { return m_engine; }
+    filament::Scene* getScene() const { return m_scene; }
 
-    private:
-        filament::Engine* m_engine;
-        filament::Scene* m_scene;
-        bool m_visible;
-        glm::mat4 m_transform;
-    };
+    // Shared material instances (ownership - destroyed by factory)
+    std::vector<filament::MaterialInstance*> materialInstances;
+
+    // Shared textures (referenced from cache, not owned)
+    std::vector<filament::Texture*> textures;
+
+private:
+    filament::Engine* m_engine;
+    filament::Scene* m_scene;
+    glm::mat4 m_transform = glm::mat4(1.0f);
+};
 
 } // namespace lite

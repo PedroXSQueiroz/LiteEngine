@@ -182,6 +182,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentMeshAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
 )
 

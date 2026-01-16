@@ -5,6 +5,7 @@
 #include <core/data/assets/MeshAsset3dData.h>
 #include <core/data/assets/MaterialData.h>
 #include <filament/assets/instanceFactory/FilamentAsset3dInstance.h>
+#include <filament/assets/instanceFactory/FilamentMeshAsset3dInstance.h>
 
 #include <string>
 #include <unordered_map>
@@ -49,12 +50,11 @@ private:
     // Create material instance from material data
     filament::MaterialInstance* createMaterialInstance(const MaterialData& matData);
 
-    // Process a node recursively and create entities
+    // Process a node recursively and create instance hierarchy
     void processNode(
         const Asset3dData& node,
-        FilamentAsset3dInstance& instance,
-        const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap,
-        const glm::mat4& parentTransform
+        Asset3dInstance& parentInstance,
+        const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap
     );
 
     // GLM to Filament type conversions
