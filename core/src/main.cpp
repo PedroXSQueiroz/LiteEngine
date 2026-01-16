@@ -45,9 +45,15 @@
 // Include bluegl para OpenGL loader do Filament
 #include <bluegl/BlueGL.h>
 
+// Old loader (to be deprecated)
 // #include <lite/services/Asset3dLoader.h>
-#include <lite/services/Asset3dLoaderAssimp.h>
-#include <lite/services/MaterialLoader.h>
+// #include <lite/services/Asset3dLoaderAssimp.h>
+// #include <lite/services/MaterialLoader.h>
+
+// New agnostic architecture
+#include <lite/core/Asset3dImportData.h>
+#include <lite/importers/AssimpImporter.h>
+#include <lite/renderers/filament/FilamentInstantiator.h>
 
 using namespace std;
 using namespace lite;
@@ -317,28 +323,18 @@ int main(int /*argc*/, char** /*argv*/){
     //     std::cerr << "Failed to load GLTF asset!" << std::endl;
     // }
 
-    filament::Material* mat = nullptr;
-    filament::MaterialInstance* matInstance = nullptr;
-    std::vector<FBXMesh> objects;
+    // New agnostic architecture: Importer + Instantiator
+    auto importer = std::make_unique<AssimpImporter>();
+    auto instantiator = std::make_unique<FilamentInstantiator>(engine, scene);
 
-    MaterialLoader* matLoader = new MaterialLoader(engine);
+    // Import 3D asset (renderer-agnostic data)
+    auto importData = importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
 
-    Asset3dLoader* loader = new Asset3dLoaderAssimp(
-        engine,
-        scene,
-        matLoader
-    );
-
-    // Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx");
-    Asset3dData* data = loader->load("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx");
-    objects = data->m_objects;
-
-    // loadFBXWithMaterials(
-    //     engine, 
-    //     "C:/Users/pixqu/Downloads/uploads_files_3580749_GLOCK+19+F+T+FBX/GLOCK 19 F T.fbx"
-    //     , scene
-    //     , objects);
-    // scene->addEntity(mesh.entity);
+    // Instantiate to GPU (Filament-specific)
+    std::unique_ptr<Asset3dInstance> assetInstance;
+    if (importData) {
+        assetInstance = instantiator->instantiate(*importData);
+    }
 
 
     filament::math::float3 center(0, 0, 0);
@@ -512,25 +508,13 @@ int main(int /*argc*/, char** /*argv*/){
     //     asset->releaseSourceData();
     // }
 
-    // Cleanup FBX mesh
-    for(FBXMesh mesh : objects)
-    {
-        if (!mesh.entity.isNull()) {
-            engine->destroy(mesh.entity);
-        }
-        if (mesh.vertexBff) {
-            engine->destroy(mesh.vertexBff);
-        }
-        if (mesh.indexBff) {
-            engine->destroy(mesh.indexBff);
-        }
-        if (mesh.matInstance) {
-            engine->destroy(mesh.matInstance);
-        }
-        if (mesh.material) {
-            engine->destroy(mesh.material);
-        }
+    // Cleanup 3D asset instance using the new architecture
+    if (assetInstance) {
+        instantiator->destroy(assetInstance.get());
+        assetInstance.reset();
     }
+    instantiator.reset();
+    importer.reset();
     
     filament::Engine::destroy(&engine);
     

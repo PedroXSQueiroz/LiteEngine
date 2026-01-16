@@ -22,6 +22,9 @@ find_package(Vulkan REQUIRED)
 set(JOLT_ROOT "/3rd_party/JoltPhysics")
 set(OZZ_ROOT "/3rd_party/ozz-animation")
 
+# GLM - Header only math library
+set(GLM_ROOT "${CMAKE_SOURCE_DIR}/3rd_party/glm")
+
 
 set(FILAMENT_GENERATED_RESOURCES ${FILAMENT_ROOT}/out/filament/generated/resources)
 set(FILAMENT_GENERATED_RESOURCES_MATERIALS ${FILAMENT_ROOT}/out/filament/generated/material)
@@ -105,6 +108,7 @@ include_directories(
   ${JOLT_ROOT}/include
   ${OZZ_ROOT}/include
   ${SDL_ROOT}/include
+  ${GLM_ROOT}
 
   ${Vulkan_INCLUDE_DIRS} 
 )
@@ -179,7 +183,12 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dData.cpp
   ${CMAKE_SOURCE_DIR}/core/src/services/Asset3dLoaderAssimp.cpp
   ${CMAKE_SOURCE_DIR}/core/src/services/MaterialLoader.cpp
-  
+
+  # New agnostic architecture
+  ${CMAKE_SOURCE_DIR}/core/src/importers/AssimpImporter.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/renderers/filament/FilamentInstantiator.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/renderers/filament/FilamentAsset3dInstance.cpp
+
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_image.cpp
   # ${FILAMENT_LIBS_3rdPARTY_ROOT}/stb/stb_vorbis.c
 )
