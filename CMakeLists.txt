@@ -70,7 +70,9 @@ target_include_directories(uber_archive PUBLIC ${FILAMENT_GENERATED_RESOURCES_GL
 # ==================== INCLUDE DIRECTORIES ====================
 target_include_directories(app PRIVATE
   # Agnostic architecture headers
+  ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/core/src/include
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/cef
   ${CMAKE_SOURCE_DIR}/core/src/include/lite/ui
 
@@ -215,6 +217,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/assimp/assets/importer/AssimpImporter.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentMeshAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
 
   # UI
