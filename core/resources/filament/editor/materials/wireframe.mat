@@ -1,0 +1,48 @@
+material {
+    name : wireframe,
+    shadingModel : unlit,
+    blending : transparent,
+    depthWrite : false,
+    doubleSided : true,
+
+    parameters : [
+        { type : float4, name : wireColor, default : [1.0, 1.0, 1.0, 0.8] },
+        { type : float, name : wireWidth, default : 1.5 }
+    ],
+
+    requires : [
+        uv0,
+        color
+    ]
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        // Pass barycentric coordinates through vertex color
+        // These are set per-vertex when creating the mesh
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+
+        // Barycentric coordinates passed via vertex color (RGB = barycentric XYZ)
+        vec3 bary = getColor().rgb;
+
+        // Calculate edge factor using screen-space derivatives
+        vec3 d = fwidth(bary);
+        vec3 f = step(d * materialParams.wireWidth, bary);
+
+        // Edge is where any barycentric coordinate is near 0
+        float edge = 1.0 - min(min(f.x, f.y), f.z);
+
+        // Discard interior pixels (not on edge)
+        if (edge < 0.01) {
+            discard;
+        }
+
+        // Apply wire color with edge-based alpha
+        material.baseColor = vec4(materialParams.wireColor.rgb, materialParams.wireColor.a * edge);
+    }
+}
