@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <glm/glm.hpp>
+#include <core/data/assets/Asset3dTransform.h>
 
 namespace lite {
 
@@ -17,20 +18,26 @@ public:
     // Node identification
     std::string name;
 
-    // Transform (relative to parent)
-    glm::mat4 localTransform = glm::mat4(1.0f);
+    // Transform access (implementation provides concrete transform)
+    Asset3dTransform* getTransform() { return m_transform.get(); }
+    const Asset3dTransform* getTransform() const { return m_transform.get(); }
+
+    // Convenience methods that delegate to transform
+    glm::mat4 getLocalMatrix() const {
+        return m_transform ? m_transform->getLocalMatrix() : glm::mat4(1.0f);
+    }
+
+    glm::mat4 getWorldMatrix() const {
+        return m_transform ? m_transform->getWorldMatrix() : glm::mat4(1.0f);
+    }
+
+    void setLocalMatrix(const glm::mat4& matrix) {
+        if (m_transform) m_transform->setLocalMatrix(matrix);
+    }
 
     // Hierarchy
     Asset3dInstance* parent = nullptr;  // Raw pointer (does not own)
     std::vector<std::unique_ptr<Asset3dInstance>> children;
-
-    // Calculate world transform recursively
-    glm::mat4 getWorldTransform() const {
-        if (!parent) {
-            return localTransform;
-        }
-        return parent->getWorldTransform() * localTransform;
-    }
 
     // Add child node with automatic parent assignment
     template<typename T, typename... Args>
@@ -50,6 +57,7 @@ public:
     virtual bool isVisible() const { return m_visible; }
 
 protected:
+    std::unique_ptr<Asset3dTransform> m_transform;
     bool m_visible = true;
 };
 
