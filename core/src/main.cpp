@@ -7,6 +7,7 @@
 #include <fstream>
 #include <thread>
 #include <chrono>
+#include <functional>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -57,8 +58,10 @@
 #include <core/data/assets/Asset3dData.h>
 #include <core/data/assets/MaterialData.h>
 #include <core/data/assets/Asset3dInstance.h>
+#include <core/data/assets/MeshAsset3dInstance.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
+#include <filament/editor/FilamentWireframeSystem.h>
 #include <core/ui/UIRendererThreaded.h>
 #include "include/cef_app.h"
 
@@ -371,6 +374,27 @@ int main(int argc, char** argv){
     std::cout << "Lighting setup complete" << std::endl;
 
     /*----------------------------------------------------------------------------
+    SETUP WIREFRAME SYSTEM
+    ----------------------------------------------------------------------------*/
+    auto wireframeSystem = std::make_unique<FilamentWireframeSystem>(engine, scene);
+    wireframeSystem->initialize(fbW, fbH);
+    wireframeSystem->loadMaterial("D:/Workspace/LiteEngine/core/resources/filament/editor/materials/wireframe.filamat");
+    wireframeSystem->setWireframeColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.6f)); // White with some transparency
+
+    // Add all meshes from assetInstance to wireframe
+    if (assetInstance) {
+        std::function<void(Asset3dInstance*)> addMeshesToWireframe = [&](Asset3dInstance* node) {
+            if (node->isMesh()) {
+                wireframeSystem->addWireframeMesh(dynamic_cast<MeshAsset3dInstance*>(node));
+            }
+            for (auto& child : node->children) {
+                addMeshesToWireframe(child.get());
+            }
+        };
+        addMeshesToWireframe(assetInstance.get());
+    }
+
+    /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF) - Thread separada
     ----------------------------------------------------------------------------*/
     lite::UIRendererThreaded* uiRenderer = new lite::UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -485,6 +509,9 @@ int main(int argc, char** argv){
 
         camera->lookAt(offsetEye, offsetEye + offsetCenter, upAbsolute);
 
+        // Update wireframe transforms
+        wireframeSystem->beginFrame();
+
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
 
@@ -519,6 +546,9 @@ int main(int argc, char** argv){
         delete uiRenderer;
         uiRenderer = nullptr;
     }
+
+    // Cleanup wireframe system
+    wireframeSystem.reset();
 
     // Cleanup
     engine->destroy(lightEntity);

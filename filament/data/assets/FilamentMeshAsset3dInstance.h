@@ -9,6 +9,9 @@
 #include <filament/MaterialInstance.h>
 #include <utils/Entity.h>
 
+#include <glm/glm.hpp>
+#include <vector>
+
 namespace lite {
 
 // Filament-specific mesh instance (GPU resources for a single mesh)
@@ -28,6 +31,13 @@ public:
     filament::VertexBuffer* vertexBuffer = nullptr;
     filament::IndexBuffer* indexBuffer = nullptr;
     filament::MaterialInstance* materialInstance = nullptr;
+
+    // CPU-side geometry data (kept for wireframe/debug rendering)
+    std::vector<glm::vec3> cpuPositions;
+    std::vector<glm::vec3> cpuNormals;
+    std::vector<uint32_t> cpuIndices;
+    glm::vec3 boundsMin = glm::vec3(0.0f);
+    glm::vec3 boundsMax = glm::vec3(0.0f);
 
     // Access to engine/scene for operations
     filament::Engine* getEngine() const { return m_engine; }

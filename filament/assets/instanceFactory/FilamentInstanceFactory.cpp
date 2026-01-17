@@ -177,6 +177,13 @@ void FilamentInstanceFactory::processNode(
         meshInstance->localTransform = mesh.localTransform;
         meshInstance->materialName = mesh.materialName;
 
+        // Store CPU-side data for wireframe/debug rendering
+        meshInstance->cpuPositions = mesh.positions;
+        meshInstance->cpuNormals = mesh.normals;
+        meshInstance->cpuIndices = mesh.indices;
+        meshInstance->boundsMin = mesh.boundsMin;
+        meshInstance->boundsMax = mesh.boundsMax;
+
         // Create vertex buffer
         meshInstance->vertexBuffer = createVertexBuffer(mesh);
         if (!meshInstance->vertexBuffer) return;
