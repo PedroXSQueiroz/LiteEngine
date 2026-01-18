@@ -1,4 +1,4 @@
-// IMPORTANTE: Definir NOMINMAX antes de qualquer include para evitar conflito com CEF
+// IMPORTANTE: Definir NOMINMAX antes de qualquer include
 #define NOMINMAX
 
 #include <core/ui/UIRendererThreaded.h>
@@ -14,7 +14,17 @@ namespace lite {
 UIRendererThreaded::UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height)
     : m_engine(engine), m_width(width), m_height(height)
 {
-    m_pixelBuffer.resize(width * height * 4, 0);
+    size_t bufferSize = width * height * 4;
+
+    // Inicializar double buffers
+    for (auto& buffer : m_pixelBuffers) {
+        buffer.resize(bufferSize, 0);
+    }
+
+    // Pre-alocar buffer de upload
+    m_uploadBuffer.resize(bufferSize);
+
+    m_lastJsCallTime = std::chrono::steady_clock::now();
 }
 
 UIRendererThreaded::~UIRendererThreaded() {
@@ -24,14 +34,11 @@ UIRendererThreaded::~UIRendererThreaded() {
 bool UIRendererThreaded::start(const std::string& initialUrl) {
     std::cout << "[UIRendererThreaded] Starting..." << std::endl;
 
-    // Criar recursos Filament na thread principal
     createFilamentResources();
 
-    // Iniciar thread do CEF
     m_running = true;
     m_cefThread = std::thread(&UIRendererThreaded::cefThreadFunc, this, initialUrl);
 
-    // Aguardar CEF ficar pronto (com timeout)
     int attempts = 0;
     while (!m_cefReady && m_running && attempts < 500) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -58,7 +65,6 @@ void UIRendererThreaded::stop() {
         m_cefThread.join();
     }
 
-    // Cleanup Filament (thread principal)
     if (m_engine) {
         if (!m_quadEntity.isNull()) m_engine->destroy(m_quadEntity);
         if (m_vertexBuffer) m_engine->destroy(m_vertexBuffer);
@@ -80,12 +86,11 @@ void UIRendererThreaded::stop() {
 void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
     std::cout << "[CEF Thread] Starting..." << std::endl;
 
-    // Inicializar CEF nesta thread
     CefMainArgs mainArgs;
     CefSettings settings;
     settings.windowless_rendering_enabled = true;
     settings.no_sandbox = true;
-    settings.multi_threaded_message_loop = false;
+    settings.multi_threaded_message_loop = true;
 
     if (!CefInitialize(mainArgs, settings, nullptr, nullptr)) {
         std::cerr << "[CEF Thread] CefInitialize failed!" << std::endl;
@@ -93,7 +98,8 @@ void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
         return;
     }
 
-    // Criar browser
+    std::cout << "[CEF Thread] CEF initialized, creating browser..." << std::endl;
+
     CefWindowInfo windowInfo;
     windowInfo.SetAsWindowless(nullptr);
 
@@ -101,66 +107,156 @@ void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
 
     std::string url = initialUrl.empty() ? "about:blank" : initialUrl;
 
-    m_browser = CefBrowserHost::CreateBrowserSync(
+    bool created = CefBrowserHost::CreateBrowser(
         windowInfo, this, url, browserSettings, nullptr, nullptr);
 
-    if (!m_browser) {
-        std::cerr << "[CEF Thread] Browser creation failed!" << std::endl;
+    if (!created) {
+        std::cerr << "[CEF Thread] Browser creation request failed!" << std::endl;
         CefShutdown();
         m_running = false;
         return;
     }
 
-    m_cefReady = true;
-    std::cout << "[CEF Thread] Ready, entering message loop" << std::endl;
+    std::cout << "[CEF Thread] Browser creation requested, waiting..." << std::endl;
 
-    // Message loop do CEF
+    // Com multi_threaded_message_loop = true, aguardar sinal de parada
     while (m_running) {
-        // Processar mensagens do CEF
-        CefDoMessageLoopWork();
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    std::cout << "[CEF Thread] Exiting message loop" << std::endl;
+    std::cout << "[CEF Thread] Stopping, closing browser..." << std::endl;
 
-    // Cleanup CEF
     if (m_browser) {
         m_browser->GetHost()->CloseBrowser(true);
 
-        // Aguardar browser fechar
         int attempts = 0;
-        while (m_browser && attempts < 100) {
-            CefDoMessageLoopWork();
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        while (!m_browserClosed && attempts < 50) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             attempts++;
         }
+
+        if (!m_browserClosed) {
+            std::cerr << "[CEF Thread] Browser close timeout" << std::endl;
+        }
+
         m_browser = nullptr;
     }
 
+    std::cout << "[CEF Thread] Shutting down CEF..." << std::endl;
     CefShutdown();
     std::cout << "[CEF Thread] Shutdown complete" << std::endl;
 }
 
+// CefLifeSpanHandler
+void UIRendererThreaded::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
+    std::cout << "[CEF] OnAfterCreated - Browser ready" << std::endl;
+    m_browser = browser;
+    m_cefReady = true;
+}
+
+void UIRendererThreaded::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
+    std::cout << "[CEF] OnBeforeClose" << std::endl;
+    m_browserClosed = true;
+    m_browser = nullptr;
+}
+
+// ========== OTIMIZACAO 4: Conversao BGRA->RGBA otimizada ==========
+void UIRendererThreaded::convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, size_t pixelCount) {
+    // Processar 4 pixels por vez (16 bytes) quando possivel
+    size_t i = 0;
+
+    // Processar em blocos de 4 pixels
+    size_t blockCount = pixelCount / 4;
+    for (size_t block = 0; block < blockCount; ++block) {
+        size_t base = block * 16;
+
+        // Pixel 0
+        dst[base + 0] = src[base + 2];  // R
+        dst[base + 1] = src[base + 1];  // G
+        dst[base + 2] = src[base + 0];  // B
+        dst[base + 3] = src[base + 3];  // A
+
+        // Pixel 1
+        dst[base + 4] = src[base + 6];
+        dst[base + 5] = src[base + 5];
+        dst[base + 6] = src[base + 4];
+        dst[base + 7] = src[base + 7];
+
+        // Pixel 2
+        dst[base + 8] = src[base + 10];
+        dst[base + 9] = src[base + 9];
+        dst[base + 10] = src[base + 8];
+        dst[base + 11] = src[base + 11];
+
+        // Pixel 3
+        dst[base + 12] = src[base + 14];
+        dst[base + 13] = src[base + 13];
+        dst[base + 14] = src[base + 12];
+        dst[base + 15] = src[base + 15];
+
+        i += 4;
+    }
+
+    // Processar pixels restantes
+    for (; i < pixelCount; ++i) {
+        size_t idx = i * 4;
+        dst[idx + 0] = src[idx + 2];  // R
+        dst[idx + 1] = src[idx + 1];  // G
+        dst[idx + 2] = src[idx + 0];  // B
+        dst[idx + 3] = src[idx + 3];  // A
+    }
+}
+
+// ========== OTIMIZACAO 1 & 4: OnPaint com double buffer ==========
+void UIRendererThreaded::OnPaint(CefRefPtr<CefBrowser> browser,
+                                  PaintElementType type,
+                                  const RectList& dirtyRects,
+                                  const void* buffer,
+                                  int width, int height) {
+    if (width != (int)m_width.load() || height != (int)m_height.load()) {
+        return;
+    }
+
+    size_t writeIdx = m_writeBufferIndex.load();
+    auto& writeBuffer = m_pixelBuffers[writeIdx];
+
+    // Conversao BGRA->RGBA diretamente no write buffer (sem lock!)
+    const uint8_t* src = static_cast<const uint8_t*>(buffer);
+    convertBGRAtoRGBA(src, writeBuffer.data(), width * height);
+
+    // Swap buffers (lock minimo apenas para trocar indices)
+    {
+        std::lock_guard<std::mutex> lock(m_swapMutex);
+        size_t newWriteIdx = m_readBufferIndex.load();
+        m_readBufferIndex.store(writeIdx);
+        m_writeBufferIndex.store(newWriteIdx);
+    }
+
+    m_needsTextureUpdate = true;
+}
+
+// ========== OTIMIZACAO 2: updateTexture sem malloc ==========
 void UIRendererThreaded::updateTexture() {
     if (!m_needsTextureUpdate || !m_texture) return;
 
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
+    // Copiar do read buffer para upload buffer (lock minimo)
+    {
+        std::lock_guard<std::mutex> lock(m_swapMutex);
+        size_t readIdx = m_readBufferIndex.load();
+        memcpy(m_uploadBuffer.data(), m_pixelBuffers[readIdx].data(), m_uploadBuffer.size());
+    }
 
-    if (!m_needsTextureUpdate) return; // Double check apos lock
+    m_needsTextureUpdate = false;
 
-    size_t dataSize = m_width * m_height * 4;
-    void* pixelsCopy = malloc(dataSize);
-    memcpy(pixelsCopy, m_pixelBuffer.data(), dataSize);
-
+    // Upload para GPU usando buffer pre-alocado
+    // Nota: Filament faz copia interna, entao podemos reusar m_uploadBuffer
     filament::Texture::PixelBufferDescriptor pbd(
-        pixelsCopy, dataSize,
+        m_uploadBuffer.data(),
+        m_uploadBuffer.size(),
         filament::Texture::Format::RGBA,
-        filament::Texture::Type::UBYTE,
-        [](void* buffer, size_t, void*) { free(buffer); });
+        filament::Texture::Type::UBYTE);
 
     m_texture->setImage(*m_engine, 0, std::move(pbd));
-    m_needsTextureUpdate = false;
 }
 
 void UIRendererThreaded::render(filament::Renderer* renderer) {
@@ -187,16 +283,32 @@ void UIRendererThreaded::executeJavaScript(const std::string& code) {
     }
 }
 
+// ========== OTIMIZACAO 3: executeJavaScript com throttle ==========
+void UIRendererThreaded::executeJavaScriptThrottled(const std::string& code, uint32_t minIntervalMs) {
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastJsCallTime).count();
+
+    if (elapsed >= minIntervalMs) {
+        executeJavaScript(code);
+        m_lastJsCallTime = now;
+    }
+}
+
 void UIRendererThreaded::resize(uint32_t width, uint32_t height) {
     m_width = width;
     m_height = height;
 
+    size_t bufferSize = width * height * 4;
+
+    // Redimensionar todos os buffers
     {
-        std::lock_guard<std::mutex> lock(m_bufferMutex);
-        m_pixelBuffer.resize(width * height * 4, 0);
+        std::lock_guard<std::mutex> lock(m_swapMutex);
+        for (auto& buffer : m_pixelBuffers) {
+            buffer.resize(bufferSize, 0);
+        }
+        m_uploadBuffer.resize(bufferSize);
     }
 
-    // Recriar textura na thread principal
     if (m_texture) {
         m_engine->destroy(m_texture);
     }
@@ -216,37 +328,13 @@ void UIRendererThreaded::resize(uint32_t width, uint32_t height) {
         m_view->setViewport(filament::Viewport(0, 0, width, height));
     }
 
-    // Notificar CEF do resize
     if (m_browser) {
         m_browser->GetHost()->WasResized();
     }
 }
 
-// CefRenderHandler - chamado na thread do CEF
 void UIRendererThreaded::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) {
     rect = CefRect(0, 0, m_width, m_height);
-}
-
-void UIRendererThreaded::OnPaint(CefRefPtr<CefBrowser> browser,
-                                  PaintElementType type,
-                                  const RectList& dirtyRects,
-                                  const void* buffer,
-                                  int width, int height) {
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-    if (width == (int)m_width.load() && height == (int)m_height.load()) {
-        // BGRA -> RGBA
-        const uint8_t* src = static_cast<const uint8_t*>(buffer);
-        size_t pixelCount = width * height;
-
-        for (size_t i = 0; i < pixelCount; i++) {
-            m_pixelBuffer[i * 4 + 0] = src[i * 4 + 2]; // R
-            m_pixelBuffer[i * 4 + 1] = src[i * 4 + 1]; // G
-            m_pixelBuffer[i * 4 + 2] = src[i * 4 + 0]; // B
-            m_pixelBuffer[i * 4 + 3] = src[i * 4 + 3]; // A
-        }
-        m_needsTextureUpdate = true;
-    }
 }
 
 void UIRendererThreaded::createFilamentResources() {

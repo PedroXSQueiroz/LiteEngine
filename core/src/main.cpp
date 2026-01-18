@@ -529,11 +529,12 @@ int main(int argc, char** argv){
             if (uiRenderer) {
                 uiRenderer->updateTexture();
 
-                // Enviar posicao do mouse para o JavaScript
+                // Enviar posicao do mouse para o JavaScript (com throttle para reduzir overhead)
                 int mouseX, mouseY;
                 SDL_GetMouseState(&mouseX, &mouseY);
-                uiRenderer->executeJavaScript(
-                    "updateMousePosition(" + std::to_string(mouseX) + "," + std::to_string(mouseY) + ");"
+                uiRenderer->executeJavaScriptThrottled(
+                    "updateMousePosition(" + std::to_string(mouseX) + "," + std::to_string(mouseY) + ");",
+                    32  // ~30fps para UI, suficiente para feedback visual
                 );
 
                 uiRenderer->render(renderer);

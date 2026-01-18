@@ -5,6 +5,8 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <chrono>
+#include <array>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
@@ -23,36 +25,40 @@
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
 #include "include/cef_render_handler.h"
+#include "include/cef_life_span_handler.h"
 
 namespace lite {
 
-class UIRendererThreaded : public CefClient, public CefRenderHandler {
+class UIRendererThreaded : public CefClient, public CefRenderHandler, public CefLifeSpanHandler {
 public:
     UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height);
     ~UIRendererThreaded();
 
-    // Inicia thread do CEF (chamado apos Filament estar pronto)
     bool start(const std::string& initialUrl = "");
-
-    // Para thread do CEF (chamado antes de destruir Filament)
     void stop();
 
-    // Chamado pela thread principal a cada frame
     void updateTexture();
     void render(filament::Renderer* renderer);
 
-    // Comandos enfileirados para a thread do CEF
     void loadUrl(const std::string& url);
     void loadHtml(const std::string& html);
     void resize(uint32_t width, uint32_t height);
     void executeJavaScript(const std::string& code);
 
+    // Nova: versao com throttle para chamadas frequentes
+    void executeJavaScriptThrottled(const std::string& code, uint32_t minIntervalMs = 16);
+
     filament::View* getView() const { return m_view; }
 
     // CefClient
     CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
+    CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
 
-    // CefRenderHandler (chamados na thread do CEF)
+    // CefLifeSpanHandler
+    void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
+    void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
+
+    // CefRenderHandler
     void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override;
     void OnPaint(CefRefPtr<CefBrowser> browser,
                  PaintElementType type,
@@ -61,15 +67,15 @@ public:
                  int width, int height) override;
 
 private:
-    // Funcao da thread do CEF
     void cefThreadFunc(const std::string& initialUrl);
-
-    // Criacao de recursos Filament (thread principal)
     void createFilamentResources();
     void createQuad();
     void createMaterial();
 
-    // Filament (apenas thread principal)
+    // Nova: conversao otimizada BGRA->RGBA
+    void convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, size_t pixelCount);
+
+    // Filament resources
     filament::Engine* m_engine;
     filament::View* m_view = nullptr;
     filament::Scene* m_scene = nullptr;
@@ -91,13 +97,25 @@ private:
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_cefReady{false};
 
-    // CEF (apenas thread do CEF)
+    // CEF
     CefRefPtr<CefBrowser> m_browser;
+    std::atomic<bool> m_browserClosed{false};
 
-    // Buffer compartilhado entre threads
-    std::vector<uint8_t> m_pixelBuffer;
-    std::mutex m_bufferMutex;
+    // ========== OTIMIZACAO 1: Double Buffering ==========
+    // Dois buffers para evitar lock contention
+    static constexpr size_t BUFFER_COUNT = 2;
+    std::array<std::vector<uint8_t>, BUFFER_COUNT> m_pixelBuffers;
+    std::atomic<size_t> m_writeBufferIndex{0};  // Buffer sendo escrito pelo CEF
+    std::atomic<size_t> m_readBufferIndex{1};   // Buffer sendo lido pelo Filament
+    std::mutex m_swapMutex;  // Apenas para swap, nao para copia
     std::atomic<bool> m_needsTextureUpdate{false};
+
+    // ========== OTIMIZACAO 2: Pool de memoria para upload ==========
+    // Buffer pre-alocado para upload de textura (evita malloc/free por frame)
+    std::vector<uint8_t> m_uploadBuffer;
+
+    // ========== OTIMIZACAO 3: Throttle para JS ==========
+    std::chrono::steady_clock::time_point m_lastJsCallTime;
 
     IMPLEMENT_REFCOUNTING(UIRendererThreaded);
 };
