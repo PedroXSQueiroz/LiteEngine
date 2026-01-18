@@ -1,14 +1,20 @@
 #include <filament/data/assets/FilamentAsset3dInstance.h>
+#include <filament/TransformManager.h>
 
 #include <cstring>
 
 namespace lite {
 
-void FilamentAsset3dInstance::setTransform(const glm::mat4& transform) {
-    m_transform = transform;
-    localTransform = transform;
-    // Note: Individual mesh transforms are handled by FilamentMeshAsset3dInstance
-    // The localTransform is used for getWorldTransform() calculations
+FilamentAsset3dInstance::FilamentAsset3dInstance(filament::Engine* engine, filament::Scene* scene)
+    : m_engine(engine)
+    , m_scene(scene)
+{
+}
+
+void FilamentAsset3dInstance::initializeTransform(utils::Entity entity) {
+    m_entity = entity;
+    auto& tm = m_engine->getTransformManager();
+    m_transform = std::make_unique<FilamentAsset3dTransform>(tm, entity);
 }
 
 void FilamentAsset3dInstance::setVisible(bool visible) {

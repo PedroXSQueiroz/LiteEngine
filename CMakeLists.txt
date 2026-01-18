@@ -218,6 +218,8 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentInstanceFactory.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentMeshAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentAsset3dTransform.cpp
+  ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentCameraAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
 

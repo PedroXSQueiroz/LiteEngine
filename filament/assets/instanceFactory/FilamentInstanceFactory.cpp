@@ -78,7 +78,13 @@ std::unique_ptr<Asset3dInstance> FilamentInstanceFactory::instantiate(
 
     auto instance = std::make_unique<FilamentAsset3dInstance>(m_engine, m_scene);
     instance->name = rootNode.name;
-    instance->localTransform = rootNode.localTransform;
+
+    // Create root entity and transform
+    utils::Entity rootEntity = utils::EntityManager::get().create();
+    auto& transformManager = m_engine->getTransformManager();
+    transformManager.create(rootEntity);
+    instance->initializeTransform(rootEntity);
+    instance->setLocalMatrix(rootNode.localTransform);
 
     // Create material instances and build lookup map by name
     std::unordered_map<std::string, filament::MaterialInstance*> materialMap;
@@ -113,7 +119,9 @@ void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
     auto* filamentInstance = dynamic_cast<FilamentAsset3dInstance*>(instance);
     if (!filamentInstance) return;
 
-    // Recursively destroy mesh resources in hierarchy
+    auto& transformManager = m_engine->getTransformManager();
+
+    // Recursively destroy resources in hierarchy
     std::function<void(Asset3dInstance&)> destroyNode = [&](Asset3dInstance& node) {
         // First destroy children
         for (auto& child : node.children) {
@@ -124,8 +132,10 @@ void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
         if (node.isMesh()) {
             auto* meshInstance = dynamic_cast<FilamentMeshAsset3dInstance*>(&node);
             if (meshInstance) {
+                utils::Entity entity = meshInstance->getEntity();
+
                 // Remove from scene
-                m_scene->remove(meshInstance->entity);
+                m_scene->remove(entity);
 
                 // Destroy GPU resources
                 if (meshInstance->vertexBuffer) {
@@ -136,8 +146,17 @@ void FilamentInstanceFactory::destroy(Asset3dInstance* instance) {
                 }
                 // Note: materialInstance is shared, destroyed below
 
-                // Destroy entity
-                m_engine->destroy(meshInstance->entity);
+                // Destroy transform and entity
+                transformManager.destroy(entity);
+                m_engine->destroy(entity);
+            }
+        } else {
+            // Non-mesh node (FilamentAsset3dInstance or intermediate)
+            auto* filamentNode = dynamic_cast<FilamentAsset3dInstance*>(&node);
+            if (filamentNode) {
+                utils::Entity entity = filamentNode->getEntity();
+                transformManager.destroy(entity);
+                m_engine->destroy(entity);
             }
         }
     };
@@ -156,6 +175,8 @@ void FilamentInstanceFactory::processNode(
     Asset3dInstance& parentInstance,
     const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap
 ) {
+    auto& transformManager = m_engine->getTransformManager();
+
     // Get root instance for accessing shared materials
     FilamentAsset3dInstance* rootInstance = nullptr;
     Asset3dInstance* current = &parentInstance;
@@ -167,6 +188,14 @@ void FilamentInstanceFactory::processNode(
         current = current->parent;
     }
 
+    // Get parent entity for transform hierarchy
+    utils::Entity parentEntity;
+    if (auto* filamentParent = dynamic_cast<FilamentAsset3dInstance*>(&parentInstance)) {
+        parentEntity = filamentParent->getEntity();
+    } else if (auto* meshParent = dynamic_cast<FilamentMeshAsset3dInstance*>(&parentInstance)) {
+        parentEntity = meshParent->getEntity();
+    }
+
     // If this is a mesh node, create FilamentMeshAsset3dInstance
     if (node.isMesh()) {
         const MeshAsset3dData& mesh = static_cast<const MeshAsset3dData&>(node);
@@ -174,7 +203,6 @@ void FilamentInstanceFactory::processNode(
         // Create mesh instance as child
         auto* meshInstance = parentInstance.addChild<FilamentMeshAsset3dInstance>(m_engine, m_scene);
         meshInstance->name = mesh.name;
-        meshInstance->localTransform = mesh.localTransform;
         meshInstance->materialName = mesh.materialName;
 
         // Store CPU-side data for wireframe/debug rendering
@@ -208,7 +236,7 @@ void FilamentInstanceFactory::processNode(
         }
 
         // Create entity
-        meshInstance->entity = utils::EntityManager::get().create();
+        utils::Entity meshEntity = utils::EntityManager::get().create();
 
         // Build renderable
         filament::RenderableManager::Builder(1)
@@ -219,31 +247,34 @@ void FilamentInstanceFactory::processNode(
             .culling(false)
             .castShadows(false)
             .receiveShadows(true)
-            .build(*m_engine, meshInstance->entity);
+            .build(*m_engine, meshEntity);
 
-        // Set transform using world transform from hierarchy
-        glm::mat4 worldTransform = meshInstance->getWorldTransform();
-        auto& transformManager = m_engine->getTransformManager();
-        transformManager.create(meshInstance->entity);
-        auto transformInstance = transformManager.getInstance(meshInstance->entity);
-        if (transformInstance) {
-            transformManager.setTransform(transformInstance, toFilament(worldTransform));
-        }
+        // Create transform with parent relationship
+        auto parentTransformInstance = transformManager.getInstance(parentEntity);
+        transformManager.create(meshEntity, parentTransformInstance, toFilament(mesh.localTransform));
+
+        // Initialize the transform wrapper
+        meshInstance->initializeTransform(meshEntity);
 
         // Add to scene
-        m_scene->addEntity(meshInstance->entity);
+        m_scene->addEntity(meshEntity);
 
         // Process children of this mesh node (if any)
         for (const auto& child : node.children) {
             processNode(*child, *meshInstance, materialMap);
         }
     } else {
-        // Non-mesh node - create intermediate Asset3dInstance to maintain hierarchy
+        // Non-mesh node - create intermediate FilamentAsset3dInstance to maintain hierarchy
         // Only create if this node has children or a non-identity transform
         if (!node.children.empty() || node.localTransform != glm::mat4(1.0f)) {
-            auto* intermediateInstance = parentInstance.addChild<Asset3dInstance>();
+            auto* intermediateInstance = parentInstance.addChild<FilamentAsset3dInstance>(m_engine, m_scene);
             intermediateInstance->name = node.name;
-            intermediateInstance->localTransform = node.localTransform;
+
+            // Create entity for transform hierarchy
+            utils::Entity intermediateEntity = utils::EntityManager::get().create();
+            auto parentTransformInstance = transformManager.getInstance(parentEntity);
+            transformManager.create(intermediateEntity, parentTransformInstance, toFilament(node.localTransform));
+            intermediateInstance->initializeTransform(intermediateEntity);
 
             // Process children recursively
             for (const auto& child : node.children) {

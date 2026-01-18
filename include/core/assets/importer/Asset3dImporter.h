@@ -23,7 +23,7 @@ public:
         std::vector<MaterialData>& materials
     ) = 0;
 
-    // Check if this importer can handle the given file extension
+    // Check if this mporter can handle the given file extension
     virtual bool canImport(const std::string& extension) const = 0;
 
     // Get supported file extensions
