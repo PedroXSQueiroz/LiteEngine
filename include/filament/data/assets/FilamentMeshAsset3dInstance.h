@@ -43,6 +43,7 @@ public:
     // Access to engine/scene for operations
     filament::Engine* getEngine() const { return m_engine; }
     filament::Scene* getScene() const { return m_scene; }
+    utils::Entity getFilamentEntity() const { return m_entity; }
 
 private:
     filament::Engine* m_engine;

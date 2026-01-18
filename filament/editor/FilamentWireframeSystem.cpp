@@ -252,7 +252,7 @@ void FilamentWireframeSystem::updateWireframeEntities() {
 
         // Copy transform from original mesh
         transformManager.create(entity);
-        auto originalTransformInstance = transformManager.getInstance(mesh->entity);
+        auto originalTransformInstance = transformManager.getInstance(mesh->getFilamentEntity());
         auto newTransformInstance = transformManager.getInstance(entity);
         if (originalTransformInstance && newTransformInstance) {
             transformManager.setTransform(newTransformInstance,
@@ -282,7 +282,7 @@ void FilamentWireframeSystem::beginFrame() {
     for (auto& wireEntity : m_wireframeEntities) {
         if (!wireEntity.sourceMesh) continue;
 
-        auto sourceTransformInstance = transformManager.getInstance(wireEntity.sourceMesh->entity);
+        auto sourceTransformInstance = transformManager.getInstance(wireEntity.sourceMesh->getFilamentEntity() );
         auto wireTransformInstance = transformManager.getInstance(wireEntity.entity);
 
         if (sourceTransformInstance && wireTransformInstance) {
