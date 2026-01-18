@@ -209,7 +209,8 @@ int main(int argc, char** argv){
         SCREEN_HEIGHT, 
         SDL_WINDOW_ALLOW_HIGHDPI |
         SDL_WINDOW_SHOWN |
-        SDL_WINDOW_RESIZABLE
+        SDL_WINDOW_RESIZABLE |
+        SDL_WINDOW_FULLSCREEN_DESKTOP 
     );
 
     if (!window) {
