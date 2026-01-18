@@ -29,7 +29,8 @@
 #include <filament/LightManager.h>
 #include <filament/lightning/FilamentIBL.h>
 #include <filament/IndirectLight.h>
-#include <filament/Camera.h>
+// Camera abstraction (replaces direct filament::Camera usage)
+#include <filament/data/assets/FilamentCameraAsset3dInstance.h>
 #include <gltfio/FilamentAsset.h>
 #include <gltfio/FilamentInstance.h>
 #include <gltfio/MaterialProvider.h>
@@ -56,6 +57,9 @@
 #include <core/data/assets/Asset3dInstance.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
+
+// GLM for renderer-agnostic math
+#include <glm/glm.hpp>
 
 using namespace std;
 using namespace lite;
@@ -254,23 +258,23 @@ int main(int /*argc*/, char** /*argv*/){
     /*----------------------------------------------------------------------------
     SETUP SCENE
     ----------------------------------------------------------------------------*/
-    utils::Entity cameraEntity = em.create();
-    filament::Camera* camera = engine->createCamera(cameraEntity);
-    
+    auto camera = std::make_unique<FilamentCameraAsset3dInstance>(engine);
+
     filament::Scene* scene = engine->createScene();
     filament::View* view = engine->createView();
 
     // Configurar view
-    view->setCamera(camera);
+    view->setCamera(camera->getFilamentCamera());
     view->setScene(scene);
-    view->setPostProcessingEnabled(false);
-    
+    view->setPostProcessingEnabled(true);
+
     int fbW = SCREEN_WIDTH, fbH = SCREEN_HEIGHT;
     SDL_GetWindowSize(window, &fbW, &fbH);
     view->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
-    
+
     // Configurar câmera DEPOIS de criar view
     camera->setProjection(45.0f, float(fbW) / float(fbH), 0.1f, 2000.0f);
+    // camera->setViewport(fbW, fbH);
     
     std::cout << "Scene and View created successfully" << std::endl;
 
@@ -316,10 +320,10 @@ int main(int /*argc*/, char** /*argv*/){
     }
 
 
-    filament::math::float3 center(0, 0, 0);
+    glm::vec3 center(0, 0, 0);
     float radius = 5.0f;
     // // Calcular bounding box do asset para posicionar câmera
-    
+
     // if (asset) {
     //     auto bbox = asset->getBoundingBox();
     //     center = bbox.center();
@@ -329,8 +333,11 @@ int main(int /*argc*/, char** /*argv*/){
     // }
 
     //SETUP CAMERA - posicionar olhando para o modelo
-    filament::math::float3 offsetEye = center + filament::math::float3(0, radius * 0.3f, radius);
-    filament::math::float3 offsetCenter = normalize(center - offsetEye);
+    glm::vec3 offsetEye = center + glm::vec3(0, radius * 0.3f, radius);
+    glm::vec3 offsetCenter = glm::normalize(center - offsetEye);
+
+    // Initialize camera position via transform
+    camera->getTransform()->setPosition(offsetEye);
     
     //SETUP LIGHTNING IBL
     std::string iblPath = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
@@ -435,18 +442,19 @@ int main(int /*argc*/, char** /*argv*/){
                     int h = ev.window.data2;
                     view->setViewport({0, 0, (uint32_t)w, (uint32_t)h});
                     camera->setProjection(45.0f, float(w) / float(h), 0.1f, 2000.0f);
+                    // camera->setViewport(w, h);
                 }
                 break;
             }
         }
 
         // Calcular vetores de movimento
-        filament::math::vec3<float> front = normalize(offsetCenter);
-        filament::math::vec3<float> upAbsolute(0, 1, 0);
-        filament::math::vec3<float> right = normalize(cross(front, upAbsolute));
-        filament::math::vec3<float> up = cross(right, front);
-        
-        filament::math::vec3<float> movement(0, 0, 0);
+        glm::vec3 front = glm::normalize(offsetCenter);
+        glm::vec3 upAbsolute(0, 1, 0);
+        glm::vec3 right = glm::normalize(glm::cross(front, upAbsolute));
+        glm::vec3 up = glm::cross(right, front);
+
+        glm::vec3 movement(0, 0, 0);
         if( mov_front ) movement += front;
         if( mov_back ) movement -= front;
         if( mov_right ) movement += right;
@@ -454,12 +462,14 @@ int main(int /*argc*/, char** /*argv*/){
         if( mov_up ) movement += upAbsolute;
         if( mov_down ) movement -= upAbsolute;
 
-        if(length(movement) > 0.001f)
+        if(glm::length(movement) > 0.001f)
         {
-            offsetEye += normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
+            offsetEye += glm::normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
         }
 
-        camera->lookAt(offsetEye, offsetEye + offsetCenter, upAbsolute);
+        // Update camera position via transform, then lookAt uses it
+        camera->getTransform()->setPosition(offsetEye);
+        camera->lookAt(offsetEye + offsetCenter);
 
         if (renderer->beginFrame(swapChain)) {
             renderer->render(view);
@@ -480,8 +490,7 @@ int main(int /*argc*/, char** /*argv*/){
     engine->destroy(swapChain);
     engine->destroy(view);
     engine->destroy(scene);
-    engine->destroyCameraComponent(cameraEntity);
-    em.destroy(cameraEntity);
+    camera.reset(); // unique_ptr cleanup (destructor handles Filament cleanup)
     
     // if (asset) {
     //     asset->releaseSourceData();
