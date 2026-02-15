@@ -126,7 +126,10 @@ target_include_directories(app PRIVATE
   ${SDL_ROOT}/include
   ${GLM_ROOT}
 
-  ${Vulkan_INCLUDE_DIRS} 
+  # nlohmann/json - Header only JSON library
+  ${CMAKE_SOURCE_DIR}/3rd_party/nlohmann-json/include
+
+  ${Vulkan_INCLUDE_DIRS}
 )
 
 # ==================== LINK LIBRARIES ====================
