@@ -1,4 +1,5 @@
 #pragma once
+#include <core/input/InputEvent.h>
 
 namespace lite{
     
@@ -18,6 +19,8 @@ namespace lite{
         virtual void update() = 0;
 
         virtual void render(R* renderer) = 0;
+
+        virtual void sendInputEvent(const InputEvent& event) {}
 
     };
 

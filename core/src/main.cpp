@@ -77,8 +77,82 @@
 // GLM for renderer-agnostic math
 #include <glm/glm.hpp>
 
+#include <core/input/InputEvent.h>
+
 using namespace std;
 using namespace lite;
+
+static INPUT_KEYS sdlKeyToInputKey(SDL_Keycode sym) {
+    if (sym >= SDLK_a && sym <= SDLK_z)
+        return static_cast<INPUT_KEYS>('A' + (sym - SDLK_a));
+    if (sym >= SDLK_0 && sym <= SDLK_9)
+        return static_cast<INPUT_KEYS>('0' + (sym - SDLK_0));
+
+    switch (sym) {
+        case SDLK_SPACE:      return INPUT_KEYS::KEY_SPACE;
+        case SDLK_RETURN:     return INPUT_KEYS::KEY_ENTER;
+        case SDLK_TAB:        return INPUT_KEYS::KEY_TAB;
+        case SDLK_BACKSPACE:  return INPUT_KEYS::KEY_BACKSPACE;
+        case SDLK_ESCAPE:     return INPUT_KEYS::KEY_ESCAPE;
+        case SDLK_LSHIFT:     return INPUT_KEYS::KEY_LSHIFT;
+        case SDLK_RSHIFT:     return INPUT_KEYS::KEY_RSHIFT;
+        case SDLK_LCTRL:      return INPUT_KEYS::KEY_LCTRL;
+        case SDLK_RCTRL:      return INPUT_KEYS::KEY_RCTRL;
+        case SDLK_LALT:       return INPUT_KEYS::KEY_LALT;
+        case SDLK_RALT:       return INPUT_KEYS::KEY_RALT;
+        case SDLK_CAPSLOCK:   return INPUT_KEYS::KEY_CAPSLOCK;
+        case SDLK_F1:         return INPUT_KEYS::KEY_F1;
+        case SDLK_F2:         return INPUT_KEYS::KEY_F2;
+        case SDLK_F3:         return INPUT_KEYS::KEY_F3;
+        case SDLK_F4:         return INPUT_KEYS::KEY_F4;
+        case SDLK_F5:         return INPUT_KEYS::KEY_F5;
+        case SDLK_F6:         return INPUT_KEYS::KEY_F6;
+        case SDLK_F7:         return INPUT_KEYS::KEY_F7;
+        case SDLK_F8:         return INPUT_KEYS::KEY_F8;
+        case SDLK_F9:         return INPUT_KEYS::KEY_F9;
+        case SDLK_F10:        return INPUT_KEYS::KEY_F10;
+        case SDLK_F11:        return INPUT_KEYS::KEY_F11;
+        case SDLK_F12:        return INPUT_KEYS::KEY_F12;
+        case SDLK_UP:         return INPUT_KEYS::KEY_UP;
+        case SDLK_DOWN:       return INPUT_KEYS::KEY_DOWN;
+        case SDLK_LEFT:       return INPUT_KEYS::KEY_LEFT;
+        case SDLK_RIGHT:      return INPUT_KEYS::KEY_RIGHT;
+        case SDLK_INSERT:     return INPUT_KEYS::KEY_INSERT;
+        case SDLK_DELETE:     return INPUT_KEYS::KEY_DELETE;
+        case SDLK_HOME:       return INPUT_KEYS::KEY_HOME;
+        case SDLK_END:        return INPUT_KEYS::KEY_END;
+        case SDLK_PAGEUP:     return INPUT_KEYS::KEY_PAGEUP;
+        case SDLK_PAGEDOWN:   return INPUT_KEYS::KEY_PAGEDOWN;
+        case SDLK_COMMA:      return INPUT_KEYS::KEY_COMMA;
+        case SDLK_PERIOD:     return INPUT_KEYS::KEY_PERIOD;
+        case SDLK_SLASH:      return INPUT_KEYS::KEY_SLASH;
+        case SDLK_SEMICOLON:  return INPUT_KEYS::KEY_SEMICOLON;
+        case SDLK_QUOTE:      return INPUT_KEYS::KEY_APOSTROPHE;
+        case SDLK_LEFTBRACKET:  return INPUT_KEYS::KEY_LBRACKET;
+        case SDLK_RIGHTBRACKET: return INPUT_KEYS::KEY_RBRACKET;
+        case SDLK_BACKSLASH:  return INPUT_KEYS::KEY_BACKSLASH;
+        case SDLK_MINUS:      return INPUT_KEYS::KEY_MINUS;
+        case SDLK_EQUALS:     return INPUT_KEYS::KEY_EQUALS;
+        case SDLK_BACKQUOTE:  return INPUT_KEYS::KEY_BACKTICK;
+        case SDLK_KP_0:       return INPUT_KEYS::KEY_KP_0;
+        case SDLK_KP_1:       return INPUT_KEYS::KEY_KP_1;
+        case SDLK_KP_2:       return INPUT_KEYS::KEY_KP_2;
+        case SDLK_KP_3:       return INPUT_KEYS::KEY_KP_3;
+        case SDLK_KP_4:       return INPUT_KEYS::KEY_KP_4;
+        case SDLK_KP_5:       return INPUT_KEYS::KEY_KP_5;
+        case SDLK_KP_6:       return INPUT_KEYS::KEY_KP_6;
+        case SDLK_KP_7:       return INPUT_KEYS::KEY_KP_7;
+        case SDLK_KP_8:       return INPUT_KEYS::KEY_KP_8;
+        case SDLK_KP_9:       return INPUT_KEYS::KEY_KP_9;
+        case SDLK_KP_ENTER:   return INPUT_KEYS::KEY_KP_ENTER;
+        case SDLK_KP_PLUS:    return INPUT_KEYS::KEY_KP_PLUS;
+        case SDLK_KP_MINUS:   return INPUT_KEYS::KEY_KP_MINUS;
+        case SDLK_KP_MULTIPLY:return INPUT_KEYS::KEY_KP_MULTIPLY;
+        case SDLK_KP_DIVIDE:  return INPUT_KEYS::KEY_KP_DIVIDE;
+        case SDLK_KP_PERIOD:  return INPUT_KEYS::KEY_KP_PERIOD;
+        default:               return INPUT_KEYS::KEY_UNKNOWN;
+    }
+}
 
 static void* getNativeWindowHandle(SDL_Window* window) {
     SDL_SysWMinfo wmi;
@@ -457,8 +531,8 @@ int main(int argc, char** argv){
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
     
-    // Capturar mouse
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    // Capturar mouse (desativado para permitir interacao com UI)
+    // SDL_SetRelativeMouseMode(SDL_TRUE);
     
     int frameCount = 0;
     
@@ -469,6 +543,7 @@ int main(int argc, char** argv){
         prevTicks = now;
         
         SDL_Event ev;
+        lite::InputEvent inputEvent;
 
         while (SDL_PollEvent(&ev)) {
             switch (ev.type)
@@ -480,7 +555,7 @@ int main(int argc, char** argv){
             case SDL_MOUSEMOTION:{
                 horizontal_direction += ev.motion.xrel * VELOCITY_LOOK;
                 vertical_direction -= ev.motion.yrel * VELOCITY_LOOK;
-                
+
                 // Limitar pitch
                 const float MAX_PITCH = 1.5f;
                 if (vertical_direction > MAX_PITCH) vertical_direction = MAX_PITCH;
@@ -492,9 +567,34 @@ int main(int argc, char** argv){
                 offsetCenter.x = cos(pitch) * sin(yaw);
                 offsetCenter.y = sin(pitch);
                 offsetCenter.z = -cos(pitch) * cos(yaw);
-                
+
+                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
+                    glm::vec2(ev.motion.x, ev.motion.y);
                 break;
             }
+            case SDL_MOUSEBUTTONDOWN: {
+                lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
+                if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
+                if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
+                inputEvent.keys[btn] = lite::INPUT_KEY_STATES::DOWN;
+                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
+                    glm::vec2(ev.button.x, ev.button.y);
+                break;
+            }
+            case SDL_MOUSEBUTTONUP: {
+                lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
+                if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
+                if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
+                inputEvent.keys[btn] = lite::INPUT_KEY_STATES::UP;
+                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
+                    glm::vec2(ev.button.x, ev.button.y);
+                break;
+            }
+            case SDL_MOUSEWHEEL:
+                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE_WHEEL] =
+                    glm::vec2(ev.wheel.x * 120, ev.wheel.y * 120);
+                break;
+
             case SDL_KEYDOWN:{
                 if(ev.key.keysym.sym == SDLK_ESCAPE) {
                     SDL_bool mode = SDL_GetRelativeMouseMode();
@@ -506,6 +606,10 @@ int main(int argc, char** argv){
                 if(ev.key.keysym.sym == SDLK_a) mov_left = true;
                 if(ev.key.keysym.sym == SDLK_SPACE) mov_up = true;
                 if(ev.key.keysym.sym == SDLK_LSHIFT) mov_down = true;
+
+                INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
+                if (key != INPUT_KEYS::KEY_UNKNOWN)
+                    inputEvent.keys[key] = lite::INPUT_KEY_STATES::DOWN;
                 break;
             }
             case SDL_KEYUP: {
@@ -515,6 +619,10 @@ int main(int argc, char** argv){
                 if(ev.key.keysym.sym == SDLK_a) mov_left = false;
                 if(ev.key.keysym.sym == SDLK_SPACE) mov_up = false;
                 if(ev.key.keysym.sym == SDLK_LSHIFT) mov_down = false;
+
+                INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
+                if (key != INPUT_KEYS::KEY_UNKNOWN)
+                    inputEvent.keys[key] = lite::INPUT_KEY_STATES::UP;
                 break;
             }
             case SDL_WINDOWEVENT:
@@ -527,6 +635,11 @@ int main(int argc, char** argv){
                 }
                 break;
             }
+        }
+
+        // Propagar input para a UI
+        if (uiRenderer) {
+            uiRenderer->sendInputEvent(inputEvent);
         }
 
         // Calcular vetores de movimento

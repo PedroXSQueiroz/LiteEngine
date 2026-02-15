@@ -53,6 +53,7 @@ public:
 
     virtual void update();
     virtual void render(filament::Renderer* renderer);
+    virtual void sendInputEvent(const InputEvent& event) override;
 
     void loadUrl(const std::string& url);
     void loadHtml(const std::string& html);

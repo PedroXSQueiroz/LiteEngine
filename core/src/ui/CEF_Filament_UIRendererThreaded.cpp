@@ -450,4 +450,94 @@ void CEF_Filament_UIRendererThreaded::createQuad() {
         .build(*m_engine, m_quadEntity);
 }
 
+void CEF_Filament_UIRendererThreaded::sendInputEvent(const InputEvent& event) {
+    if (!m_browser) return;
+    auto host = m_browser->GetHost();
+
+    // Mouse position
+    auto mouseIt = event.analogs.find(INPUT_ANALOGS::MOUSE);
+    int mouseX = 0, mouseY = 0;
+    if (mouseIt != event.analogs.end()) {
+        mouseX = static_cast<int>(mouseIt->second.x);
+        mouseY = static_cast<int>(mouseIt->second.y);
+
+        CefMouseEvent cefEvent;
+        cefEvent.x = mouseX;
+        cefEvent.y = mouseY;
+        cefEvent.modifiers = 0;
+        host->SendMouseMoveEvent(cefEvent, false);
+    }
+
+    // Mouse wheel
+    auto wheelIt = event.analogs.find(INPUT_ANALOGS::MOUSE_WHEEL);
+    if (wheelIt != event.analogs.end()) {
+        CefMouseEvent cefEvent;
+        cefEvent.x = mouseX;
+        cefEvent.y = mouseY;
+        cefEvent.modifiers = 0;
+        host->SendMouseWheelEvent(cefEvent,
+            static_cast<int>(wheelIt->second.x),
+            static_cast<int>(wheelIt->second.y));
+    }
+
+    // Calcular modifiers a partir do mapa de keys
+    uint32_t modifiers = 0;
+    if (event.keys.count(INPUT_KEYS::KEY_LSHIFT) || event.keys.count(INPUT_KEYS::KEY_RSHIFT))
+        modifiers |= EVENTFLAG_SHIFT_DOWN;
+    if (event.keys.count(INPUT_KEYS::KEY_LCTRL) || event.keys.count(INPUT_KEYS::KEY_RCTRL))
+        modifiers |= EVENTFLAG_CONTROL_DOWN;
+    if (event.keys.count(INPUT_KEYS::KEY_LALT) || event.keys.count(INPUT_KEYS::KEY_RALT))
+        modifiers |= EVENTFLAG_ALT_DOWN;
+
+    // Mouse buttons
+    auto sendMouseBtn = [&](INPUT_KEYS key, CefBrowserHost::MouseButtonType btn) {
+        auto it = event.keys.find(key);
+        if (it == event.keys.end()) return;
+
+        CefMouseEvent cefEvent;
+        cefEvent.x = mouseX;
+        cefEvent.y = mouseY;
+        cefEvent.modifiers = modifiers;
+
+        if (it->second == INPUT_KEY_STATES::DOWN)
+            host->SendMouseClickEvent(cefEvent, btn, false, 1);
+        else if (it->second == INPUT_KEY_STATES::UP)
+            host->SendMouseClickEvent(cefEvent, btn, true, 1);
+    };
+
+    sendMouseBtn(INPUT_KEYS::MOUSE_LEFT, MBT_LEFT);
+    sendMouseBtn(INPUT_KEYS::MOUSE_RIGHT, MBT_RIGHT);
+    sendMouseBtn(INPUT_KEYS::MOUSE_MIDDLE, MBT_MIDDLE);
+
+    // Keyboard keys
+    for (const auto& [key, state] : event.keys) {
+        uint16_t val = static_cast<uint16_t>(key);
+        if (val >= 400) continue; // mouse/gamepad já tratados
+
+        int vk = inputKeyToVirtualKey(key);
+        if (vk == 0) continue;
+
+        CefKeyEvent cefEvent;
+        cefEvent.windows_key_code = vk;
+        cefEvent.modifiers = modifiers;
+
+        if (state == INPUT_KEY_STATES::DOWN) {
+            cefEvent.type = KEYEVENT_KEYDOWN;
+            host->SendKeyEvent(cefEvent);
+
+            char c = inputKeyToChar(key);
+            if (c != 0) {
+                cefEvent.type = KEYEVENT_CHAR;
+                cefEvent.character = c;
+                cefEvent.windows_key_code = c;
+                host->SendKeyEvent(cefEvent);
+            }
+        }
+        else if (state == INPUT_KEY_STATES::UP) {
+            cefEvent.type = KEYEVENT_KEYUP;
+            host->SendKeyEvent(cefEvent);
+        }
+    }
+}
+
 } // namespace lite
