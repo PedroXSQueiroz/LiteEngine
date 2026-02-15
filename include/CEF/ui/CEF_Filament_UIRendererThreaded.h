@@ -37,13 +37,23 @@
 #include "include/cef_client.h"
 #include "include/cef_render_handler.h"
 #include "include/cef_life_span_handler.h"
+#include "include/cef_display_handler.h"
+#include "include/cef_load_handler.h"
+#include "include/wrapper/cef_message_router.h"
 
 #include <core/UI/UIRenderer.h>
 #include <core/ui/elements/UIElements.h>
 
 namespace lite {
 
-class CEF_Filament_UIRendererThreaded : public CefClient, public CefRenderHandler, public CefLifeSpanHandler, public UIRenderer<filament::Renderer> {
+class CEF_Filament_UIRendererThreaded :
+        public CefClient
+    ,   public CefRenderHandler
+    ,   public CefLifeSpanHandler
+    ,   public CefDisplayHandler
+    ,   public CefLoadHandler
+    ,   public CefMessageRouterBrowserSide::Handler
+    ,   public UIRenderer<filament::Renderer> {
 public:
     CEF_Filament_UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height);
     ~CEF_Filament_UIRendererThreaded();
@@ -65,13 +75,35 @@ public:
 
     filament::View* getView() const { return m_view; }
 
+    bool isPageLoaded() const { return m_pageLoaded; }
+
     // CefClient
     CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
+    CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+    CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+
+    // CefClient - MessageRouter IPC
+    bool OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
+                                   CefRefPtr<CefFrame> frame,
+                                   CefProcessId source_process,
+                                   CefRefPtr<CefProcessMessage> message) override;
 
     // CefLifeSpanHandler
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
     void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
+
+    // CefDisplayHandler
+    bool OnConsoleMessage(CefRefPtr<CefBrowser> browser,
+                          cef_log_severity_t level,
+                          const CefString& message,
+                          const CefString& source,
+                          int line) override;
+
+    // CefLoadHandler
+    void OnLoadEnd(CefRefPtr<CefBrowser> browser,
+                   CefRefPtr<CefFrame> frame,
+                   int httpStatusCode) override;
 
     // CefRenderHandler
     void GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) override;
@@ -80,6 +112,14 @@ public:
                  const RectList& dirtyRects,
                  const void* buffer,
                  int width, int height) override;
+
+    // CefMessageRouterBrowserSide::Handler
+    bool OnQuery(CefRefPtr<CefBrowser> browser,
+                 CefRefPtr<CefFrame> frame,
+                 int64_t query_id,
+                 const CefString& request,
+                 bool persistent,
+                 CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) override;
 
 private:
     void cefThreadFunc(const std::string& initialUrl);
@@ -115,6 +155,10 @@ private:
     // CEF
     CefRefPtr<CefBrowser> m_browser;
     std::atomic<bool> m_browserClosed{false};
+    std::atomic<bool> m_pageLoaded{false};
+
+    // MessageRouter browser side
+    CefRefPtr<CefMessageRouterBrowserSide> m_messageRouter;
 
     // ========== OTIMIZACAO 1: Double Buffering ==========
     // Dois buffers para evitar lock contention

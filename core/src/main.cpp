@@ -492,6 +492,7 @@ int main(int argc, char** argv){
     
     CEF_Filament_UIRendererThreaded* uiRenderer = new lite::CEF_Filament_UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
     lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
+    // cef_app.get()->setRenderer(uiRenderer);
     
     UIPanelElement<CEF_Filament_UIRendererThreaded>* root = nullptr;
     if( !(root = uiInstance->start()) )
@@ -512,8 +513,9 @@ int main(int argc, char** argv){
 
     UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
     root->addChildComponent(uiText, 0, 0);
-    
-    // uiText->draw();
+    root->draw();
+
+    uiText->draw();
 
     
     std::cout << "Starting main loop..." << std::endl;

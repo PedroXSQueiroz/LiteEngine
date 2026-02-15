@@ -25,10 +25,12 @@ namespace lite {
 
         URI* getRenderer() { return m_uiRenderer; }
 
-        virtual UIPanelElement<URI>* createRoot() = 0; 
+        virtual UIPanelElement<URI>* createRoot() = 0;
+
+        int nextElementId() { return m_nextId++; }
 
         UIPanelElement<URI>* start(){
-            
+
             if(this->m_uiRenderer->start())
             {
                 UIPanelElement<URI>* root = this->instantiateElement<UIPanelElement<URI>>(this->createRoot());
@@ -42,7 +44,6 @@ namespace lite {
             return nullptr;
         }
 
-        // template<EditorElementType<R> E>
         UIElement<URI>* getElementById(int id){
 
             if(this->elementsIds.contains(id))
@@ -56,26 +57,28 @@ namespace lite {
         template<typename ET>
             requires UIElementType<ET, URI>
         ET* instantiateElement(ET* element){
-            
+
             if(element && !this->elementsIds.contains(element->getId()))
             {
+                element->setId(this->nextElementId());
                 int id = element->draw();
-                
+
                 this->elementsIds.insert( id );
-                
+
                 return element;
             }
-            
+
             return nullptr;
         }
 
     protected:
-        
+
         URI* m_uiRenderer;
 
         virtual UIElement<URI>* getElementByIdFromRenderer(int id) = 0;
 
         int rootElementId;
+        int m_nextId = 1;
 
         std::set<int> elementsIds;
     };

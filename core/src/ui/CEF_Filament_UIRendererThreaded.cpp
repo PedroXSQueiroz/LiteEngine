@@ -114,6 +114,7 @@ void CEF_Filament_UIRendererThreaded::cefThreadFunc(const std::string& initialUr
     windowInfo.SetAsWindowless(nullptr);
 
     CefBrowserSettings browserSettings;
+    browserSettings.background_color = CefColorSetARGB(0, 0, 0, 0);
 
     std::string url = initialUrl.empty() ? "about:blank" : initialUrl;
 
@@ -161,13 +162,47 @@ void CEF_Filament_UIRendererThreaded::cefThreadFunc(const std::string& initialUr
 void CEF_Filament_UIRendererThreaded::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     std::cout << "[CEF] OnAfterCreated - Browser ready" << std::endl;
     m_browser = browser;
+
+    // Create MessageRouter browser side
+    CefMessageRouterConfig config;
+    m_messageRouter = CefMessageRouterBrowserSide::Create(config);
+    m_messageRouter->AddHandler(this, false);
+
     m_cefReady = true;
 }
 
 void CEF_Filament_UIRendererThreaded::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     std::cout << "[CEF] OnBeforeClose" << std::endl;
+    if (m_messageRouter) {
+        m_messageRouter->OnBeforeClose(browser);
+    }
     m_browserClosed = true;
     m_browser = nullptr;
+}
+
+// CefDisplayHandler
+bool CEF_Filament_UIRendererThreaded::OnConsoleMessage(CefRefPtr<CefBrowser> browser,
+                                                        cef_log_severity_t level,
+                                                        const CefString& message,
+                                                        const CefString& source,
+                                                        int line) {
+    const char* levelStr = "INFO";
+    if (level == LOGSEVERITY_WARNING) levelStr = "WARN";
+    else if (level >= LOGSEVERITY_ERROR) levelStr = "ERROR";
+
+    std::cout << "[CEF JS " << levelStr << "] " << message.ToString()
+              << " (" << source.ToString() << ":" << line << ")" << std::endl;
+    return false;
+}
+
+// CefLoadHandler
+void CEF_Filament_UIRendererThreaded::OnLoadEnd(CefRefPtr<CefBrowser> browser,
+                                                  CefRefPtr<CefFrame> frame,
+                                                  int httpStatusCode) {
+    if (frame->IsMain()) {
+        std::cout << "[CEF] Page loaded (status: " << httpStatusCode << ")" << std::endl;
+        m_pageLoaded = true;
+    }
 }
 
 // ========== OTIMIZACAO 4: Conversao BGRA->RGBA otimizada ==========
@@ -215,6 +250,35 @@ void CEF_Filament_UIRendererThreaded::convertBGRAtoRGBA(const uint8_t* src, uint
         dst[idx + 2] = src[idx + 0];  // B
         dst[idx + 3] = src[idx + 3];  // A
     }
+}
+
+// CefClient - MessageRouter IPC
+bool CEF_Filament_UIRendererThreaded::OnProcessMessageReceived(
+    CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame> frame,
+    CefProcessId source_process,
+    CefRefPtr<CefProcessMessage> message) {
+    if (m_messageRouter) {
+        return m_messageRouter->OnProcessMessageReceived(browser, frame, source_process, message);
+    }
+    return false;
+}
+
+// CefMessageRouterBrowserSide::Handler
+bool CEF_Filament_UIRendererThreaded::OnQuery(
+    CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame> frame,
+    int64_t query_id,
+    const CefString& request,
+    bool persistent,
+    CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) {
+
+    std::string req = request.ToString();
+    std::cout << "[CEF Query] " << req << std::endl;
+
+    // TODO: Parse request JSON and handle actions
+    callback->Success("ok");
+    return true;
 }
 
 // ========== OTIMIZACAO 1 & 4: OnPaint com double buffer ==========
