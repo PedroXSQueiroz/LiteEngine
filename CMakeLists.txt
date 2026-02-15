@@ -224,8 +224,8 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
 
   # UI
-  ${CMAKE_SOURCE_DIR}/core/src/ui/UIRenderer.cpp
-  ${CMAKE_SOURCE_DIR}/core/src/ui/UIRendererThreaded.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/ui/CEF_Filament_UIRendererThreaded.cpp
+  ${CMAKE_SOURCE_DIR}/CEF/ui/elements/CEF_UIElements.cpp
 )
 
 # Garante consistência do runtime em todas as targets

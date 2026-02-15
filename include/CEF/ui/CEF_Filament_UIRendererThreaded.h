@@ -21,24 +21,38 @@
 #include <filament/RenderableManager.h>
 #include <utils/EntityManager.h>
 
+#ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #include <windows.h>
+
+    #undef interface
+    #undef min
+    #undef max
+#endif
+
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
 #include "include/cef_client.h"
 #include "include/cef_render_handler.h"
 #include "include/cef_life_span_handler.h"
 
+#include <core/UI/UIRenderer.h>
+#include <core/ui/elements/UIElements.h>
+
 namespace lite {
 
-class UIRendererThreaded : public CefClient, public CefRenderHandler, public CefLifeSpanHandler {
+class CEF_Filament_UIRendererThreaded : public CefClient, public CefRenderHandler, public CefLifeSpanHandler, public UIRenderer<filament::Renderer> {
 public:
-    UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height);
-    ~UIRendererThreaded();
+    CEF_Filament_UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height);
+    ~CEF_Filament_UIRendererThreaded();
 
-    bool start(const std::string& initialUrl = "");
-    void stop();
+    virtual bool start() override;
+    virtual bool stop() override;
 
-    void updateTexture();
-    void render(filament::Renderer* renderer);
+    virtual void update();
+    virtual void render(filament::Renderer* renderer);
 
     void loadUrl(const std::string& url);
     void loadHtml(const std::string& html);
@@ -117,7 +131,7 @@ private:
     // ========== OTIMIZACAO 3: Throttle para JS ==========
     std::chrono::steady_clock::time_point m_lastJsCallTime;
 
-    IMPLEMENT_REFCOUNTING(UIRendererThreaded);
+    IMPLEMENT_REFCOUNTING(CEF_Filament_UIRendererThreaded);
 };
 
 } // namespace lite

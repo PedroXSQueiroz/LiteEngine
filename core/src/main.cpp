@@ -8,6 +8,8 @@
 #include <thread>
 #include <chrono>
 #include <functional>
+#include <string>
+#include <format>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -60,11 +62,17 @@
 #include <core/data/assets/MaterialData.h>
 #include <core/data/assets/Asset3dInstance.h>
 #include <core/data/assets/MeshAsset3dInstance.h>
+#include <core/UI/UIInstance.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 #include <filament/editor/FilamentWireframeSystem.h>
-#include <core/ui/UIRendererThreaded.h>
-#include "include/cef_app.h"
+
+#include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
+#include <CEF/ui/elements/CEF_UIElements.h>
+#include <CEF/ui/CEF_Filament_UIInstance.h>
+
+// #include <CEF/UI/CEF_UIEditor.h>
+#include <CEF/CEF_UIApp.h>
 
 // GLM for renderer-agnostic math
 #include <glm/glm.hpp>
@@ -177,7 +185,8 @@ int main(int argc, char** argv){
     O CEF ainda cria subprocessos mesmo com thread separada.
     ----------------------------------------------------------------------------*/
     CefMainArgs cef_args(GetModuleHandle(nullptr));
-    int exit_code = CefExecuteProcess(cef_args, nullptr, nullptr);
+    CefRefPtr<CEF_UIApp> cef_app = new CEF_UIApp();
+    int exit_code = CefExecuteProcess(cef_args, cef_app.get(), nullptr);
     if (exit_code >= 0) {
         return exit_code;
     }
@@ -193,13 +202,13 @@ int main(int argc, char** argv){
         return -1;
     }
 
-    // Logo após SDL_Init e antes de criar engine
+    // Logo ap�s SDL_Init e antes de criar engine
     #ifdef _WIN32
-    // Forçar carregamento de opengl32.dll do sistema (não mesa/software)
+    // For�ar carregamento de opengl32.dll do sistema (n�o mesa/software)
     SetEnvironmentVariableA("OPENGL_DRIVER", "opengl32");
     #endif
 
-    // Não criar contexto OpenGL com SDL - deixar Filament fazer isso
+    // N�o criar contexto OpenGL com SDL - deixar Filament fazer isso
     // Apenas criar a janela normal
     SDL_Window* window = SDL_CreateWindow(
         "Lite", 
@@ -231,7 +240,7 @@ int main(int argc, char** argv){
     
     std::cout << "Creating Filament engine..." << std::endl;
     
-    // Tentar criar engine com Vulkan primeiro (melhor detecção de GPU)
+    // Tentar criar engine com Vulkan primeiro (melhor detec��o de GPU)
     filament::Engine* engine = filament::Engine::Builder()
         .backend(filament::Engine::Backend::VULKAN)
         .build();
@@ -291,7 +300,7 @@ int main(int argc, char** argv){
     SDL_GetWindowSize(window, &fbW, &fbH);
     view->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
 
-    // Configurar câmera DEPOIS de criar view
+    // Configurar c�mera DEPOIS de criar view
     camera->setProjection(45.0f, float(fbW) / float(fbH), 0.1f, 2000.0f);
     // camera->setViewport(fbW, fbH);
     
@@ -341,7 +350,7 @@ int main(int argc, char** argv){
 
     glm::vec3 center(0, 0, 0);
     float radius = 5.0f;
-    // // Calcular bounding box do asset para posicionar câmera
+    // // Calcular bounding box do asset para posicionar c�mera
 
     // if (asset) {
     //     auto bbox = asset->getBoundingBox();
@@ -405,11 +414,34 @@ int main(int argc, char** argv){
     /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF) - Thread separada
     ----------------------------------------------------------------------------*/
-    lite::UIRendererThreaded* uiRenderer = new lite::UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
-    if (!uiRenderer->start("file:///D:/Workspace/LiteEngine/core/resources/UI/index.html")) {
-        std::cerr << "Failed to start UIRenderer" << std::endl;
-    }
 
+    
+    CEF_Filament_UIRendererThreaded* uiRenderer = new lite::CEF_Filament_UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
+    lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
+    
+    UIPanelElement<CEF_Filament_UIRendererThreaded>* root = nullptr;
+    if( !(root = uiInstance->start()) )
+    {
+        std::cerr << "Failed to start UIRenderer" << std::endl;
+        return -1;
+    }
+    
+    // if (!uiRenderer->start()) {
+    //     std::cerr << "Failed to start UIRenderer" << std::endl;
+    // }
+
+
+
+    // lite::UITextElement<lite::UIRenderer<filament::Renderer>>* text = new lite::UITextElement<lite::UIRenderer<filament::Renderer>>();
+    
+    // lite::UIInstance<filament::re>* currentEditor = new lite::CEF_UIEditor(uiRenderer);
+
+    UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
+    root->addChildComponent(uiText, 0, 0);
+    
+    // uiText->draw();
+
+    
     std::cout << "Starting main loop..." << std::endl;
 
     /*----------------------------------------------------------------------------
@@ -528,15 +560,14 @@ int main(int argc, char** argv){
 
             // UI Overlay (CEF) - apenas atualiza textura, CEF roda em outra thread
             if (uiRenderer) {
-                uiRenderer->updateTexture();
-
+                
                 // Enviar posicao do mouse para o JavaScript (com throttle para reduzir overhead)
                 int mouseX, mouseY;
                 SDL_GetMouseState(&mouseX, &mouseY);
-                uiRenderer->executeJavaScriptThrottled(
-                    "updateMousePosition(" + std::to_string(mouseX) + "," + std::to_string(mouseY) + ");",
-                    32  // ~30fps para UI, suficiente para feedback visual
-                );
+                
+                uiText->setText("Hello world=> X:" + std::to_string(mouseX) + "Y:" + std::to_string(mouseY));
+                
+                uiRenderer->update();
 
                 uiRenderer->render(renderer);
             }

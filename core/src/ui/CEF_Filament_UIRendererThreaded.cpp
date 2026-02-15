@@ -1,7 +1,10 @@
 // IMPORTANTE: Definir NOMINMAX antes de qualquer include
 #define NOMINMAX
 
-#include <core/ui/UIRendererThreaded.h>
+#include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
+#include <CEF/ui/elements/CEF_UIElements.h>
+#include <CEF/CEF_UIApp.h>
+
 #include <fstream>
 #include <iostream>
 #include <filament/TextureSampler.h>
@@ -11,7 +14,7 @@
 
 namespace lite {
 
-UIRendererThreaded::UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height)
+CEF_Filament_UIRendererThreaded::CEF_Filament_UIRendererThreaded(filament::Engine* engine, uint32_t width, uint32_t height)
     : m_engine(engine), m_width(width), m_height(height)
 {
     size_t bufferSize = width * height * 4;
@@ -27,17 +30,21 @@ UIRendererThreaded::UIRendererThreaded(filament::Engine* engine, uint32_t width,
     m_lastJsCallTime = std::chrono::steady_clock::now();
 }
 
-UIRendererThreaded::~UIRendererThreaded() {
+CEF_Filament_UIRendererThreaded::~CEF_Filament_UIRendererThreaded() {
     stop();
 }
 
-bool UIRendererThreaded::start(const std::string& initialUrl) {
+bool CEF_Filament_UIRendererThreaded::start() {
+    
+    // std::string initialUrl = "file:///D:/Workspace/LiteEngine/CEF/ui/resources/index.html";
+    std::string initialUrl = "file:///D:/Workspace/LiteEngine/CEF/ui/resources/cef-ui/dist/index.html";
+    
     std::cout << "[UIRendererThreaded] Starting..." << std::endl;
 
     createFilamentResources();
 
     m_running = true;
-    m_cefThread = std::thread(&UIRendererThreaded::cefThreadFunc, this, initialUrl);
+    m_cefThread = std::thread(&CEF_Filament_UIRendererThreaded::cefThreadFunc, this, initialUrl);
 
     int attempts = 0;
     while (!m_cefReady && m_running && attempts < 500) {
@@ -55,8 +62,8 @@ bool UIRendererThreaded::start(const std::string& initialUrl) {
     return true;
 }
 
-void UIRendererThreaded::stop() {
-    if (!m_running) return;
+bool CEF_Filament_UIRendererThreaded::stop() {
+    if (!m_running) return false;
 
     std::cout << "[UIRendererThreaded] Stopping..." << std::endl;
     m_running = false;
@@ -81,9 +88,11 @@ void UIRendererThreaded::stop() {
     }
 
     std::cout << "[UIRendererThreaded] Stopped" << std::endl;
+
+    return true;
 }
 
-void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
+void CEF_Filament_UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
     std::cout << "[CEF Thread] Starting..." << std::endl;
 
     CefMainArgs mainArgs;
@@ -92,7 +101,8 @@ void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
     settings.no_sandbox = true;
     settings.multi_threaded_message_loop = true;
 
-    if (!CefInitialize(mainArgs, settings, nullptr, nullptr)) {
+    CefRefPtr<CEF_UIApp> app = new CEF_UIApp();
+    if (!CefInitialize(mainArgs, settings, app.get(), nullptr)) {
         std::cerr << "[CEF Thread] CefInitialize failed!" << std::endl;
         m_running = false;
         return;
@@ -148,20 +158,20 @@ void UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
 }
 
 // CefLifeSpanHandler
-void UIRendererThreaded::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
+void CEF_Filament_UIRendererThreaded::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     std::cout << "[CEF] OnAfterCreated - Browser ready" << std::endl;
     m_browser = browser;
     m_cefReady = true;
 }
 
-void UIRendererThreaded::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
+void CEF_Filament_UIRendererThreaded::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     std::cout << "[CEF] OnBeforeClose" << std::endl;
     m_browserClosed = true;
     m_browser = nullptr;
 }
 
 // ========== OTIMIZACAO 4: Conversao BGRA->RGBA otimizada ==========
-void UIRendererThreaded::convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, size_t pixelCount) {
+void CEF_Filament_UIRendererThreaded::convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, size_t pixelCount) {
     // Processar 4 pixels por vez (16 bytes) quando possivel
     size_t i = 0;
 
@@ -208,7 +218,7 @@ void UIRendererThreaded::convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, siz
 }
 
 // ========== OTIMIZACAO 1 & 4: OnPaint com double buffer ==========
-void UIRendererThreaded::OnPaint(CefRefPtr<CefBrowser> browser,
+void CEF_Filament_UIRendererThreaded::OnPaint(CefRefPtr<CefBrowser> browser,
                                   PaintElementType type,
                                   const RectList& dirtyRects,
                                   const void* buffer,
@@ -236,7 +246,7 @@ void UIRendererThreaded::OnPaint(CefRefPtr<CefBrowser> browser,
 }
 
 // ========== OTIMIZACAO 2: updateTexture sem malloc ==========
-void UIRendererThreaded::updateTexture() {
+void CEF_Filament_UIRendererThreaded::update() {
     if (!m_needsTextureUpdate || !m_texture) return;
 
     // Copiar do read buffer para upload buffer (lock minimo)
@@ -259,32 +269,32 @@ void UIRendererThreaded::updateTexture() {
     m_texture->setImage(*m_engine, 0, std::move(pbd));
 }
 
-void UIRendererThreaded::render(filament::Renderer* renderer) {
+void CEF_Filament_UIRendererThreaded::render(filament::Renderer* renderer) {
     if (m_view) {
         renderer->render(m_view);
     }
 }
 
-void UIRendererThreaded::loadUrl(const std::string& url) {
+void CEF_Filament_UIRendererThreaded::loadUrl(const std::string& url) {
     if (m_browser) {
         m_browser->GetMainFrame()->LoadURL(url);
     }
 }
 
-void UIRendererThreaded::loadHtml(const std::string& html) {
+void CEF_Filament_UIRendererThreaded::loadHtml(const std::string& html) {
     if (m_browser) {
         m_browser->GetMainFrame()->LoadURL("data:text/html;charset=utf-8," + html);
     }
 }
 
-void UIRendererThreaded::executeJavaScript(const std::string& code) {
+void CEF_Filament_UIRendererThreaded::executeJavaScript(const std::string& code) {
     if (m_browser && m_browser->GetMainFrame()) {
         m_browser->GetMainFrame()->ExecuteJavaScript(code, "", 0);
     }
 }
 
 // ========== OTIMIZACAO 3: executeJavaScript com throttle ==========
-void UIRendererThreaded::executeJavaScriptThrottled(const std::string& code, uint32_t minIntervalMs) {
+void CEF_Filament_UIRendererThreaded::executeJavaScriptThrottled(const std::string& code, uint32_t minIntervalMs) {
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastJsCallTime).count();
 
@@ -294,7 +304,7 @@ void UIRendererThreaded::executeJavaScriptThrottled(const std::string& code, uin
     }
 }
 
-void UIRendererThreaded::resize(uint32_t width, uint32_t height) {
+void CEF_Filament_UIRendererThreaded::resize(uint32_t width, uint32_t height) {
     m_width = width;
     m_height = height;
 
@@ -333,11 +343,11 @@ void UIRendererThreaded::resize(uint32_t width, uint32_t height) {
     }
 }
 
-void UIRendererThreaded::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) {
+void CEF_Filament_UIRendererThreaded::GetViewRect(CefRefPtr<CefBrowser> browser, CefRect& rect) {
     rect = CefRect(0, 0, m_width, m_height);
 }
 
-void UIRendererThreaded::createFilamentResources() {
+void CEF_Filament_UIRendererThreaded::createFilamentResources() {
     createMaterial();
     createQuad();
 
@@ -360,7 +370,7 @@ void UIRendererThreaded::createFilamentResources() {
     m_scene->addEntity(m_quadEntity);
 }
 
-void UIRendererThreaded::createMaterial() {
+void CEF_Filament_UIRendererThreaded::createMaterial() {
     std::string matPath = "D:/Workspace/LiteEngine/core/resources/filament/materials/ui_overlay.filamat";
     std::ifstream file(matPath, std::ios::binary);
 
@@ -390,7 +400,7 @@ void UIRendererThreaded::createMaterial() {
     m_materialInstance->setParameter("texture", m_texture, sampler);
 }
 
-void UIRendererThreaded::createQuad() {
+void CEF_Filament_UIRendererThreaded::createQuad() {
     struct Vertex {
         filament::math::float3 position;
         filament::math::float2 uv;
