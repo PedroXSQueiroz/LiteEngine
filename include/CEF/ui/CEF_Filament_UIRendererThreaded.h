@@ -128,6 +128,7 @@ private:
     void createFilamentResources();
     void createQuad();
     void createMaterial();
+    void processModifiers(int32_t modifier, lite::InputEvent event, std::initializer_list<INPUT_KEYS> keys);
 
     // Nova: conversao otimizada BGRA->RGBA
     void convertBGRAtoRGBA(const uint8_t* src, uint8_t* dst, size_t pixelCount);
@@ -182,6 +183,8 @@ private:
     //TODO: TURN IN MORE GENERIC?
     std::map<std::string, std::function<void(int)>> cef_events;
 
+    uint32_t m_currentModifiers = 0;
+    
     IMPLEMENT_REFCOUNTING(CEF_Filament_UIRendererThreaded);
 };
 

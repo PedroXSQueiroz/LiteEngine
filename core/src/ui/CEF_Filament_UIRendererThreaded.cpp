@@ -481,6 +481,35 @@ void CEF_Filament_UIRendererThreaded::createMaterial() {
     m_materialInstance->setParameter("texture", m_texture, sampler);
 }
 
+void CEF_Filament_UIRendererThreaded::processModifiers(int32_t modifier, lite::InputEvent event,  std::initializer_list<INPUT_KEYS> keys)
+{
+    auto extractKeyModifier = [](std::initializer_list<INPUT_KEYS> inputedKeys, lite::InputEvent currentEvent){
+        
+        for(INPUT_KEYS currentKey : inputedKeys)
+        {
+            if(currentEvent.keys.contains(currentKey))
+            {
+                return currentEvent.keys.at(currentKey);
+            }
+        }
+
+        return INPUT_KEY_STATES::NONE;
+    };
+    
+    INPUT_KEY_STATES modifierKeyState = extractKeyModifier(keys, event);
+
+    if (modifierKeyState == INPUT_KEY_STATES::DOWN || modifierKeyState == INPUT_KEY_STATES::PRESSED)
+    {
+        this->m_currentModifiers |= modifier;
+    }
+    else if (modifierKeyState == INPUT_KEY_STATES::UP)
+    {
+        this->m_currentModifiers &= ~modifier;
+    }
+    // NONE = tecla ausente neste frame, manter estado anterior
+    
+}
+
 void CEF_Filament_UIRendererThreaded::createQuad() {
     struct Vertex {
         filament::math::float3 position;
@@ -562,13 +591,36 @@ void CEF_Filament_UIRendererThreaded::sendInputEvent(const InputEvent& event) {
     }
 
     // Calcular modifiers a partir do mapa de keys
-    uint32_t modifiers = 0;
-    if (event.keys.count(INPUT_KEYS::KEY_LSHIFT) || event.keys.count(INPUT_KEYS::KEY_RSHIFT))
-        modifiers |= EVENTFLAG_SHIFT_DOWN;
-    if (event.keys.count(INPUT_KEYS::KEY_LCTRL) || event.keys.count(INPUT_KEYS::KEY_RCTRL))
-        modifiers |= EVENTFLAG_CONTROL_DOWN;
-    if (event.keys.count(INPUT_KEYS::KEY_LALT) || event.keys.count(INPUT_KEYS::KEY_RALT))
-        modifiers |= EVENTFLAG_ALT_DOWN;
+    // uint32_t modifiers = 0;
+    // if (event.keys.contains(INPUT_KEYS::KEY_LSHIFT) || event.keys.contains(INPUT_KEYS::KEY_RSHIFT))
+    // {
+    //     bool addModifier = (    ( event.keys.contains(INPUT_KEYS::KEY_LSHIFT) && event.keys.at(INPUT_KEYS::KEY_LSHIFT) == INPUT_KEY_STATES::DOWN ) 
+    //                         &&  ( event.keys.contains(INPUT_KEYS::KEY_RSHIFT) && event.keys.at(INPUT_KEYS::KEY_RSHIFT) == INPUT_KEY_STATES::DOWN ) 
+    //                         );
+        
+    //     if(addModifier)
+    //         this->m_currentModifiers |= EVENTFLAG_SHIFT_DOWN;
+    //     else
+    //         this->m_currentModifiers &= ~EVENTFLAG_SHIFT_DOWN;
+    // }
+
+    processModifiers(EVENTFLAG_SHIFT_DOWN, event, { INPUT_KEYS::KEY_LSHIFT, INPUT_KEYS::KEY_RSHIFT });
+    processModifiers(EVENTFLAG_CONTROL_DOWN, event, { INPUT_KEYS::KEY_LCTRL, INPUT_KEYS::KEY_RCTRL });
+    processModifiers(EVENTFLAG_ALT_DOWN, event, { INPUT_KEYS::KEY_LALT, INPUT_KEYS::KEY_RALT });
+
+    if(this->m_currentModifiers & EVENTFLAG_SHIFT_DOWN) std::cout << "[UIRendererThreaded] MODIFIER SHIFT ON" << std::endl;
+    if(this->m_currentModifiers & EVENTFLAG_CONTROL_DOWN) std::cout << "[UIRendererThreaded] MODIFIER CONTROL ON" << std::endl;
+    if(this->m_currentModifiers & EVENTFLAG_ALT_DOWN) std::cout << "[UIRendererThreaded] MODIFIER ALT ON" << std::endl;
+    
+    // if (event.keys.contains(INPUT_KEYS::KEY_LCTRL) || event.keys.contains(INPUT_KEYS::KEY_RCTRL))
+    // {
+    //     this->m_currentModifiers |= EVENTFLAG_CONTROL_DOWN;
+    // }
+    
+    // if (event.keys.contains(INPUT_KEYS::KEY_LALT) || event.keys.contains(INPUT_KEYS::KEY_RALT))
+    // {
+    //     this->m_currentModifiers |= EVENTFLAG_ALT_DOWN;
+    // }
 
     // Mouse buttons
     auto sendMouseBtn = [&](INPUT_KEYS key, CefBrowserHost::MouseButtonType btn) {
@@ -578,7 +630,7 @@ void CEF_Filament_UIRendererThreaded::sendInputEvent(const InputEvent& event) {
         CefMouseEvent cefEvent;
         cefEvent.x = mouseX;
         cefEvent.y = mouseY;
-        cefEvent.modifiers = modifiers;
+        cefEvent.modifiers = m_currentModifiers;
 
         if (it->second == INPUT_KEY_STATES::DOWN)
             host->SendMouseClickEvent(cefEvent, btn, false, 1);
@@ -600,19 +652,29 @@ void CEF_Filament_UIRendererThreaded::sendInputEvent(const InputEvent& event) {
 
         CefKeyEvent cefEvent;
         cefEvent.windows_key_code = vk;
-        cefEvent.modifiers = modifiers;
+        cefEvent.modifiers = m_currentModifiers;
 
         if (state == INPUT_KEY_STATES::DOWN) {
             cefEvent.type = KEYEVENT_KEYDOWN;
+            std::cout << "[CEF KEY] KEYDOWN vk=0x" << std::hex << cefEvent.windows_key_code
+                      << " modifiers=0x" << cefEvent.modifiers << std::dec << std::endl;
             host->SendKeyEvent(cefEvent);
 
-            char c = inputKeyToChar(key);
-            if (c != 0) {
-                cefEvent.type = KEYEVENT_CHAR;
-                cefEvent.character = c;
-                cefEvent.windows_key_code = c;
-                host->SendKeyEvent(cefEvent);
+            // Não enviar CHAR quando Ctrl ou Alt estão ativos (ex: Ctrl+V = paste, não digitar "v")
+            if (!(m_currentModifiers & EVENTFLAG_CONTROL_DOWN) && !(m_currentModifiers & EVENTFLAG_ALT_DOWN)) {
+                char c = inputKeyToChar(key);
+                if (c != 0) {
+                    // Converter para minúscula se Shift não está ativo
+                    if (!(m_currentModifiers & EVENTFLAG_SHIFT_DOWN) && c >= 'A' && c <= 'Z') {
+                        c = c + ('a' - 'A');
+                    }
+                    cefEvent.type = KEYEVENT_CHAR;
+                    cefEvent.character = c;
+                    cefEvent.windows_key_code = c;
+                    host->SendKeyEvent(cefEvent);
+                }
             }
+        
         }
         else if (state == INPUT_KEY_STATES::UP) {
             cefEvent.type = KEYEVENT_KEYUP;

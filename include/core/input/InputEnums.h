@@ -126,6 +126,7 @@ inline int inputKeyToVirtualKey(INPUT_KEYS key) {
 }
 
 enum class INPUT_KEY_STATES : uint8_t {
+    NONE,
     DOWN,
     PRESSED,
     UP
