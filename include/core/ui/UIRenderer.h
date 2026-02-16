@@ -22,6 +22,13 @@ namespace lite{
 
         virtual void sendInputEvent(const InputEvent& event) {}
 
+        int nextElementId() { return m_nextElementId++; }
+
+    protected:
+
+        int m_nextElementId = 1;
+
+
     };
 
 }

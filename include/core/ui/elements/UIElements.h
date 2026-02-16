@@ -133,6 +133,11 @@ namespace lite{
 
             for(PanelGridCell currentInnerElement : m_childElements)
             {
+                if(currentInnerElement.getElement()->getId() == UIElement<URT>::EMPTY_ELEMENT_ID)
+                {
+                    currentInnerElement.getElement()->setId(this->m_uiRenderer->nextElementId());
+                }
+
                 int idInnerElement = currentInnerElement.getElement()->draw(
                         this->m_currentId
                     ,   currentInnerElement.getLine()

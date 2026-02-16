@@ -11,6 +11,12 @@
 #include <filament/Viewport.h>
 #include <math/vec3.h>
 #include <math/vec2.h>
+// Filament macros collide with nlohmann/json internals
+#undef assert_invariant
+#undef UTILS_VERY_LIKELY
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
 
 namespace lite {
 
@@ -41,13 +47,17 @@ bool CEF_Filament_UIRendererThreaded::start() {
     
     std::cout << "[UIRendererThreaded] Starting..." << std::endl;
 
+    this->cef_events.emplace("ui_ready", [&](int uiElementId){
+        this->m_uiAppReady = true;
+    });
+    
     createFilamentResources();
 
     m_running = true;
     m_cefThread = std::thread(&CEF_Filament_UIRendererThreaded::cefThreadFunc, this, initialUrl);
 
     int attempts = 0;
-    while (!m_cefReady && m_running && attempts < 500) {
+    while ((!m_cefReady || !m_uiAppReady)  && m_running && attempts < 500) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         attempts++;
     }
@@ -275,6 +285,13 @@ bool CEF_Filament_UIRendererThreaded::OnQuery(
 
     std::string req = request.ToString();
     std::cout << "[CEF Query] " << req << std::endl;
+
+    auto jsonRequest = json::parse(req);
+
+    if(jsonRequest["event"] == "ui_ready")
+    {
+        this->cef_events["ui_ready"](-1);
+    }
 
     // TODO: Parse request JSON and handle actions
     callback->Success("ok");

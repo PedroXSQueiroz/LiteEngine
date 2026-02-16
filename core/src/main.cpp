@@ -511,11 +511,15 @@ int main(int argc, char** argv){
     
     // lite::UIInstance<filament::re>* currentEditor = new lite::CEF_UIEditor(uiRenderer);
 
+    CEF_UIPanelElement* leftPanel = new CEF_UIPanelElement(uiRenderer);
+    root->addChildComponent(leftPanel, 0, 0);
+    
     UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
-    root->addChildComponent(uiText, 0, 0);
+    leftPanel->addChildComponent(uiText, 0, 0);
+
     root->draw();
 
-    uiText->draw();
+    // uiText->draw();
 
     
     std::cout << "Starting main loop..." << std::endl;

@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Form, Button } from 'react-bootstrap';
+
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { Card, Container, Row, Col, Form, Button } from 'react-bootstrap';
+
 import { getElements, setRenderCallback, UIElementDescriptor, sendToNative } from './uiStore';
 
 function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDescriptor; allElements: UIElementDescriptor[] }) {
   const children = allElements.filter(e => e.parentId === descriptor.id);
-  return (
-    <Container fluid data-ui-id={descriptor.id} style={descriptor.parentId === -1 ? {background: 'transparent'} : {}}>
+  const isRoot = descriptor.parentId === -1;
+
+  const content = (
+    <Container fluid>
       <Row>
         {children.map(child => (
           <Col key={child.id}>
@@ -15,10 +20,24 @@ function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDesc
       </Row>
     </Container>
   );
+  console.log('RENDERIZANDO UM CARD')
+
+  if (isRoot) {
+    return <div data-ui-id={descriptor.id} style={{ background: 'transparent' }}>{content}</div>;
+  }
+
+  console.log('NÃO É ROOT')
+  return (
+    <Card data-ui-id={descriptor.id}>
+      <Card.Body>
+        {content}
+      </Card.Body>
+    </Card>
+  );
 }
 
 function TextComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
-  return <Form.Text data-ui-id={descriptor.id}>{descriptor.text ?? ''}</Form.Text>;
+  return <h2 data-ui-h2={descriptor.id}>{descriptor.text ?? ''}</h2>;
 }
 
 function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
@@ -118,6 +137,7 @@ function UIElementRenderer({ descriptor, allElements }: { descriptor: UIElementD
 
 export default function UIRoot() {
   const [, setVersion] = useState(0);
+  const [isUiReady, setUiReady] =  useState(false);
 
   useEffect(() => {
     setRenderCallback(() => setVersion(v => v + 1));
@@ -125,11 +145,16 @@ export default function UIRoot() {
   }, []);
 
   useEffect(() => {
-    console.log('UI READY EVENT SENT');
-    
-    sendToNative({
-      "event": "ui_ready"
-    });
+    if(!isUiReady)
+    {
+      console.log('UI READY EVENT SENT');
+      
+      sendToNative({
+        "event": "ui_ready"
+      });
+
+      setUiReady(true);
+    }
   });
 
   const allElements = getElements();
@@ -139,7 +164,6 @@ export default function UIRoot() {
 
   return (
     <>
-      <h1>ROOT</h1>
       {roots.map(el => (
         <UIElementRenderer key={el.id} descriptor={el} allElements={allElements} />
       ))}

@@ -7,6 +7,8 @@
 #include <atomic>
 #include <chrono>
 #include <array>
+#include <map>
+#include <functional>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
@@ -151,6 +153,7 @@ private:
     std::thread m_cefThread;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_cefReady{false};
+    std::atomic<bool> m_uiAppReady{false};
 
     // CEF
     CefRefPtr<CefBrowser> m_browser;
@@ -175,6 +178,9 @@ private:
 
     // ========== OTIMIZACAO 3: Throttle para JS ==========
     std::chrono::steady_clock::time_point m_lastJsCallTime;
+
+    //TODO: TURN IN MORE GENERIC?
+    std::map<std::string, std::function<void(int)>> cef_events;
 
     IMPLEMENT_REFCOUNTING(CEF_Filament_UIRendererThreaded);
 };

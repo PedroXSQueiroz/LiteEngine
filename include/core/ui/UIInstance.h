@@ -27,7 +27,7 @@ namespace lite {
 
         virtual UIPanelElement<URI>* createRoot() = 0;
 
-        int nextElementId() { return m_nextId++; }
+        int nextElementId() { return m_uiRenderer->nextElementId(); }
 
         UIPanelElement<URI>* start(){
 
@@ -78,7 +78,6 @@ namespace lite {
         virtual UIElement<URI>* getElementByIdFromRenderer(int id) = 0;
 
         int rootElementId;
-        int m_nextId = 1;
 
         std::set<int> elementsIds;
     };
