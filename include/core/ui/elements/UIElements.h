@@ -250,7 +250,6 @@ namespace lite{
 
         virtual bool updateInput(std::string text) = 0;
         std::vector<std::function<void(std::string)>> onTextChange;
-
     };
 
     template<UIRendererType URT>

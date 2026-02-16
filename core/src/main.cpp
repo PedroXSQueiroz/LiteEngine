@@ -517,6 +517,9 @@ int main(int argc, char** argv){
     UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
     leftPanel->addChildComponent(uiText, 0, 0);
 
+    leftPanel->addChildComponent(new CEF_UITextInputElement(uiRenderer), 1, 0);
+    leftPanel->addChildComponent(new CEF_UIButtonElement(uiRenderer), 2, 0);
+
     root->draw();
 
     // uiText->draw();

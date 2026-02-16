@@ -4,29 +4,57 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { Card, Container, Row, Col, Form, Button } from 'react-bootstrap';
 
 import { getElements, setRenderCallback, UIElementDescriptor, sendToNative } from './uiStore';
+import './UIRoot.css'
 
 function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDescriptor; allElements: UIElementDescriptor[] }) {
   const children = allElements.filter(e => e.parentId === descriptor.id);
   const isRoot = descriptor.parentId === -1;
 
+  let tableRange = children.reduce((range, child) => {
+    if(child.line > range.maxX)
+    {
+      range.maxX = child.line;  
+    }
+
+    if(child.column > range.maxY)
+    {
+      range.maxY = child.column;  
+    }
+    
+    return range;
+  }, {maxX:0, maxY:0});
+
+  let findChild = (entryX: number, entryY: number) => {
+    let currentChild = children.find(child => child.line == entryX && child.column == entryY);
+
+    return currentChild ? <UIElementRenderer descriptor={currentChild} allElements={allElements} /> : <></>;
+  };
+
+  const rows = tableRange.maxX + 1;
+  const cols = tableRange.maxY + 1;
+  
   const content = (
     <Container fluid>
-      <Row>
-        {children.map(child => (
-          <Col key={child.id}>
-            <UIElementRenderer descriptor={child} allElements={allElements} />
-          </Col>
-        ))}
-      </Row>
+      {
+        Array.from({ length: rows }, (_, indexX) =>
+          <Row key={indexX} >
+            {
+              Array.from({ length: cols }, (_, indexY) =>
+                <Col key={indexY}>
+                  {findChild(indexX, indexY)}
+                </Col>
+              )
+            }
+          </Row>
+        )
+      }
     </Container>
   );
-  console.log('RENDERIZANDO UM CARD')
-
+  
   if (isRoot) {
     return <div data-ui-id={descriptor.id} style={{ background: 'transparent' }}>{content}</div>;
   }
 
-  console.log('NÃO É ROOT')
   return (
     <Card data-ui-id={descriptor.id}>
       <Card.Body>
@@ -37,7 +65,7 @@ function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDesc
 }
 
 function TextComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
-  return <h2 data-ui-h2={descriptor.id}>{descriptor.text ?? ''}</h2>;
+  return <span data-ui-h2={descriptor.id}>{descriptor.text ?? ''}</span>;
 }
 
 function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor }) {

@@ -1,0 +1,196 @@
+/* =========================
+   THEME VARIABLES
+========================= */
+:root {
+  --bs-body-bg: #e8e6e2;
+  --bs-body-color: #3a3a3a;
+
+  --bs-primary: #e8590c;
+  --bs-secondary: #d4d1cc;
+
+  --card-bg: #f6f5f3;
+  --border-clear: #ffffff;
+  --border-dark: #6b6b6b;
+  --border-width: 0.75px;
+  --border-radius-external: 8px;
+  --border-radius-internal: 8px;
+
+  --bs-gutter-x: 1px !important;
+  --bs-gutter-y: 1px !important;
+}
+
+/* =========================
+   BODY & TYPOGRAPHY
+========================= */
+body {
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  font-family: "Inter", "Helvetica Neue", sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* =========================
+   CARDS
+========================= */
+.card {
+  background: var(--card-bg);
+  border: var(--border-width) solid var(--border-clear);
+  border-radius: var(--border-radius-external);
+  box-shadow:
+    0 14px 28px rgba(0,0,0,0.20),
+    0 6px 10px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+.card-header {
+  background: transparent;
+  border-bottom: 2px solid var(--border-dark);
+  font-weight: 500;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+.btn {
+  border-radius: var(--border-radius-internal);
+  font-weight: 500;
+  padding: 0.3rem 0.7rem;
+  transition: all 0.2s ease;
+  border: var(--border-width) solid var(--border-dark);
+  margin: 0.5rem 0;
+}
+
+.btn-primary {
+  background: var(--bs-primary);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #d14e0a;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #f0f0f0;
+  color: var(--bs-body-color);
+}
+
+.btn-secondary:hover {
+  background: #e2e2e2;
+}
+
+/* =========================
+   INPUTS
+========================= */
+.form-control {
+  background: white;
+  border: var(--border-width) solid var(--border-dark);
+  border-radius: var(--border-radius-internal);
+  padding: 0.25rem;
+  margin: 0;
+}
+
+.form-control:focus {
+  border-color: var(--bs-primary);
+  box-shadow: none;
+}
+
+/* =========================
+   NAVBAR
+========================= */
+.navbar {
+  background: #f6f6f6 !important;
+  border-bottom: 2px solid var(--border-dark);
+}
+
+.navbar-brand {
+  font-weight: 600;
+}
+
+.nav-link {
+  color: var(--bs-body-color) !important;
+  font-weight: 500;
+}
+
+.nav-link:hover {
+  color: var(--bs-primary) !important;
+}
+
+/* =========================
+   TABLES
+========================= */
+.table {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.table th {
+  background: #f2f2f2;
+  border-bottom: 2px solid var(--border-dark);
+  font-weight: 600;
+}
+
+.table td,
+.table th {
+  border-color: #dcdcdc;
+}
+
+/* =========================
+   CONTAINER
+========================= */
+
+/* sobrescreve todas as linhas */
+.row {
+  --bs-gutter-x: 1px !important;
+  --bs-gutter-y: 1px !important;
+  padding: 0;
+  margin: 0;
+}
+
+/* sobrescreve todas as colunas */
+.col,
+[class*="col-"] {
+  padding: 0;
+}
+
+/* =========================
+   MODALS
+========================= */
+.modal-content {
+  border-radius: 20px;
+  border: var(--border-radius-external) solid var(--border-clear);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.2);
+}
+
+.modal-header,
+.modal-footer {
+  border-color: #dcdcdc;
+}
+
+/* =========================
+   BADGES / HIGHLIGHTS
+========================= */
+.badge-primary,
+.bg-primary {
+  background: var(--bs-primary) !important;
+  color: white;
+}
+
+/* =========================
+   SPECIAL BLOCK (laranja)
+========================= */
+.block-accent {
+  background: var(--bs-primary);
+  color: white;
+  border-radius: 18px;
+  padding: 2rem;
+  border: 2px solid var(--border-dark);
+}
