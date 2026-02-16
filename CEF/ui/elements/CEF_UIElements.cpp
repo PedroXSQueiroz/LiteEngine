@@ -148,6 +148,7 @@ int CEF_UITextInputElement::draw(int parentId, int line, int column, int lineSpa
         {"column", column},
         {"lineSpan", lineSpan},
         {"columnSpan", columnSpan},
+        {"label", this->m_label},
         {"text", ""}
     };
 

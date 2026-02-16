@@ -2,6 +2,9 @@
    THEME VARIABLES
 ========================= */
 :root {
+  
+  font-size: small;
+  
   --bs-body-bg: #e8e6e2;
   --bs-body-color: #3a3a3a;
 
@@ -100,6 +103,12 @@ h1, h2, h3, h4, h5, h6 {
 .form-control:focus {
   border-color: var(--bs-primary);
   box-shadow: none;
+}
+
+.input-label {
+    font-size: medium;
+    font-weight: bold;
+    margin-bottom: 0;
 }
 
 /* =========================

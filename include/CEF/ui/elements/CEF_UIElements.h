@@ -53,7 +53,7 @@ private:
 // --- TextInput ---
 class CEF_UITextInputElement : public UITextInputElement<CEF_Filament_UIRendererThreaded> {
 public:
-    CEF_UITextInputElement(CEF_Filament_UIRendererThreaded* renderer): UITextInputElement(renderer) {};
+    CEF_UITextInputElement(CEF_Filament_UIRendererThreaded* renderer, std::string label): UITextInputElement(renderer, label) {};
     virtual bool isFoccused() override;
     virtual int draw(int parentId, int line, int column, int lineSpan, int columnSpan) override;
     virtual std::string getText() override;

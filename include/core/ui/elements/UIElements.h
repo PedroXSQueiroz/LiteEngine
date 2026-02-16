@@ -221,7 +221,7 @@ namespace lite{
 
     public:
 
-        UITextInputElement(URT* uiRenderer): UIElement<URT>(uiRenderer) {};
+        UITextInputElement(URT* uiRenderer, std::string label): UIElement<URT>(uiRenderer), m_label(label) {};
 
         virtual std::string getText() = 0;
         bool setText(std::string text){
@@ -250,6 +250,8 @@ namespace lite{
 
         virtual bool updateInput(std::string text) = 0;
         std::vector<std::function<void(std::string)>> onTextChange;
+
+        std::string m_label;
     };
 
     template<UIRendererType URT>

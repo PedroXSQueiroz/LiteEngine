@@ -77,7 +77,7 @@ function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor })
 
   return (
     <Form.Group data-ui-id={descriptor.id}>
-      {descriptor.label && <Form.Label>{descriptor.label}</Form.Label>}
+      {descriptor.label && <Form.Label className='input-label'>{descriptor.label}</Form.Label>}
       <Form.Control
         type="text"
         value={value}
