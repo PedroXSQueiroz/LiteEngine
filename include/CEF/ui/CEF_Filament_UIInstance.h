@@ -17,10 +17,6 @@ namespace lite{
 
     protected:
 
-        virtual UIElement<CEF_Filament_UIRendererThreaded>* getElementByIdFromRenderer(int id) override {
-            return nullptr;
-        };
-
         virtual UIPanelElement<CEF_Filament_UIRendererThreaded>* createRoot() override {
             return new CEF_UIPanelElement(this->m_uiRenderer);
         };

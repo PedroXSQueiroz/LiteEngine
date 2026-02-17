@@ -3,6 +3,7 @@
 #include <concepts>
 #include <vector>
 #include <set>
+#include <map>
 #include <type_traits>
 
 #include <core/ui/UIRenderer.h>
@@ -12,11 +13,7 @@ namespace lite {
 
     template<typename T>
     concept UIRendererForInstanceType = std::derived_from<T, UIRenderer<typename T::RendererType>>;
-
-    // Conceito: E deve derivar de UIElement<URT>
-    template<typename E, typename URT>
-    concept UIElementType = std::derived_from<E, UIElement<URT>>;
-
+    
     template<UIRendererForInstanceType URI>
     class UIInstance {
     public:
@@ -33,10 +30,11 @@ namespace lite {
 
             if(this->m_uiRenderer->start())
             {
-                UIPanelElement<URI>* root = this->instantiateElement<UIPanelElement<URI>>(this->createRoot());
+                UIPanelElement<URI>* root = this->createRoot();
                 if(root)
                 {
-                    this->rootElementId = root->getId();
+                    //TODO: DRAW SHOULD REALLY BE CALLED HERE?
+                    this->rootElementId = root->draw();
                 }
                 return root;
             }
@@ -46,40 +44,26 @@ namespace lite {
 
         UIElement<URI>* getElementById(int id){
 
-            if(this->elementsIds.contains(id))
+            if(this->elements.contains(id))
             {
-                return this->getElementByIdFromRenderer(id);
+                return this->elements.at(id);
             }
 
             return nullptr;
         }
 
-        template<typename ET>
-            requires UIElementType<ET, URI>
-        ET* instantiateElement(ET* element){
-
-            if(element && !this->elementsIds.contains(element->getId()))
-            {
-                element->setId(this->nextElementId());
-                int id = element->draw();
-
-                this->elementsIds.insert( id );
-
-                return element;
-            }
-
-            return nullptr;
+        void registerComponent(UIElement<URI>* element)
+        {
+            this->elements.insert(element->getId(), element);
         }
 
     protected:
 
         URI* m_uiRenderer;
 
-        virtual UIElement<URI>* getElementByIdFromRenderer(int id) = 0;
-
         int rootElementId;
 
-        std::set<int> elementsIds;
+        std::map<int, UIElement<URI>*> elements;
     };
 
 }

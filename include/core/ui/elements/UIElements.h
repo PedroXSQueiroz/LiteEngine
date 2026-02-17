@@ -1,9 +1,11 @@
 #pragma once
 
-#include <core/ui/UIRenderer.h>
 #include <functional>
 #include <vector>
 #include <string>
+
+#include <core/ui/UIRenderer.h>
+#include <core/ui/elements/UIElementHandler.h>
 
 namespace lite{
 
@@ -28,14 +30,33 @@ namespace lite{
             int column = 0,
             int lineSpan = 0,
             int columnSpan = 0
-        ) = 0;
+        ) {
+            this->m_parentId = parentId;
+            this->m_currentId = this->m_uiRenderer->nextElementId();
+            this->m_uiRenderer->registerElement(this->m_currentId, UIElementHandler(this));
+
+            return this->m_currentId;
+        }
 
         int getId() {return this->m_currentId;}
         void setId(int id) { this->m_currentId = id; }
 
-    protected:
+        void invokeEvent(std::string eventName){
+        
+            if(this->m_events.contains(eventName))
+            {
+                this->m_events.at(eventName)(this->m_uiRenderer, this->m_currentId);
+            }
+        
+        }
 
-        std::vector<std::function<void(bool)>> onFoccusChange;
+        void registerEvent(std::string name, std::function<void(URT* renderer, int id)> callback){
+            this->m_events.emplace(name, callback);
+        }
+    
+    protected:
+        
+        std::map<std::string, std::function<void(URT* renderer, int id)>> m_events;
 
         URT* m_uiRenderer;
         int m_parentId{ EMPTY_ELEMENT_ID };
@@ -275,5 +296,11 @@ namespace lite{
         std::vector<std::function<void(UIButtonElement*)>> onClickCallbacks;
 
     };
+
+    template<typename T>
+    void UIElementHandler::invokeEvents(std::string eventName){
+        UIElement<T>* currentElement = static_cast<UIElement<T>*>(m_elementPtr);
+        currentElement->invokeEvent(eventName);
+    }
 
 }

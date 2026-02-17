@@ -518,7 +518,11 @@ int main(int argc, char** argv){
     leftPanel->addChildComponent(uiText, 0, 0);
 
     leftPanel->addChildComponent(new CEF_UITextInputElement(uiRenderer, "Modelo"), 1, 0);
-    leftPanel->addChildComponent(new CEF_UIButtonElement(uiRenderer, "Carregar"), 2, 0);
+    UIButtonElement<CEF_Filament_UIRendererThreaded>* loadModelButton = new CEF_UIButtonElement(uiRenderer, "Carregar");
+    loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
+        std::cout << "load model invoked" << std::endl;
+    });
+    leftPanel->addChildComponent(loadModelButton, 2, 0);
 
     root->draw();
 

@@ -10,8 +10,9 @@ namespace lite {
 
 // ==================== Panel ====================
 int CEF_UIPanelElement::drawContainer(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
-
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
+    
     json j = {
         {"id", this->m_currentId},
         {"type", "panel"},
@@ -30,7 +31,8 @@ bool CEF_UIPanelElement::isFoccused() { return false; }
 
 // ==================== Text ====================
 int CEF_UITextElement::draw(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
 
     json j = {
         {"id", this->m_currentId},
@@ -59,7 +61,8 @@ bool CEF_UITextElement::isFoccused() { return false; }
 
 // ==================== CheckBox ====================
 int CEF_UICheckBoxElement::draw(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
 
     json j = {
         {"id", this->m_currentId},
@@ -90,7 +93,8 @@ bool CEF_UICheckBoxElement::isFoccused() { return false; }
 
 // ==================== ComboBox ====================
 int CEF_UIComboBoxInputElement::draw(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
 
     json j = {
         {"id", this->m_currentId},
@@ -138,7 +142,8 @@ bool CEF_UIComboBoxInputElement::isFoccused() { return false; }
 
 // ==================== TextInput ====================
 int CEF_UITextInputElement::draw(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
 
     json j = {
         {"id", this->m_currentId},
@@ -170,7 +175,8 @@ bool CEF_UITextInputElement::isFoccused() { return false; }
 
 // ==================== Button ====================
 int CEF_UIButtonElement::draw(int parentId, int line, int column, int lineSpan, int columnSpan) {
-    this->m_parentId = parentId;
+    
+    UIElement::draw(parentId, line, column, lineSpan, columnSpan);
 
     json j = {
         {"id", this->m_currentId},

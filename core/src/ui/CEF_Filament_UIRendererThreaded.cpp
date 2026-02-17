@@ -293,6 +293,11 @@ bool CEF_Filament_UIRendererThreaded::OnQuery(
         this->cef_events["ui_ready"](-1);
     }
 
+    if(     jsonRequest.contains("id")
+        &&  this->m_uiElements.contains(jsonRequest["id"])){
+        this->m_uiElements.at(jsonRequest["id"]).invokeEvents<UIRenderer<filament::Renderer>>(jsonRequest["type"]);
+    }
+    
     // TODO: Parse request JSON and handle actions
     callback->Success("ok");
     return true;

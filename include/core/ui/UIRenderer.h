@@ -1,5 +1,9 @@
 #pragma once
+
+#include <map>
+
 #include <core/input/InputEvent.h>
+#include <core/ui/elements/UIElementHandler.h>
 
 namespace lite{
     
@@ -24,10 +28,17 @@ namespace lite{
 
         int nextElementId() { return m_nextElementId++; }
 
+        void registerElement(int id, UIElementHandler handler) {
+            this->m_uiElements.emplace(id, handler);
+        }
+
+        UIElementHandler getElement(int id) { return this->m_uiElements.at(id); }
+
     protected:
 
         int m_nextElementId = 1;
 
+        std::map<int, UIElementHandler> m_uiElements;
 
     };
 
