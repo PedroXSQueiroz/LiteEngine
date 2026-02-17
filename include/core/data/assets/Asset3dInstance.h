@@ -23,17 +23,9 @@ public:
     const Asset3dTransform* getTransform() const { return m_transform.get(); }
 
     // Convenience methods that delegate to transform
-    glm::mat4 getLocalMatrix() const {
-        return m_transform ? m_transform->getLocalMatrix() : glm::mat4(1.0f);
-    }
-
-    glm::mat4 getWorldMatrix() const {
-        return m_transform ? m_transform->getWorldMatrix() : glm::mat4(1.0f);
-    }
-
-    void setLocalMatrix(const glm::mat4& matrix) {
-        if (m_transform) m_transform->setLocalMatrix(matrix);
-    }
+    glm::mat4 getLocalMatrix() const;
+    glm::mat4 getWorldMatrix() const;
+    void setLocalMatrix(const glm::mat4& matrix);
 
     // Hierarchy
     Asset3dInstance* parent = nullptr;  // Raw pointer (does not own)

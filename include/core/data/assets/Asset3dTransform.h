@@ -32,13 +32,4 @@ public:
     virtual glm::mat4 getWorldMatrix() const = 0;
 };
 
-// Default implementations for Euler conversion
-inline void Asset3dTransform::setEulerAngles(const glm::vec3& eulerDegrees) {
-    setRotation(glm::quat(glm::radians(eulerDegrees)));
-}
-
-inline glm::vec3 Asset3dTransform::getEulerAngles() const {
-    return glm::degrees(glm::eulerAngles(getRotation()));
-}
-
 } // namespace lite

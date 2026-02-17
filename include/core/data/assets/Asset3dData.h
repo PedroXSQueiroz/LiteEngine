@@ -26,12 +26,7 @@ public:
     std::vector<std::unique_ptr<Asset3dData>> children;
 
     // Calculate world transform recursively
-    glm::mat4 getWorldTransform() const {
-        if (!parent) {
-            return localTransform;
-        }
-        return parent->getWorldTransform() * localTransform;
-    }
+    glm::mat4 getWorldTransform() const;
 
     // Add child node with automatic parent assignment
     template<typename T, typename... Args>
