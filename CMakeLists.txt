@@ -227,7 +227,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
 
   # UI
-  ${CMAKE_SOURCE_DIR}/core/src/ui/CEF_Filament_UIRendererThreaded.cpp
+  ${CMAKE_SOURCE_DIR}/CEF/ui/CEF_Filament_UIRendererThreaded.cpp
   ${CMAKE_SOURCE_DIR}/CEF/ui/elements/CEF_UIElements.cpp
   ${CMAKE_SOURCE_DIR}/CEF/CEF_UIApp.cpp
   ${CMAKE_SOURCE_DIR}/CEF/ui/CEF_UIRenderProcessHandler.cpp
