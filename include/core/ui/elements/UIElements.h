@@ -28,8 +28,8 @@ namespace lite{
             int parentId = EMPTY_ELEMENT_ID,
             int line = 0,
             int column = 0,
-            int lineSpan = 0,
-            int columnSpan = 0
+            int lineSpan = 1,
+            int columnSpan = 1
         ) {
             this->m_parentId = parentId;
             this->m_currentId = this->m_uiRenderer->nextElementId();

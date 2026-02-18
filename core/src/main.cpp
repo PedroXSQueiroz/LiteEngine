@@ -417,7 +417,6 @@ int main(int argc, char** argv){
 
     std::unique_ptr<Asset3dInstance> assetInstance;
     if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
-        // Instantiate to GPU (Filament-specific)
         assetInstance = instanceFactory->instantiate(rootNode, materials);
     }
 
@@ -515,14 +514,20 @@ int main(int argc, char** argv){
     root->addChildComponent(leftPanel, 0, 0);
     
     UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
-    leftPanel->addChildComponent(uiText, 0, 0);
+    leftPanel->addChildComponent(uiText, 0, 0, 1, 2);
 
-    leftPanel->addChildComponent(new CEF_UITextInputElement(uiRenderer, "Modelo"), 1, 0);
+    leftPanel->addChildComponent(new CEF_UITextInputElement(uiRenderer, "Modelo"), 1, 0, 1, 2);
     UIButtonElement<CEF_Filament_UIRendererThreaded>* loadModelButton = new CEF_UIButtonElement(uiRenderer, "Carregar");
     loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
         std::cout << "load model invoked" << std::endl;
     });
+    UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
+    deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
+        std::cout << "delete model invoked" << std::endl;
+    });
+
     leftPanel->addChildComponent(loadModelButton, 2, 0);
+    leftPanel->addChildComponent(deleteModelButton, 2, 1);
 
     root->draw();
 

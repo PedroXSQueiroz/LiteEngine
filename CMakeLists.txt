@@ -229,6 +229,14 @@ target_sources(app PRIVATE
   # UI
   ${CMAKE_SOURCE_DIR}/core/src/ui/CEF_Filament_UIRendererThreaded.cpp
   ${CMAKE_SOURCE_DIR}/CEF/ui/elements/CEF_UIElements.cpp
+  ${CMAKE_SOURCE_DIR}/CEF/CEF_UIApp.cpp
+  ${CMAKE_SOURCE_DIR}/CEF/ui/CEF_UIRenderProcessHandler.cpp
+
+  # Core
+  ${CMAKE_SOURCE_DIR}/core/src/data/assets/Asset3dData.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/data/assets/Asset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/data/assets/Asset3dTransform.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/input/InputEnums.cpp
 )
 
 # Garante consistência do runtime em todas as targets

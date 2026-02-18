@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Card, Container, Row, Col, Form, Button } from 'react-bootstrap';
+import { Card, Row, Col, Form, Button } from 'react-bootstrap';
 
 import { getElements, setRenderCallback, UIElementDescriptor, sendToNative } from './uiStore';
 import './UIRoot.css'
@@ -10,45 +10,27 @@ function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDesc
   const children = allElements.filter(e => e.parentId === descriptor.id);
   const isRoot = descriptor.parentId === -1;
 
-  let tableRange = children.reduce((range, child) => {
-    if(child.line > range.maxX)
-    {
-      range.maxX = child.line;  
-    }
+  const totalCols = children.reduce((max, child) => Math.max(max, child.column + (child.columnSpan || 1)), 1);
 
-    if(child.column > range.maxY)
-    {
-      range.maxY = child.column;  
-    }
-    
-    return range;
-  }, {maxX:0, maxY:0});
-
-  let findChild = (entryX: number, entryY: number) => {
-    let currentChild = children.find(child => child.line == entryX && child.column == entryY);
-
-    return currentChild ? <UIElementRenderer descriptor={currentChild} allElements={allElements} /> : <></>;
-  };
-
-  const rows = tableRange.maxX + 1;
-  const cols = tableRange.maxY + 1;
-  
   const content = (
-    <Container fluid>
-      {
-        Array.from({ length: rows }, (_, indexX) =>
-          <Row key={indexX} >
-            {
-              Array.from({ length: cols }, (_, indexY) =>
-                <Col key={indexY}>
-                  {findChild(indexX, indexY)}
-                </Col>
-              )
-            }
-          </Row>
-        )
-      }
-    </Container>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
+      gap: '4px',
+      width: '100%'
+    }}>
+      {children.map(child => (
+        <div
+          key={child.id}
+          style={{
+            gridColumn: `${child.column + 1} / span ${child.columnSpan || 1}`,
+            gridRow: `${child.line + 1} / span ${child.lineSpan || 1}`,
+          }}
+        >
+          <UIElementRenderer descriptor={child} allElements={allElements} />
+        </div>
+      ))}
+    </div>
   );
   
   if (isRoot) {
@@ -76,16 +58,19 @@ function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor })
   }, [descriptor.text]);
 
   return (
-    <Form.Group data-ui-id={descriptor.id}>
+    <Form.Group as={Row} data-ui-id={descriptor.id} style={{width:'100%'}}>
       {descriptor.label && <Form.Label className='input-label'>{descriptor.label}</Form.Label>}
-      <Form.Control
-        type="text"
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          sendToNative({ id: descriptor.id, type: 'textChange', text: e.target.value });
-        }}
-      />
+      <Col>
+        <Form.Control
+          type="text"
+          value={value}
+          style={{width:'100%'}}
+          onChange={(e) => {
+            setValue(e.target.value);
+            sendToNative({ id: descriptor.id, type: 'textChange', text: e.target.value });
+          }}
+        />
+      </Col>
     </Form.Group>
   );
 }
@@ -99,6 +84,7 @@ function CheckboxComponent({ descriptor }: { descriptor: UIElementDescriptor }) 
 
   return (
     <Form.Check
+      as={Row}
       data-ui-id={descriptor.id}
       type="checkbox"
       label={descriptor.label ?? ''}
@@ -119,20 +105,22 @@ function ComboBoxComponent({ descriptor }: { descriptor: UIElementDescriptor }) 
   }, [descriptor.selectedOption]);
 
   return (
-    <Form.Group data-ui-id={descriptor.id}>
+    <Form.Group as={Row} data-ui-id={descriptor.id}>
       {descriptor.label && <Form.Label>{descriptor.label}</Form.Label>}
-      <Form.Select
-        value={selected}
-        onChange={(e) => {
-          setSelected(e.target.value);
-          sendToNative({ id: descriptor.id, type: 'selectChange', selectedOption: e.target.value });
-        }}
-      >
-        <option value="">Selecione...</option>
-        {(descriptor.options ?? []).map(opt => (
-          <option key={opt.key} value={opt.key}>{opt.label}</option>
-        ))}
-      </Form.Select>
+      <Col>
+        <Form.Select
+          value={selected}
+          onChange={(e) => {
+            setSelected(e.target.value);
+            sendToNative({ id: descriptor.id, type: 'selectChange', selectedOption: e.target.value });
+          }}
+        >
+          <option value="">Selecione...</option>
+          {(descriptor.options ?? []).map(opt => (
+            <option key={opt.key} value={opt.key}>{opt.label}</option>
+          ))}
+        </Form.Select>
+      </Col>
     </Form.Group>
   );
 }
