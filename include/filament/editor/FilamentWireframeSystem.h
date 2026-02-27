@@ -18,7 +18,7 @@ namespace lite {
 
 // Filament-specific implementation of WireframeSystem
 // Uses barycentric coordinates in vertex color to draw wireframe overlay
-class FilamentWireframeSystem : public WireframeSystem {
+class FilamentWireframeSystem : public WireframeSystem<FilamentMeshAsset3dInstance>{
 public:
     explicit FilamentWireframeSystem(filament::Engine* engine, filament::Scene* scene);
     ~FilamentWireframeSystem() override;
@@ -28,8 +28,8 @@ public:
     void resize(uint32_t width, uint32_t height) override;
     void setWireframeColor(const glm::vec4& color) override;
     void setWireframeWidth(float width) override;
-    void addWireframeMesh(MeshAsset3dInstance* mesh) override;
-    void removeWireframeMesh(MeshAsset3dInstance* mesh) override;
+    void addWireframeMesh(FilamentMeshAsset3dInstance* mesh) override;
+    void removeWireframeMesh(FilamentMeshAsset3dInstance* mesh) override;
     void clearWireframeMeshes() override;
     void beginFrame() override;
 

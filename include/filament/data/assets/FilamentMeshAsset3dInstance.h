@@ -16,7 +16,7 @@
 namespace lite {
 
 // Filament-specific mesh instance (GPU resources for a single mesh)
-class FilamentMeshAsset3dInstance : public MeshAsset3dInstance {
+class FilamentMeshAsset3dInstance : public MeshAsset3dInstance<FilamentAsset3dTransform> {
 public:
     FilamentMeshAsset3dInstance(filament::Engine* engine, filament::Scene* scene);
 

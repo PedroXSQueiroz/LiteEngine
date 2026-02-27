@@ -16,33 +16,32 @@ namespace lite {
 
 // Filament-specific root instance (container for mesh instances)
 // Uses hierarchy from Asset3dInstance - meshes are FilamentMeshAsset3dInstance children
-class FilamentAsset3dInstance : public Asset3dInstance {
+class FilamentAsset3dInstance : public Asset3dInstance<FilamentAsset3dTransform> {
 public:
-    FilamentAsset3dInstance(filament::Engine* engine, filament::Scene* scene);
+    FilamentAsset3dInstance(
+            utils::Entity entity
+        ,   FilamentAsset3dTransform transform)
+        :   Asset3dInstance(std::make_unique<FilamentAsset3dTransform>(transform))
+        ,   m_entity(entity){
+
+    };
 
     ~FilamentAsset3dInstance() override = default;
 
     void setVisible(bool visible) override;
 
-    // Initialize transform after entity is created
-    void initializeTransform(utils::Entity entity);
-
-    // Access to engine/scene for operations
-    filament::Engine* getEngine() const { return m_engine; }
-    filament::Scene* getScene() const { return m_scene; }
-
     // Entity for this node (used for transform hierarchy)
     utils::Entity getEntity() const { return m_entity; }
 
+    //TODO IA: Isso deveria estar em um serviço de Materiais
     // Shared material instances (ownership - destroyed by factory)
     std::vector<filament::MaterialInstance*> materialInstances;
 
+    //TODO IA: Isso deveria estar em um serviço de Assets
     // Shared textures (referenced from cache, not owned)
     std::vector<filament::Texture*> textures;
 
 private:
-    filament::Engine* m_engine;
-    filament::Scene* m_scene;
     utils::Entity m_entity;
 };
 

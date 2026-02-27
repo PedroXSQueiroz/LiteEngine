@@ -237,6 +237,8 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/data/assets/Asset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/core/src/data/assets/Asset3dTransform.cpp
   ${CMAKE_SOURCE_DIR}/core/src/input/InputEnums.cpp
+  ${CMAKE_SOURCE_DIR}/core/src/scene/Scene.cpp
+
 )
 
 # Garante consistência do runtime em todas as targets

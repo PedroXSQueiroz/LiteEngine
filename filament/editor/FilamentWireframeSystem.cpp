@@ -85,7 +85,7 @@ void FilamentWireframeSystem::setWireframeWidth(float width) {
     }
 }
 
-void FilamentWireframeSystem::addWireframeMesh(MeshAsset3dInstance* mesh) {
+void FilamentWireframeSystem::addWireframeMesh(FilamentMeshAsset3dInstance* mesh) {
     if (!mesh) return;
     if (!mesh->isMesh()) return;
     if (m_wireframeMeshes.count(mesh) > 0) return;
@@ -94,7 +94,7 @@ void FilamentWireframeSystem::addWireframeMesh(MeshAsset3dInstance* mesh) {
     updateWireframeEntities();
 }
 
-void FilamentWireframeSystem::removeWireframeMesh(MeshAsset3dInstance* mesh) {
+void FilamentWireframeSystem::removeWireframeMesh(FilamentMeshAsset3dInstance* mesh) {
     if (!mesh || m_wireframeMeshes.count(mesh) == 0) return;
 
     m_wireframeMeshes.erase(mesh);

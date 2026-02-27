@@ -409,13 +409,16 @@ int main(int argc, char** argv){
 
     // New agnostic architecture: Importer + InstanceFactory
     auto importer = std::make_unique<AssimpImporter>();
+
+    
+
     auto instanceFactory = std::make_unique<FilamentInstanceFactory>(engine, scene);
 
     // Import 3D asset (renderer-agnostic data)
     Asset3dData rootNode;
     std::vector<MaterialData> materials;
 
-    std::unique_ptr<Asset3dInstance> assetInstance;
+    std::unique_ptr<FilamentAsset3dInstance> assetInstance;
     if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
         assetInstance = instanceFactory->instantiate(rootNode, materials);
     }
@@ -473,12 +476,15 @@ int main(int argc, char** argv){
 
     // Add all meshes from assetInstance to wireframe
     if (assetInstance) {
-        std::function<void(Asset3dInstance*)> addMeshesToWireframe = [&](Asset3dInstance* node) {
-            if (node->isMesh()) {
-                wireframeSystem->addWireframeMesh(dynamic_cast<MeshAsset3dInstance*>(node));
-            }
-            for (auto& child : node->children) {
-                addMeshesToWireframe(child.get());
+        std::function<void(Asset3dInstance<FilamentAsset3dTransform>*)> addMeshesToWireframe = [&](Asset3dInstance<FilamentAsset3dTransform>* node) {
+            if(node)
+            {
+                if (node->isMesh()) {
+                    wireframeSystem->addWireframeMesh(dynamic_cast<FilamentMeshAsset3dInstance*>(node));
+                }
+                for (auto& child : node->children) {
+                    addMeshesToWireframe(child.get());
+                }
             }
         };
         addMeshesToWireframe(assetInstance.get());

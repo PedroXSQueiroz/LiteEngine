@@ -9,7 +9,7 @@
 
 namespace lite {
 
-class FilamentCameraAsset3dInstance : public CameraAsset3dInstance {
+class FilamentCameraAsset3dInstance : public CameraAsset3dInstance<FilamentAsset3dTransform> {
 public:
     FilamentCameraAsset3dInstance(filament::Engine* engine);
     ~FilamentCameraAsset3dInstance() override;

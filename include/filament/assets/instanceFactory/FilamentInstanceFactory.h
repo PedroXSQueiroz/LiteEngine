@@ -17,7 +17,7 @@
 
 namespace lite {
 
-class FilamentInstanceFactory : public Asset3dInstanceFactory {
+class FilamentInstanceFactory : public Asset3dInstanceFactory<FilamentAsset3dInstance> {
 public:
     FilamentInstanceFactory(
         filament::Engine* engine,
@@ -27,12 +27,12 @@ public:
 
     ~FilamentInstanceFactory() override;
 
-    std::unique_ptr<Asset3dInstance> instantiate(
+    std::unique_ptr<FilamentAsset3dInstance> instantiate(
         const Asset3dData& rootNode,
         const std::vector<MaterialData>& materials
     ) override;
 
-    void destroy(Asset3dInstance* instance) override;
+    void destroy(FilamentAsset3dInstance* instance) override;
 
     // Cleanup all cached resources
     void cleanup();
@@ -53,7 +53,7 @@ private:
     // Process a node recursively and create instance hierarchy
     void processNode(
         const Asset3dData& node,
-        Asset3dInstance& parentInstance,
+        Asset3dInstance<FilamentAsset3dTransform>& parentInstance,
         const std::unordered_map<std::string, filament::MaterialInstance*>& materialMap
     );
 

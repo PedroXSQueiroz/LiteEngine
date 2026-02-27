@@ -5,8 +5,12 @@
 
 namespace lite {
 
+// template <typename T>
+// concept TransformType = std::derived_from<T, Asset3dTransform>;
+
 // Abstract camera that is also a scene node
-class CameraAsset3dInstance : public Asset3dInstance {
+template<TransformClass Transform>
+class CameraAsset3dInstance : public Asset3dInstance<Transform> {
 public:
     virtual ~CameraAsset3dInstance() = default;
 

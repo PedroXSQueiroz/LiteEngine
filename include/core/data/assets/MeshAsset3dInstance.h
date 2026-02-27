@@ -7,7 +7,8 @@
 namespace lite {
 
 // Mesh-specific instance (holds GPU resources for a single mesh)
-class MeshAsset3dInstance : public Asset3dInstance {
+template<TransformClass Transform>
+class MeshAsset3dInstance : public Asset3dInstance<Transform> {
 public:
     ~MeshAsset3dInstance() override = default;
 

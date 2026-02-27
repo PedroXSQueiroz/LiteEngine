@@ -8,7 +8,13 @@
 
 namespace lite {
 
+template <typename T>
+concept MeshTypeConcept =
+    requires { typename T::TransformType; } &&
+    std::derived_from<T, MeshAsset3dInstance<typename T::TransformType>>;
+
 // Base class for wireframe overlay system - renderer agnostic
+template <MeshTypeConcept MeshType >
 class WireframeSystem {
 public:
     virtual ~WireframeSystem() = default;
@@ -24,8 +30,8 @@ public:
     virtual void setWireframeWidth(float width) = 0;
 
     // Wireframe mesh management
-    virtual void addWireframeMesh(MeshAsset3dInstance* mesh) = 0;
-    virtual void removeWireframeMesh(MeshAsset3dInstance* mesh) = 0;
+    virtual void addWireframeMesh(MeshType* mesh) = 0;
+    virtual void removeWireframeMesh(MeshType* mesh) = 0;
     virtual void clearWireframeMeshes() = 0;
 
     // Called each frame to sync transforms
@@ -41,7 +47,7 @@ protected:
     float m_wireframeWidth = 1.5f;
     uint32_t m_width = 0;
     uint32_t m_height = 0;
-    std::unordered_set<MeshAsset3dInstance*> m_wireframeMeshes;
+    std::unordered_set<MeshType*> m_wireframeMeshes;
 };
 
 } // namespace lite
