@@ -63,9 +63,12 @@
 #include <core/data/assets/Asset3dInstance.h>
 #include <core/data/assets/MeshAsset3dInstance.h>
 #include <core/UI/UIInstance.h>
+#include <core/scene/Scene.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 #include <filament/editor/FilamentWireframeSystem.h>
+#include <filament/utils/FilamentTransformUtils.h>
+#include <filament/utils/FilamentUtils.h>
 
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 #include <CEF/ui/elements/CEF_UIElements.h>
@@ -331,7 +334,9 @@ int main(int argc, char** argv){
         std::cerr << "Failed to create Filament engine" << std::endl;
         return -1;
     }
-    
+
+    FilamentUtils::setEngine(engine);
+
     std::cout << "Engine created successfully" << std::endl;
 
     // Criar swap chain
@@ -412,29 +417,32 @@ int main(int argc, char** argv){
 
     
 
-    auto instanceFactory = std::make_unique<FilamentInstanceFactory>(engine, scene);
+    // std::unique_ptr<FilamentInstanceFactory> instanceFactory = ;
+    auto currentScene = std::make_unique<lite::Scene<lite::FilamentAsset3dInstance, lite::FilamentAsset3dTransform>>(
+        std::make_unique<FilamentInstanceFactory>(engine, scene)
+    );
 
     // Import 3D asset (renderer-agnostic data)
+    //TODO: USO DE SCENE AO INVÉS DE FACTORY
     Asset3dData rootNode;
     std::vector<MaterialData> materials;
 
-    std::unique_ptr<FilamentAsset3dInstance> assetInstance;
+    FilamentAsset3dInstance* assetPtr = nullptr;
     if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
-        assetInstance = instanceFactory->instantiate(rootNode, materials);
+        
+        currentScene->create(
+            rootNode,
+            materials, 
+            TransformUtils<FilamentAsset3dTransform>::build(),
+            assetPtr
+        );
     }
-
+    
+    std::unique_ptr<FilamentAsset3dInstance> assetInstance = std::unique_ptr<FilamentAsset3dInstance>(assetPtr);
 
     glm::vec3 center(0, 0, 0);
     float radius = 5.0f;
     // // Calcular bounding box do asset para posicionar c�mera
-
-    // if (asset) {
-    //     auto bbox = asset->getBoundingBox();
-    //     center = bbox.center();
-    //     radius = length(bbox.extent()) * 1.5f;
-    //     std::cout << "Asset center: " << center.x << ", " << center.y << ", " << center.z << std::endl;
-    //     std::cout << "Asset radius: " << radius << std::endl;
-    // }
 
     //SETUP CAMERA - posicionar olhando para o modelo
     glm::vec3 offsetEye = center + glm::vec3(0, radius * 0.3f, radius);
@@ -494,10 +502,8 @@ int main(int argc, char** argv){
     SETUP UI RENDERER (CEF) - Thread separada
     ----------------------------------------------------------------------------*/
 
-    
     CEF_Filament_UIRendererThreaded* uiRenderer = new lite::CEF_Filament_UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
     lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
-    // cef_app.get()->setRenderer(uiRenderer);
     
     UIPanelElement<CEF_Filament_UIRendererThreaded>* root = nullptr;
     if( !(root = uiInstance->start()) )
@@ -505,17 +511,7 @@ int main(int argc, char** argv){
         std::cerr << "Failed to start UIRenderer" << std::endl;
         return -1;
     }
-    
-    // if (!uiRenderer->start()) {
-    //     std::cerr << "Failed to start UIRenderer" << std::endl;
-    // }
-
-
-
-    // lite::UITextElement<lite::UIRenderer<filament::Renderer>>* text = new lite::UITextElement<lite::UIRenderer<filament::Renderer>>();
-    
-    // lite::UIInstance<filament::re>* currentEditor = new lite::CEF_UIEditor(uiRenderer);
-
+   
     CEF_UIPanelElement* leftPanel = new CEF_UIPanelElement(uiRenderer);
     root->addChildComponent(leftPanel, 0, 0);
     
@@ -744,10 +740,11 @@ int main(int argc, char** argv){
 
     // Cleanup 3D asset instance using the new architecture
     if (assetInstance) {
-        instanceFactory->destroy(assetInstance.get());
+        currentScene->destroy(std::move(assetInstance));
+        // instanceFactory->destroy(assetInstance.get());
         assetInstance.reset();
     }
-    instanceFactory.reset();
+    // instanceFactory.reset();
     importer.reset();
     
     filament::Engine::destroy(&engine);

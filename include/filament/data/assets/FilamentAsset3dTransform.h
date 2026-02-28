@@ -4,32 +4,46 @@
 #include <filament/TransformManager.h>
 #include <utils/Entity.h>
 
+#include <optional>
+
 namespace lite {
 
 // Filament implementation - pure facade to TransformManager
 class FilamentAsset3dTransform : public Asset3dTransform {
 public:
-    FilamentAsset3dTransform(filament::TransformManager& transformManager, utils::Entity entity);
+    FilamentAsset3dTransform(
+            filament::TransformManager& transformManager
+        ,   std::optional<utils::Entity> entity = std::nullopt
+    );
     ~FilamentAsset3dTransform() override = default;
 
     // Position
     void setPosition(const glm::vec3& position) override;
-    glm::vec3 getPosition() const override;
+    glm::vec3 getPosition() override;
 
     // Rotation
     void setRotation(const glm::quat& rotation) override;
-    glm::quat getRotation() const override;
+    glm::quat getRotation() override;
 
     // Scale
     void setScale(const glm::vec3& scale) override;
-    glm::vec3 getScale() const override;
+    glm::vec3 getScale() override;
 
     // Matrix
     void setLocalMatrix(const glm::mat4& matrix) override;
-    glm::mat4 getLocalMatrix() const override;
-    glm::mat4 getWorldMatrix() const override;
+    glm::mat4 getLocalMatrix() override;
+    glm::mat4 getWorldMatrix() override;
 
-    utils::Entity getEntity() const { return m_entity; }
+    utils::Entity getEntity() { 
+        this->assertEntity();
+        return m_entity.value();
+    };
+
+    void of(utils::Entity entity)
+    {
+        this->m_entity.emplace(entity);
+    };
+
 
 private:
     void modifyComponent(
@@ -38,8 +52,16 @@ private:
         const glm::vec3* newScale
     );
 
+    void assertEntity()
+    {
+        if(!this->m_entity.has_value())
+        {
+            throw "[filament] Entity not setted for transform";
+        }
+    };
+
     filament::TransformManager& m_transformManager;
-    utils::Entity m_entity;
+    std::optional<utils::Entity> m_entity;
 };
 
 } // namespace lite

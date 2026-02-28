@@ -8,7 +8,7 @@ void Asset3dTransform::setEulerAngles(const glm::vec3& eulerDegrees) {
     setRotation(glm::quat(glm::radians(eulerDegrees)));
 }
 
-glm::vec3 Asset3dTransform::getEulerAngles() const {
+glm::vec3 Asset3dTransform::getEulerAngles() {
     return glm::degrees(glm::eulerAngles(getRotation()));
 }
 

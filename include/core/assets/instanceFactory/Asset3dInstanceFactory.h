@@ -17,7 +17,10 @@ concept Asset3dType =
     requires { typename A::TransformType; } &&
     std::derived_from<A, Asset3dInstance<typename A::TransformType>>;
 
-template<Asset3dType Asset>
+template<typename T>
+    concept InstanceFacTransformTypeConcept = std::derived_from<T, Asset3dTransform>; 
+
+template<Asset3dType Asset, InstanceFacTransformTypeConcept Transform>
 class Asset3dInstanceFactory {
 public:
     virtual ~Asset3dInstanceFactory() = default;
@@ -25,6 +28,7 @@ public:
     // Create GPU resources from node tree and materials
     virtual std::unique_ptr<Asset> instantiate(
         const Asset3dData& rootNode,
+        Transform transform,
         const std::vector<MaterialData>& materials
     ) = 0;
 

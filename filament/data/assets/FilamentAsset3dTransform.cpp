@@ -4,12 +4,13 @@
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstring>
+#include <optional>
 
 namespace lite {
 
 FilamentAsset3dTransform::FilamentAsset3dTransform(
     filament::TransformManager& transformManager,
-    utils::Entity entity
+    std::optional<utils::Entity> entity
 )
     : m_transformManager(transformManager)
     , m_entity(entity)
@@ -43,7 +44,7 @@ void FilamentAsset3dTransform::setPosition(const glm::vec3& position) {
     modifyComponent(&position, nullptr, nullptr);
 }
 
-glm::vec3 FilamentAsset3dTransform::getPosition() const {
+glm::vec3 FilamentAsset3dTransform::getPosition() {
     glm::mat4 m = getLocalMatrix();
     return glm::vec3(m[3]);
 }
@@ -52,7 +53,7 @@ void FilamentAsset3dTransform::setRotation(const glm::quat& rotation) {
     modifyComponent(nullptr, &rotation, nullptr);
 }
 
-glm::quat FilamentAsset3dTransform::getRotation() const {
+glm::quat FilamentAsset3dTransform::getRotation() {
     glm::mat4 m = getLocalMatrix();
     glm::vec3 position, scale, skew;
     glm::quat rotation;
@@ -65,7 +66,7 @@ void FilamentAsset3dTransform::setScale(const glm::vec3& scale) {
     modifyComponent(nullptr, nullptr, &scale);
 }
 
-glm::vec3 FilamentAsset3dTransform::getScale() const {
+glm::vec3 FilamentAsset3dTransform::getScale() {
     glm::mat4 m = getLocalMatrix();
     glm::vec3 position, scale, skew;
     glm::quat rotation;
@@ -75,7 +76,9 @@ glm::vec3 FilamentAsset3dTransform::getScale() const {
 }
 
 void FilamentAsset3dTransform::setLocalMatrix(const glm::mat4& matrix) {
-    auto instance = m_transformManager.getInstance(m_entity);
+    this->assertEntity();
+    
+    auto instance = m_transformManager.getInstance(m_entity.value());
     if (!instance) return;
 
     filament::math::mat4f mat;
@@ -83,8 +86,10 @@ void FilamentAsset3dTransform::setLocalMatrix(const glm::mat4& matrix) {
     m_transformManager.setTransform(instance, mat);
 }
 
-glm::mat4 FilamentAsset3dTransform::getLocalMatrix() const {
-    auto instance = m_transformManager.getInstance(m_entity);
+glm::mat4 FilamentAsset3dTransform::getLocalMatrix() {
+    this->assertEntity();
+    
+    auto instance = m_transformManager.getInstance(m_entity.value());
     if (!instance) return glm::mat4(1.0f);
 
     const auto& filamentMat = m_transformManager.getTransform(instance);
@@ -93,8 +98,10 @@ glm::mat4 FilamentAsset3dTransform::getLocalMatrix() const {
     return result;
 }
 
-glm::mat4 FilamentAsset3dTransform::getWorldMatrix() const {
-    auto instance = m_transformManager.getInstance(m_entity);
+glm::mat4 FilamentAsset3dTransform::getWorldMatrix() {
+    this->assertEntity();
+    
+    auto instance = m_transformManager.getInstance(m_entity.value());
     if (!instance) return glm::mat4(1.0f);
 
     const auto& filamentMat = m_transformManager.getWorldTransform(instance);

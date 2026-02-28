@@ -17,7 +17,7 @@
 
 namespace lite {
 
-class FilamentInstanceFactory : public Asset3dInstanceFactory<FilamentAsset3dInstance> {
+class FilamentInstanceFactory : public Asset3dInstanceFactory<FilamentAsset3dInstance, FilamentAsset3dTransform> {
 public:
     FilamentInstanceFactory(
         filament::Engine* engine,
@@ -29,6 +29,7 @@ public:
 
     std::unique_ptr<FilamentAsset3dInstance> instantiate(
         const Asset3dData& rootNode,
+        FilamentAsset3dTransform transform,
         const std::vector<MaterialData>& materials
     ) override;
 

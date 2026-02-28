@@ -67,8 +67,10 @@ void FilamentInstanceFactory::cleanup() {
     }
 }
 
+//FIXME: SHOULD RECEIVE THE TRANSFORM
 std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiate(
     const Asset3dData& rootNode,
+    FilamentAsset3dTransform rootTransform,
     const std::vector<MaterialData>& materials
 ) {
     if (!m_baseMaterial) {
@@ -81,7 +83,8 @@ std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiate(
     auto& transformManager = m_engine->getTransformManager();
     transformManager.create(rootEntity);
 
-    FilamentAsset3dTransform rootTransform(transformManager, rootEntity);
+    rootTransform.of(rootEntity);
+
     auto instance = std::make_unique<FilamentAsset3dInstance>(rootEntity, rootTransform);
     instance->name = rootNode.name;
     instance->getTransform()->setLocalMatrix(rootNode.localTransform);
