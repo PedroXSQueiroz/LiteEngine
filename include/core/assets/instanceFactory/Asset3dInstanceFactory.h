@@ -2,25 +2,16 @@
 
 #include <memory>
 #include <vector>
-#include <concepts>
 
+#include <core/concepts/EngineConcepts.h>
 #include <core/data/assets/Asset3dData.h>
 #include <core/data/assets/MaterialData.h>
-#include <core/data/assets/Asset3dInstance.h>
 
 namespace lite {
 
 // Abstract interface for instantiating 3D assets to GPU
 // Implementations: FilamentInstanceFactory, etc.
-template <typename A>
-concept Asset3dType =
-    requires { typename A::TransformType; } &&
-    std::derived_from<A, Asset3dInstance<typename A::TransformType>>;
-
-template<typename T>
-    concept InstanceFacTransformTypeConcept = std::derived_from<T, Asset3dTransform>; 
-
-template<Asset3dType Asset, InstanceFacTransformTypeConcept Transform>
+template<Asset3dConcept Asset, TransformConcept Transform>
 class Asset3dInstanceFactory {
 public:
     virtual ~Asset3dInstanceFactory() = default;

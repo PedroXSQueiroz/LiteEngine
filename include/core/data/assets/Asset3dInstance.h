@@ -3,19 +3,15 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <concepts>
 
 #include <glm/glm.hpp>
-#include <core/data/assets/Asset3dTransform.h>
+#include <core/concepts/TransformConcept.h>
 
 namespace lite {
 
 // Base class for instantiated 3D asset nodes (GPU resources)
 // This IS the node - mirrors Asset3dData hierarchy
-template <typename T>
-concept TransformClass = std::derived_from<T, Asset3dTransform>;
-
-template<TransformClass Transform>
+template<TransformConcept Transform>
 class Asset3dInstance {
 public:
 

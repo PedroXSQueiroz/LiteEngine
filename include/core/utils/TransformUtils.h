@@ -1,14 +1,12 @@
-#include <concepts>
+#pragma once
+
 #include <glm/glm.hpp>
 
-#include <core/data/assets/Asset3dTransform.h>
+#include <core/concepts/TransformConcept.h>
 
 namespace lite {
-    
-    template<typename T>
-    concept TargetTransformTypeConcept = std::derived_from<T, Asset3dTransform>;
-    
-    template<TargetTransformTypeConcept TransformType>
+
+    template<TransformConcept TransformType>
     class TransformUtils {
     
     public:

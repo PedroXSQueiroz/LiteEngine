@@ -1,20 +1,15 @@
 #pragma once
 
-#include <concepts>
 #include <vector>
 #include <set>
 #include <map>
-#include <type_traits>
 
-#include <core/ui/UIRenderer.h>
+#include <core/concepts/UIRendererConcept.h>
 #include <core/ui/elements/UIElements.h>
 
 namespace lite {
 
-    template<typename T>
-    concept UIRendererForInstanceType = std::derived_from<T, UIRenderer<typename T::RendererType>>;
-    
-    template<UIRendererForInstanceType URI>
+    template<UIRendererConcept URI>
     class UIInstance {
     public:
         explicit UIInstance(URI* uiRenderer)

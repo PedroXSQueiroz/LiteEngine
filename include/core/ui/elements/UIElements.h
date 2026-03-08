@@ -4,16 +4,12 @@
 #include <vector>
 #include <string>
 
-#include <core/ui/UIRenderer.h>
+#include <core/concepts/UIRendererConcept.h>
 #include <core/ui/elements/UIElementHandler.h>
 
 namespace lite{
 
-    template<typename T>
-    concept UIRendererType = std::derived_from<T, UIRenderer<typename T::RendererType>>;
-
-
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UIElement{
 
     public:
@@ -64,7 +60,7 @@ namespace lite{
 
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UIPanelElement : public UIElement<URT>{
 
     public:
@@ -176,7 +172,7 @@ namespace lite{
         std::vector<PanelGridCell> m_childElements;
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UITextElement : public UIElement<URT>{
 
     public:
@@ -188,7 +184,7 @@ namespace lite{
 
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UICheckBoxElement : public UIElement<URT>{
 
     public:
@@ -204,7 +200,7 @@ namespace lite{
 
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UIComboBoxInputElement : public UIElement<URT>{
 
     public:
@@ -237,7 +233,7 @@ namespace lite{
 
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UITextInputElement : public UIElement<URT>{
 
     public:
@@ -275,12 +271,12 @@ namespace lite{
         std::string m_label;
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UITabElement : public UIElement<URT>{
 
     };
 
-    template<UIRendererType URT>
+    template<UIRendererConcept URT>
     class UIButtonElement : public UIElement<URT>{
 
     public:

@@ -2,31 +2,18 @@
 
 #include <memory>
 #include <map>
-#include <type_traits>
-#include <concepts>
 #include <functional>
 
+#include <core/concepts/EngineConcepts.h>
 #include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
 #include <core/data/assets/Asset3dData.h>
-#include <core/data/assets/Asset3dTransform.h>
 
 using namespace std;
 
 
 namespace lite
 {
-    // template<typename Trans>
-    // concept TransformConcept = std::derived_from<Trans, Asset3dTransform>;
-
-    template<typename A>
-    concept AssetTypeConcept = 
-        requires { typename A::TransformType; } && 
-        std::derived_from<A, Asset3dInstance<typename A::TransformType>>;
-
-    template<typename T>
-    concept TransformTypeConcept = std::derived_from<T, Asset3dTransform>; 
-    
-    template<AssetTypeConcept AssetType, TransformTypeConcept TransformType>
+    template<Asset3dConcept AssetType, TransformConcept TransformType>
     class Scene {
         
         public:

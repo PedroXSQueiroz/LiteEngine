@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/data/assets/MeshAsset3dInstance.h>
+#include <core/concepts/MeshAsset3dConcept.h>
 
 #include <glm/glm.hpp>
 #include <unordered_set>
@@ -8,13 +8,8 @@
 
 namespace lite {
 
-template <typename T>
-concept MeshTypeConcept =
-    requires { typename T::TransformType; } &&
-    std::derived_from<T, MeshAsset3dInstance<typename T::TransformType>>;
-
 // Base class for wireframe overlay system - renderer agnostic
-template <MeshTypeConcept MeshType >
+template <MeshAsset3dConcept MeshType>
 class WireframeSystem {
 public:
     virtual ~WireframeSystem() = default;
