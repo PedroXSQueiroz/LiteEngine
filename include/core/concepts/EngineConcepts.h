@@ -5,3 +5,4 @@
 #include <core/concepts/Asset3dConcept.h>
 #include <core/concepts/MeshAsset3dConcept.h>
 #include <core/concepts/UIRendererConcept.h>
+#include <core/concepts/Asset3dInstanceFactoryConcept.h>

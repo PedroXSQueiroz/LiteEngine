@@ -69,6 +69,7 @@
 #include <filament/editor/FilamentWireframeSystem.h>
 #include <filament/utils/FilamentTransformUtils.h>
 #include <filament/utils/FilamentUtils.h>
+#include <filament/scene/FilamentScene.h>
 
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 #include <CEF/ui/elements/CEF_UIElements.h>
@@ -211,49 +212,49 @@ void loadResources(
     }
 }
 
-filament::gltfio::FilamentInstance* loadAsset(
-    filament::Engine* engine, 
-    filament::Scene* scene, 
-    filament::gltfio::FilamentAsset* &assetOut, 
-    const utils::Path& filename
-) {
-    long const contentSize = static_cast<long>(getFileSize(filename.c_str()));
-    if (contentSize <= 0) {
-        std::cerr << "Unable to open " << filename << std::endl;
-        exit(1);
-    }
+// filament::gltfio::FilamentInstance* loadAsset(
+//     filament::Engine* engine, 
+//     filament::Scene* scene, 
+//     filament::gltfio::FilamentAsset* &assetOut, 
+//     const utils::Path& filename
+// ) {
+//     long const contentSize = static_cast<long>(getFileSize(filename.c_str()));
+//     if (contentSize <= 0) {
+//         std::cerr << "Unable to open " << filename << std::endl;
+//         exit(1);
+//     }
 
-    std::ifstream in(filename.c_str(), std::ifstream::binary | std::ifstream::in);
-    std::vector<uint8_t> buffer(static_cast<unsigned long>(contentSize));
-    if (!in.read((char*) buffer.data(), contentSize)) {
-        std::cerr << "Unable to read " << filename << std::endl;
-        exit(1);
-    }
+//     std::ifstream in(filename.c_str(), std::ifstream::binary | std::ifstream::in);
+//     std::vector<uint8_t> buffer(static_cast<unsigned long>(contentSize));
+//     if (!in.read((char*) buffer.data(), contentSize)) {
+//         std::cerr << "Unable to read " << filename << std::endl;
+//         exit(1);
+//     }
 
-    filament::gltfio::MaterialProvider* matProv = filament::gltfio::createUbershaderProvider(engine, UBERARCHIVE_DEFAULT_DATA, UBERARCHIVE_DEFAULT_SIZE);
-    filament::gltfio::AssetLoader* assetLoader = filament::gltfio::AssetLoader::create({ 
-        engine,
-        matProv,
-        new utils::NameComponentManager(utils::EntityManager::get())
-    });
+//     filament::gltfio::MaterialProvider* matProv = filament::gltfio::createUbershaderProvider(engine, UBERARCHIVE_DEFAULT_DATA, UBERARCHIVE_DEFAULT_SIZE);
+//     filament::gltfio::AssetLoader* assetLoader = filament::gltfio::AssetLoader::create({ 
+//         engine,
+//         matProv,
+//         new utils::NameComponentManager(utils::EntityManager::get())
+//     });
 
-    filament::gltfio::FilamentAsset* asset = assetLoader->createAsset(buffer.data(), buffer.size());
-    if (!asset) {
-        std::cerr << "Unable to parse " << filename << std::endl;
-        exit(1);
-    }
+//     filament::gltfio::FilamentAsset* asset = assetLoader->createAsset(buffer.data(), buffer.size());
+//     if (!asset) {
+//         std::cerr << "Unable to parse " << filename << std::endl;
+//         exit(1);
+//     }
 
-    filament::gltfio::FilamentInstance* instance = asset->getInstance();
-    scene->addEntities(asset->getEntities(), asset->getEntityCount());
+//     filament::gltfio::FilamentInstance* instance = asset->getInstance();
+//     scene->addEntities(asset->getEntities(), asset->getEntityCount());
     
-    std::cout << "Asset loaded: " << asset->getEntityCount() << " entities" << std::endl;
+//     std::cout << "Asset loaded: " << asset->getEntityCount() << " entities" << std::endl;
     
-    buffer.clear();
-    buffer.shrink_to_fit();
+//     buffer.clear();
+//     buffer.shrink_to_fit();
 
-    assetOut = asset;
-    return instance;
-}
+//     assetOut = asset;
+//     return instance;
+// }
 
 int main(int argc, char** argv){
 
@@ -415,10 +416,8 @@ int main(int argc, char** argv){
     // New agnostic architecture: Importer + InstanceFactory
     auto importer = std::make_unique<AssimpImporter>();
 
-    
-
     // std::unique_ptr<FilamentInstanceFactory> instanceFactory = ;
-    auto currentScene = std::make_unique<lite::Scene<lite::FilamentAsset3dInstance, lite::FilamentAsset3dTransform>>(
+    auto currentScene = std::make_unique<FilamentScene>(
         std::make_unique<FilamentInstanceFactory>(engine, scene)
     );
 
@@ -525,6 +524,8 @@ int main(int argc, char** argv){
     });
     UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
     deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
+        
+        
         std::cout << "delete model invoked" << std::endl;
     });
 

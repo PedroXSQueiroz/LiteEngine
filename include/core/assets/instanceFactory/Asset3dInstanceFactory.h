@@ -3,7 +3,8 @@
 #include <memory>
 #include <vector>
 
-#include <core/concepts/EngineConcepts.h>
+#include <core/concepts/Asset3dConcept.h>
+#include <core/concepts/TransformConcept.h>
 #include <core/data/assets/Asset3dData.h>
 #include <core/data/assets/MaterialData.h>
 
@@ -14,6 +15,10 @@ namespace lite {
 template<Asset3dConcept Asset, TransformConcept Transform>
 class Asset3dInstanceFactory {
 public:
+    
+using AssetType = Asset;
+using TransformType = Transform;
+
     virtual ~Asset3dInstanceFactory() = default;
 
     // Create GPU resources from node tree and materials
