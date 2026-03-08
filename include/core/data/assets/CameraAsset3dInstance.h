@@ -1,5 +1,6 @@
 #pragma once
 
+#include <core/concepts/EngineConcepts.h>
 #include <core/data/assets/Asset3dInstance.h>
 #include <glm/glm.hpp>
 
@@ -9,7 +10,7 @@ namespace lite {
 // concept TransformType = std::derived_from<T, Asset3dTransform>;
 
 // Abstract camera that is also a scene node
-template<TransformClass Transform>
+template<TransformConcept Transform>
 class CameraAsset3dInstance : public Asset3dInstance<Transform> {
 public:
     virtual ~CameraAsset3dInstance() = default;
