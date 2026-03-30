@@ -178,6 +178,7 @@ void FilamentWireframeSystem::updateWireframeEntities() {
             (*barycentrics)[baseIdx + 2] = bary2;
         }
 
+        //FIXME: SERÁ QUE NÃO DEVERIA REAPROVEITAR OS BUFFERS DO MESH ORIGINAL?
         // Create vertex buffer with position and color (barycentric) attributes
         filament::VertexBuffer* vertexBuffer = filament::VertexBuffer::Builder()
             .vertexCount(expandedVertexCount)
@@ -273,7 +274,7 @@ void FilamentWireframeSystem::updateWireframeEntities() {
               << " wireframe entities" << std::endl;
 }
 
-void FilamentWireframeSystem::beginFrame() {
+void FilamentWireframeSystem::update() {
     if (!m_initialized || m_wireframeMeshes.empty()) return;
 
     // Update transforms of wireframe entities to match source meshes

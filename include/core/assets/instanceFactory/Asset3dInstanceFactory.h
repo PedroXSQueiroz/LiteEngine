@@ -22,14 +22,14 @@ using TransformType = Transform;
     virtual ~Asset3dInstanceFactory() = default;
 
     // Create GPU resources from node tree and materials
-    virtual std::unique_ptr<Asset> instantiate(
+    virtual std::unique_ptr<Asset> instantiateAsset(
         const Asset3dData& rootNode,
         Transform transform,
         const std::vector<MaterialData>& materials
     ) = 0;
 
     // Destroy an instance and release GPU resources
-    virtual void destroy(Asset* instance) = 0;
+    virtual bool destroyAsset(Asset* instance) = 0;
 };
 
 } // namespace lite

@@ -67,8 +67,19 @@ void FilamentInstanceFactory::cleanup() {
     }
 }
 
+void FilamentInstanceFactory::flushDeletedFilament3dAssets()
+{
+    for(FilamentAsset3dInstance* instance3dToDeleted : this->m_deleted3dInstances)
+    {
+        this->destroyFilament3dAsset(instance3dToDeleted);
+    }
+
+    this->m_deleted3dInstances.clear();
+
+}
+
 //FIXME: SHOULD RECEIVE THE TRANSFORM
-std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiate(
+std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiateAsset(
     const Asset3dData& rootNode,
     FilamentAsset3dTransform rootTransform,
     const std::vector<MaterialData>& materials
@@ -118,35 +129,49 @@ std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiate(
     return instance;
 }
 
-void FilamentInstanceFactory::destroy(FilamentAsset3dInstance* instance) {
-    if (!instance) return;
+bool FilamentInstanceFactory::destroyAsset(FilamentAsset3dInstance* instance) {
+    if (!instance) return false;
 
-    auto* filamentInstance = dynamic_cast<FilamentAsset3dInstance*>(instance);
-    if (!filamentInstance) return;
+    FilamentAsset3dInstance* filamentInstance = dynamic_cast<FilamentAsset3dInstance*>(instance);
+    if (!filamentInstance) return false;
 
-    auto& transformManager = m_engine->getTransformManager();
+    filamentInstance->markAsDeleted();
+    this->m_deleted3dInstances.push_back(instance);
+    
+    return true;
+}
+
+void FilamentInstanceFactory::destroyFilament3dAsset(lite::FilamentAsset3dInstance *filamentInstance)
+{
+    auto &transformManager = m_engine->getTransformManager();
 
     // Recursively destroy resources in hierarchy
-    std::function<void(Asset3dInstance<FilamentAsset3dTransform>&)> destroyNode = [&](Asset3dInstance<FilamentAsset3dTransform>& node) {
-        // First destroy children
-        for (auto& child : node.children) {
+    std::function<void(Asset3dInstance<FilamentAsset3dTransform> &)> destroyNode = [&](Asset3dInstance<FilamentAsset3dTransform> &node)
+    {
+        // First destroyAsset children
+        for (auto &child : node.children)
+        {
             destroyNode(*child);
         }
 
         // If this is a mesh, destroy its GPU resources
-        if (node.isMesh()) {
-            auto* meshInstance = dynamic_cast<FilamentMeshAsset3dInstance*>(&node);
-            if (meshInstance) {
+        if (node.isMesh())
+        {
+            auto *meshInstance = dynamic_cast<FilamentMeshAsset3dInstance *>(&node);
+            if (meshInstance)
+            {
                 utils::Entity entity = meshInstance->getEntity();
 
                 // Remove from scene
                 m_scene->remove(entity);
 
                 // Destroy GPU resources
-                if (meshInstance->vertexBuffer) {
+                if (meshInstance->vertexBuffer)
+                {
                     m_engine->destroy(meshInstance->vertexBuffer);
                 }
-                if (meshInstance->indexBuffer) {
+                if (meshInstance->indexBuffer)
+                {
                     m_engine->destroy(meshInstance->indexBuffer);
                 }
                 // Note: materialInstance is shared, destroyed below
@@ -155,10 +180,13 @@ void FilamentInstanceFactory::destroy(FilamentAsset3dInstance* instance) {
                 transformManager.destroy(entity);
                 m_engine->destroy(entity);
             }
-        } else {
+        }
+        else
+        {
             // Non-mesh node (FilamentAsset3dInstance or intermediate)
-            auto* filamentNode = dynamic_cast<FilamentAsset3dInstance*>(&node);
-            if (filamentNode) {
+            auto *filamentNode = dynamic_cast<FilamentAsset3dInstance *>(&node);
+            if (filamentNode)
+            {
                 utils::Entity entity = filamentNode->getEntity();
                 transformManager.destroy(entity);
                 m_engine->destroy(entity);
@@ -168,13 +196,14 @@ void FilamentInstanceFactory::destroy(FilamentAsset3dInstance* instance) {
     destroyNode(*filamentInstance);
 
     // Destroy shared material instances
-    for (auto* mi : filamentInstance->materialInstances) {
-        if (mi) m_engine->destroy(mi);
+    for (auto *mi : filamentInstance->materialInstances)
+    {
+        if (mi)
+            m_engine->destroy(mi);
     }
 
     std::cout << "FilamentInstanceFactory: Instance destroyed" << std::endl;
 }
-
 void FilamentInstanceFactory::processNode(
     const Asset3dData& node,
     Asset3dInstance<FilamentAsset3dTransform>& parentInstance,

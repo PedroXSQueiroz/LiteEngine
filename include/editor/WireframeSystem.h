@@ -30,7 +30,7 @@ public:
     virtual void clearWireframeMeshes() = 0;
 
     // Called each frame to sync transforms
-    virtual void beginFrame() = 0;
+    virtual void update() = 0;
 
     // Getters
     const glm::vec4& getWireframeColor() const { return m_wireframeColor; }

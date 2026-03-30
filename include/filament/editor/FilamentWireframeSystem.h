@@ -31,7 +31,7 @@ public:
     void addWireframeMesh(FilamentMeshAsset3dInstance* mesh) override;
     void removeWireframeMesh(FilamentMeshAsset3dInstance* mesh) override;
     void clearWireframeMeshes() override;
-    void beginFrame() override;
+    void update() override;
 
     // Filament-specific methods
     void loadMaterial(const std::string& materialPath);

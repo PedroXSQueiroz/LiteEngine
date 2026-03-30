@@ -41,8 +41,15 @@ public:
     // Shared textures (referenced from cache, not owned)
     std::vector<filament::Texture*> textures;
 
+    void markAsDeleted() { this->m_isDeleted = true; }
+
+    bool isDeleted() { return this->m_isDeleted; }
+
 private:
+    
     utils::Entity m_entity;
+
+    bool m_isDeleted { false };
 };
 
 } // namespace lite

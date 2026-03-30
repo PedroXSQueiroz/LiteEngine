@@ -27,18 +27,26 @@ public:
 
     ~FilamentInstanceFactory() override;
 
-    std::unique_ptr<FilamentAsset3dInstance> instantiate(
+    std::unique_ptr<FilamentAsset3dInstance> instantiateAsset(
         const Asset3dData& rootNode,
         FilamentAsset3dTransform transform,
         const std::vector<MaterialData>& materials
     ) override;
 
-    void destroy(FilamentAsset3dInstance* instance) override;
+    bool destroyAsset(FilamentAsset3dInstance *instance) override;
 
+    
     // Cleanup all cached resources
     void cleanup();
+    
+    void flushDeletedFilament3dAssets();
 
 private:
+    
+    std::vector<lite::FilamentAsset3dInstance *> m_deleted3dInstances;
+
+    void destroyFilament3dAsset(lite::FilamentAsset3dInstance *filamentInstance);
+    
     // Create vertex buffer from mesh data
     filament::VertexBuffer* createVertexBuffer(const MeshAsset3dData& mesh);
 

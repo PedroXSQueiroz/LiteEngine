@@ -16,19 +16,22 @@ namespace lite
     template<
         Asset3dConcept AssetType, 
         TransformConcept TransformType, 
-        Asset3dInstanceFactoryConcept InstanceFactory>
+        Asset3dInstanceFactoryConcept InstanceFactory,
+        UIRendererConcept UIRenderer>
     class Scene {
         
         public:
         using Asset3DReference = std::unique_ptr<AssetType>;
 
         Scene(
-            std::unique_ptr<InstanceFactory> asset3dFactory
+            std::unique_ptr<InstanceFactory> asset3dFactory,
+            std::unique_ptr<UIRenderer> uiRenderer
         )
-        : m_asset3dFactory(std::move(asset3dFactory)) {}
+        : m_asset3dFactory(std::move(asset3dFactory))
+        , m_uiRenderer(std::move(uiRenderer)){}
 
         int create(const Asset3dData& data, const std::vector<MaterialData>& materials, TransformType transform, AssetType*& instance) {
-            Asset3DReference newInstance = this->m_asset3dFactory->instantiate(data, transform, materials);
+            Asset3DReference newInstance = this->m_asset3dFactory->instantiateAsset(data, transform, materials);
             instance = newInstance.get();
 
             m_3dInstances.emplace(++m_lastId, std::move(newInstance));
@@ -49,18 +52,34 @@ namespace lite
         }
 
         bool destroy(int id) {
-            return m_3dInstances.erase(id) > 0;
+            
+            if(this->m_3dInstances.contains(id))
+            {
+                if( this->m_asset3dFactory->destroyAsset(this->m_3dInstances.at(id).get()) ) 
+                {
+                    // this->m_3dInstances.erase(id);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         bool destroy(Asset3DReference instance) {
+            
             for (auto it = m_3dInstances.begin(); it != m_3dInstances.end(); ++it) {
                 if (it->second.get() == instance.get()) {
+                    
                     m_3dInstances.erase(it);
                     return true;
                 }
             }
+            
             return false;
         }
+
+        virtual bool prepareRender() { return true; }
+        virtual bool finishRender() { return true; } 
 
         bool update()
         {
@@ -78,22 +97,47 @@ namespace lite
 
             for(std::function<void()> callback : m_preRenderCallback) callback();
             
-            renderScene();
+            if(this->prepareRender())
+            {
+                //FIXME: MELHOR QUE SEJA "FIRE AND FORGET" POR ISSO EM OUTRA THREAD SE POSSÍVEL
+                for(std::function<void()> callback : m_preparedRenderCallback) callback();
+                
+                renderScene();
+
+                for(std::function<void()> callback : m_renderedCallback) callback();
+
+                this->finishRender();
+            }
             
             for(std::function<void()> callback : m_postRenderCallback) callback();
+
+            return true;
         }
 
-        virtual bool renderScene() = 0;
         
         std::vector<std::function<void()>> m_preRenderCallback;
 
-        std::vector<std::function<void()>> m_postRenderCallback;
+        std::vector<std::function<void()>> m_preparedRenderCallback;
 
+        std::vector<std::function<void()>> m_renderedCallback;
+        
+        std::vector<std::function<void()>> m_postRenderCallback;
+        
+        UIRenderer* getCurrentUI()
+        {
+            return this->m_uiRenderer.get();
+        }
+        
     protected:
+        
+        virtual bool renderScene() = 0;
     
         std::unique_ptr<InstanceFactory> m_asset3dFactory;
         
+        std::unique_ptr<UIRenderer> m_uiRenderer;
+        
         std::map<int, Asset3DReference> m_3dInstances;
+
 
     private:
 

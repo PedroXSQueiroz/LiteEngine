@@ -256,6 +256,22 @@ void loadResources(
 //     return instance;
 // }
 
+std::unique_ptr<FilamentScene> createLiteFilamentScene(filament::Engine* engine, filament::SwapChain* swapChain, int SCREEN_WIDTH, int SCREEN_HEIGHT){
+    
+    filament::Scene* scene = engine->createScene();
+    // filament::View* view = engine->createView();
+
+    return std::make_unique<FilamentScene>(
+        std::make_unique<FilamentInstanceFactory>(engine, scene),
+        std::make_unique<lite::CEF_Filament_UIRendererThreaded>(engine, SCREEN_WIDTH, SCREEN_HEIGHT),
+        engine->createRenderer(),
+        scene,
+        engine->createView(),
+        swapChain
+    );
+
+}
+
 int main(int argc, char** argv){
 
     /*----------------------------------------------------------------------------
@@ -350,11 +366,11 @@ int main(int argc, char** argv){
     std::cout << "SwapChain created successfully" << std::endl;
 
     // Criar renderer
-    filament::Renderer* renderer = engine->createRenderer();
-    if (!renderer) {
-        std::cerr << "createRenderer returned null." << std::endl;
-        return -1;
-    }
+    // filament::Renderer* renderer = engine->createRenderer();
+    // if (!renderer) {
+    //     std::cerr << "createRenderer returned null." << std::endl;
+    //     return -1;
+    // }
     
     std::cout << "Renderer created successfully" << std::endl;
     
@@ -367,18 +383,16 @@ int main(int argc, char** argv){
     SETUP SCENE
     ----------------------------------------------------------------------------*/
     auto camera = std::make_unique<FilamentCameraAsset3dInstance>(engine);
-
-    filament::Scene* scene = engine->createScene();
-    filament::View* view = engine->createView();
-
+    auto currentScene = createLiteFilamentScene(engine, swapChain, SCREEN_WIDTH, SCREEN_HEIGHT);
+    
     // Configurar view
-    view->setCamera(camera->getFilamentCamera());
-    view->setScene(scene);
-    view->setPostProcessingEnabled(true);
+    currentScene->getFilamentView()->setCamera(camera->getFilamentCamera());
+    currentScene->getFilamentView()->setScene(currentScene->getFilamentScene());
+    currentScene->getFilamentView()->setPostProcessingEnabled(true);
 
     int fbW = SCREEN_WIDTH, fbH = SCREEN_HEIGHT;
     SDL_GetWindowSize(window, &fbW, &fbH);
-    view->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
+    currentScene->getFilamentView()->setViewport({0, 0, (uint32_t)fbW, (uint32_t)fbH});
 
     // Configurar c�mera DEPOIS de criar view
     camera->setProjection(45.0f, float(fbW) / float(fbH), 0.1f, 2000.0f);
@@ -417,19 +431,18 @@ int main(int argc, char** argv){
     auto importer = std::make_unique<AssimpImporter>();
 
     // std::unique_ptr<FilamentInstanceFactory> instanceFactory = ;
-    auto currentScene = std::make_unique<FilamentScene>(
-        std::make_unique<FilamentInstanceFactory>(engine, scene)
-    );
+    // CEF_Filament_UIRendererThreaded* uiRenderer = new lite::CEF_Filament_UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     // Import 3D asset (renderer-agnostic data)
     //TODO: USO DE SCENE AO INVÉS DE FACTORY
     Asset3dData rootNode;
     std::vector<MaterialData> materials;
+    int currentInstanceId = -1;
 
     FilamentAsset3dInstance* assetPtr = nullptr;
     if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
         
-        currentScene->create(
+        currentInstanceId = currentScene->create(
             rootNode,
             materials, 
             TransformUtils<FilamentAsset3dTransform>::build(),
@@ -453,12 +466,12 @@ int main(int argc, char** argv){
     //SETUP LIGHTNING IBL
     std::string iblPath = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
 
-    auto ibl = std::make_unique<FilamentIBL>(engine, scene);
+    auto ibl = std::make_unique<FilamentIBL>(engine, currentScene->getFilamentScene());
     if (!ibl->load(iblPath)) {
         std::cerr << "Warning: IBL failed to load. Scene may be dark." << std::endl;
     } else {
         std::cout << "IBL loaded and applied to scene." << std::endl;
-        scene->getIndirectLight()->setIntensity(30000.0f);
+        currentScene->getFilamentScene()->getIndirectLight()->setIntensity(30000.0f);
     }
 
     // Simple directional light
@@ -469,14 +482,14 @@ int main(int argc, char** argv){
         .direction({0.6f, -1.0f, -0.8f})
         .castShadows(false)
         .build(*engine, lightEntity);
-    scene->addEntity(lightEntity);
+    currentScene->getFilamentScene()->addEntity(lightEntity);
     
     std::cout << "Lighting setup complete" << std::endl;
 
     /*----------------------------------------------------------------------------
     SETUP WIREFRAME SYSTEM
     ----------------------------------------------------------------------------*/
-    auto wireframeSystem = std::make_unique<FilamentWireframeSystem>(engine, scene);
+    auto wireframeSystem = std::make_unique<FilamentWireframeSystem>(engine, currentScene->getFilamentScene());
     wireframeSystem->initialize(fbW, fbH);
     wireframeSystem->loadMaterial("D:/Workspace/LiteEngine/core/resources/filament/editor/materials/wireframe.filamat");
     wireframeSystem->setWireframeColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.6f)); // White with some transparency
@@ -500,8 +513,7 @@ int main(int argc, char** argv){
     /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF) - Thread separada
     ----------------------------------------------------------------------------*/
-
-    CEF_Filament_UIRendererThreaded* uiRenderer = new lite::CEF_Filament_UIRendererThreaded(engine, SCREEN_WIDTH, SCREEN_HEIGHT);
+    auto uiRenderer = currentScene->getCurrentUI();
     lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
     
     UIPanelElement<CEF_Filament_UIRendererThreaded>* root = nullptr;
@@ -524,15 +536,32 @@ int main(int argc, char** argv){
     });
     UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
     deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
-        
-        
-        std::cout << "delete model invoked" << std::endl;
+        if( currentScene->destroy(currentInstanceId) ) 
+        {
+            std::cout << "current model deleted" << std::endl;
+        }
+        else
+        {
+            std::cout << "something went wrong on deletion" << std::endl;
+        }
+
     });
 
     leftPanel->addChildComponent(loadModelButton, 2, 0);
     leftPanel->addChildComponent(deleteModelButton, 2, 1);
 
     root->draw();
+
+    currentScene->m_renderedCallback.push_back([&](){
+        if (uiRenderer) {
+            uiRenderer->render(currentScene->getFilamentRenderer());
+        }
+    });
+
+    currentScene->m_preRenderCallback.push_back([&](){
+        wireframeSystem->update();
+        uiRenderer->update();
+    });
 
     // uiText->draw();
 
@@ -650,7 +679,7 @@ int main(int argc, char** argv){
                 if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
                     int w = ev.window.data1;
                     int h = ev.window.data2;
-                    view->setViewport({0, 0, (uint32_t)w, (uint32_t)h});
+                    currentScene->getFilamentView()->setViewport({0, 0, (uint32_t)w, (uint32_t)h});
                     camera->setProjection(45.0f, float(w) / float(h), 0.1f, 2000.0f);
                     // camera->setViewport(w, h);
                 }
@@ -685,32 +714,32 @@ int main(int argc, char** argv){
         // Update camera position via transform, then lookAt uses it
         camera->getTransform()->setPosition(offsetEye);
         camera->lookAt(offsetEye + offsetCenter);
+        
+        // Enviar posicao do mouse para o JavaScript (com throttle para reduzir overhead)
+        // int mouseX, mouseY;
+        // SDL_GetMouseState(&mouseX, &mouseY);
+        uiText->setText("Hello world=> X:" + std::to_string(horizontal_direction) + "Y:" + std::to_string(vertical_direction));
 
         // Update wireframe transforms
-        wireframeSystem->beginFrame();
+        // wireframeSystem->update();
+        // uiRenderer->update();
 
-        if (renderer->beginFrame(swapChain)) {
-            renderer->render(view);
+        
+        // if (currentScene->getFilamentRenderer()->beginFrame(swapChain)) {
+        //     currentScene->getFilamentRenderer()->render(currentScene->getFilamentView());
+            
+            
+        //     // UI Overlay (CEF) - apenas atualiza textura, CEF roda em outra thread
+        //     if (uiRenderer) {
+        //         uiRenderer->render(currentScene->getFilamentRenderer());
+        //     }
 
-            // UI Overlay (CEF) - apenas atualiza textura, CEF roda em outra thread
-            if (uiRenderer) {
-                
-                // Enviar posicao do mouse para o JavaScript (com throttle para reduzir overhead)
-                int mouseX, mouseY;
-                SDL_GetMouseState(&mouseX, &mouseY);
-                
-                uiText->setText("Hello world=> X:" + std::to_string(mouseX) + "Y:" + std::to_string(mouseY));
-                
-                uiRenderer->update();
-
-                uiRenderer->render(renderer);
-            }
-
-            renderer->endFrame();
-            frameCount++;
-        } else {
-            std::cerr << "beginFrame failed!" << std::endl;
-        }
+        //     currentScene->getFilamentRenderer()->endFrame();
+        //     frameCount++;
+        // } else {
+        //     std::cerr << "beginFrame failed!" << std::endl;
+        // }
+        currentScene->update();
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
@@ -729,10 +758,10 @@ int main(int argc, char** argv){
 
     // Cleanup
     engine->destroy(lightEntity);
-    engine->destroy(renderer);
+    engine->destroy(currentScene->getFilamentRenderer());
     engine->destroy(swapChain);
-    engine->destroy(view);
-    engine->destroy(scene);
+    engine->destroy(currentScene->getFilamentView());
+    engine->destroy(currentScene->getFilamentScene());
     camera.reset(); // unique_ptr cleanup (destructor handles Filament cleanup)
     
     // if (asset) {
@@ -742,7 +771,7 @@ int main(int argc, char** argv){
     // Cleanup 3D asset instance using the new architecture
     if (assetInstance) {
         currentScene->destroy(std::move(assetInstance));
-        // instanceFactory->destroy(assetInstance.get());
+        // instanceFactory->destroyAsset(assetInstance.get());
         assetInstance.reset();
     }
     // instanceFactory.reset();

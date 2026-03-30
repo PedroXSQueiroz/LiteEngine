@@ -437,6 +437,7 @@ void CEF_Filament_UIRendererThreaded::createFilamentResources() {
     createMaterial();
     createQuad();
 
+    //TODO: PODERIA SER USADA A MESMA VIEW QUE JÁ É USADA PARA O RESTO E ASSIM NÃO PRECISANDO CHAMAR MAIS UM RENDER?
     m_scene = m_engine->createScene();
     m_view = m_engine->createView();
 
