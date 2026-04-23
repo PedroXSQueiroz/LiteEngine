@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/concepts/MeshAsset3dConcept.h>
+#include <core/SceneScopeSystem.h>
 
 #include <glm/glm.hpp>
 #include <unordered_set>
@@ -10,7 +11,7 @@ namespace lite {
 
 // Base class for wireframe overlay system - renderer agnostic
 template <MeshAsset3dConcept MeshType>
-class WireframeSystem {
+class WireframeSystem : public SceneScopeSystem {
 public:
     virtual ~WireframeSystem() = default;
 
@@ -31,6 +32,8 @@ public:
 
     // Called each frame to sync transforms
     virtual void update() = 0;
+
+    void preRenderScene(float deltaTime) override { update(); }
 
     // Getters
     const glm::vec4& getWireframeColor() const { return m_wireframeColor; }

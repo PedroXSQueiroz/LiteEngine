@@ -97,7 +97,9 @@ void FilamentWireframeSystem::addWireframeMesh(FilamentMeshAsset3dInstance* mesh
 void FilamentWireframeSystem::removeWireframeMesh(FilamentMeshAsset3dInstance* mesh) {
     if (!mesh || m_wireframeMeshes.count(mesh) == 0) return;
 
-    m_wireframeMeshes.erase(mesh);
+    if(m_wireframeMeshes.contains(mesh))
+        m_wireframeMeshes.erase(mesh);
+    
     updateWireframeEntities();
 }
 

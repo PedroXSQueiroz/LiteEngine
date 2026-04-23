@@ -2,11 +2,13 @@
 
 #include <memory>
 #include <map>
+#include <vector>
 #include <functional>
 
 #include <core/concepts/EngineConcepts.h>
 #include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
 #include <core/data/assets/Asset3dData.h>
+#include <core/SceneScopeSystem.h>
 
 using namespace std;
 
@@ -67,11 +69,15 @@ namespace lite
 
         bool destroy(Asset3DReference instance) {
             
+            //FIXME: TEM QUE HAVER UMA FORMA MAIS EFICIENTE DE FAZER ISSO, 
+            // A CENA PODE TER MUITOS OBETOS E SERÁ RUIM ITERAR EM TODOS
             for (auto it = m_3dInstances.begin(); it != m_3dInstances.end(); ++it) {
                 if (it->second.get() == instance.get()) {
-                    
-                    m_3dInstances.erase(it);
-                    return true;
+                    if( this->m_asset3dFactory->destroyAsset(it->second.get()) )
+                    {
+                        // this->m_3dInstances.erase(it);
+                        return true;
+                    }
                 }
             }
             
@@ -81,7 +87,7 @@ namespace lite
         virtual bool prepareRender() { return true; }
         virtual bool finishRender() { return true; } 
 
-        bool update()
+        bool update(float deltaTime = 0.0f)
         {
             /*TODO: MAIN LOOP VAI SER AQUI?
                     CASO SIM, TALVEZ O CICLO SEJA
@@ -96,23 +102,29 @@ namespace lite
             */
 
             for(std::function<void()> callback : m_preRenderCallback) callback();
-            
+
             if(this->prepareRender())
             {
                 //FIXME: MELHOR QUE SEJA "FIRE AND FORGET" POR ISSO EM OUTRA THREAD SE POSSÍVEL
                 for(std::function<void()> callback : m_preparedRenderCallback) callback();
-                
+
+                for(SceneScopeSystem* system : m_systems) system->preRenderScene(deltaTime);
+
                 renderScene();
+
+                for(SceneScopeSystem* system : m_systems) system->postRenderScene(deltaTime);
 
                 for(std::function<void()> callback : m_renderedCallback) callback();
 
                 this->finishRender();
             }
-            
+
             for(std::function<void()> callback : m_postRenderCallback) callback();
 
             return true;
         }
+
+        void addSystem(SceneScopeSystem* system) { m_systems.push_back(system); }
 
         
         std::vector<std::function<void()>> m_preRenderCallback;
@@ -142,6 +154,7 @@ namespace lite
     private:
 
         int m_lastId = 0;
+        std::vector<SceneScopeSystem*> m_systems;
 
     };
     

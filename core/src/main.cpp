@@ -559,8 +559,28 @@ int main(int argc, char** argv){
     });
 
     currentScene->m_preRenderCallback.push_back([&](){
-        wireframeSystem->update();
         uiRenderer->update();
+    });
+
+    currentScene->addSystem(wireframeSystem.get());
+
+    currentScene->m_postRenderCallback.push_back([&](){
+        auto deletedAssets = currentScene->find([](FilamentAsset3dInstance* asset){
+            return asset->isDeleted();
+        });
+
+        std::function<void(lite::Asset3dInstance<lite::FilamentAsset3dTransform>&)> removeWireframeRecursive =
+            [&](lite::Asset3dInstance<lite::FilamentAsset3dTransform>& node) {
+                if(node.isMesh()) {
+                    auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(&node);
+                    if(mesh) wireframeSystem->removeWireframeMesh(mesh);
+                }
+                for(auto& child : node.children)
+                    removeWireframeRecursive(*child);
+            };
+
+        for(FilamentAsset3dInstance* asset : deletedAssets)
+            removeWireframeRecursive(*asset);
     });
 
     // uiText->draw();
@@ -739,7 +759,7 @@ int main(int argc, char** argv){
         // } else {
         //     std::cerr << "beginFrame failed!" << std::endl;
         // }
-        currentScene->update();
+        currentScene->update(deltaTime);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
