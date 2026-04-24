@@ -37,22 +37,22 @@ namespace lite{
         int getId() {return this->m_currentId;}
         void setId(int id) { this->m_currentId = id; }
 
-        void invokeEvent(std::string eventName){
-        
+        void invokeEvent(std::string eventName, std::string value = ""){
+
             if(this->m_events.contains(eventName))
             {
-                this->m_events.at(eventName)(this->m_uiRenderer, this->m_currentId);
+                this->m_events.at(eventName)(this->m_uiRenderer, this->m_currentId, value);
             }
-        
+
         }
 
-        void registerEvent(std::string name, std::function<void(URT* renderer, int id)> callback){
+        void registerEvent(std::string name, std::function<void(URT* renderer, int id, std::string value)> callback){
             this->m_events.emplace(name, callback);
         }
-    
+
     protected:
-        
-        std::map<std::string, std::function<void(URT* renderer, int id)>> m_events;
+
+        std::map<std::string, std::function<void(URT* renderer, int id, std::string value)>> m_events;
 
         URT* m_uiRenderer;
         int m_parentId{ EMPTY_ELEMENT_ID };
@@ -294,9 +294,9 @@ namespace lite{
     };
 
     template<typename T>
-    void UIElementHandler::invokeEvents(std::string eventName){
+    void UIElementHandler::invokeEvents(std::string eventName, std::string value){
         UIElement<T>* currentElement = static_cast<UIElement<T>*>(m_elementPtr);
-        currentElement->invokeEvent(eventName);
+        currentElement->invokeEvent(eventName, value);
     }
 
 }

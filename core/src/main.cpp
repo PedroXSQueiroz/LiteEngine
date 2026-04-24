@@ -529,13 +529,24 @@ int main(int argc, char** argv){
     UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
     leftPanel->addChildComponent(uiText, 0, 0, 1, 2);
 
-    leftPanel->addChildComponent(new CEF_UITextInputElement(uiRenderer, "Modelo"), 1, 0, 1, 2);
+    UITextInputElement<CEF_Filament_UIRendererThreaded>* uiInput = new CEF_UITextInputElement(uiRenderer, "Modelo");
+    leftPanel->addChildComponent(uiInput, 1, 0, 1, 2);
     UIButtonElement<CEF_Filament_UIRendererThreaded>* loadModelButton = new CEF_UIButtonElement(uiRenderer, "Carregar");
-    loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
+    loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id, std::string){
         std::cout << "load model invoked" << std::endl;
+
+        if( importer->import(uiInput->getText(), rootNode, materials) )
+        {
+            currentInstanceId = currentScene->create(
+                rootNode,
+                materials, 
+                TransformUtils<FilamentAsset3dTransform>::build(),
+                assetPtr
+            );
+        }
     });
     UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
-    deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id){
+    deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded* renderer, int id, std::string){
         if( currentScene->destroy(currentInstanceId) ) 
         {
             std::cout << "current model deleted" << std::endl;

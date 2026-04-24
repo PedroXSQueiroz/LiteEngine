@@ -38,7 +38,11 @@ private:
 // --- ComboBox ---
 class CEF_UIComboBoxInputElement : public UIComboBoxInputElement<CEF_Filament_UIRendererThreaded> {
 public:
-    CEF_UIComboBoxInputElement(CEF_Filament_UIRendererThreaded* renderer): UIComboBoxInputElement(renderer) {};
+    CEF_UIComboBoxInputElement(CEF_Filament_UIRendererThreaded* renderer): UIComboBoxInputElement(renderer) {
+        this->registerEvent("changeValue", [this](CEF_Filament_UIRendererThreaded*, int, std::string value) {
+            this->setSelectedOption(value);
+        });
+    };
     virtual bool isFoccused() override;
     virtual int draw(int parentId, int line, int column, int lineSpan = 1, int columnSpan = 1) override;
     virtual bool addOption(std::string key, std::string label) override;
@@ -53,7 +57,12 @@ private:
 // --- TextInput ---
 class CEF_UITextInputElement : public UITextInputElement<CEF_Filament_UIRendererThreaded> {
 public:
-    CEF_UITextInputElement(CEF_Filament_UIRendererThreaded* renderer, std::string label): UITextInputElement(renderer, label) {};
+    CEF_UITextInputElement(CEF_Filament_UIRendererThreaded* renderer, std::string label): UITextInputElement(renderer, label) {
+        this->registerEvent("changeValue", [this](CEF_Filament_UIRendererThreaded*, int, std::string value) {
+            this->m_text = value;
+            this->notifyChange(value);
+        });
+    };
     virtual bool isFoccused() override;
     virtual int draw(int parentId, int line, int column, int lineSpan = 1, int columnSpan = 1) override;
     virtual std::string getText() override;

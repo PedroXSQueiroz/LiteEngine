@@ -294,8 +294,10 @@ bool CEF_Filament_UIRendererThreaded::OnQuery(
     }
 
     if(     jsonRequest.contains("id")
+        &&  jsonRequest.contains("type")
         &&  this->m_uiElements.contains(jsonRequest["id"])){
-        this->m_uiElements.at(jsonRequest["id"]).invokeEvents<UIRenderer<filament::Renderer>>(jsonRequest["type"]);
+        std::string value = jsonRequest.contains("value") ? jsonRequest["value"].get<std::string>() : "";
+        this->m_uiElements.at(jsonRequest["id"]).invokeEvents<UIRenderer<filament::Renderer>>(jsonRequest["type"], value);
     }
     
     // TODO: Parse request JSON and handle actions

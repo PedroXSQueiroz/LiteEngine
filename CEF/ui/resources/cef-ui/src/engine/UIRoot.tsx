@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Card, Row, Col, Form, Button } from 'react-bootstrap';
@@ -52,10 +52,16 @@ function TextComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
 
 function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
   const [value, setValue] = useState(descriptor.text ?? '');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (descriptor.text !== undefined) setValue(descriptor.text);
   }, [descriptor.text]);
+
+  const commitValue = (val: string) => {
+    console.log(`campo editado:${val}`);
+    sendToNative({ id: descriptor.id, type: 'changeValue', value: val });
+  };
 
   return (
     <Form.Group as={Row} data-ui-id={descriptor.id} style={{width:'100%'}}>
@@ -67,7 +73,8 @@ function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor })
           style={{width:'100%'}}
           onChange={(e) => {
             setValue(e.target.value);
-            sendToNative({ id: descriptor.id, type: 'textChange', text: e.target.value });
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => commitValue(e.target.value), 400);
           }}
         />
       </Col>
@@ -91,7 +98,7 @@ function CheckboxComponent({ descriptor }: { descriptor: UIElementDescriptor }) 
       checked={checked}
       onChange={(e) => {
         setChecked(e.target.checked);
-        sendToNative({ id: descriptor.id, type: 'checkChange', checked: e.target.checked });
+        sendToNative({ id: descriptor.id, type: 'changeValue', value: e.target.checked.toString() });
       }}
     />
   );
@@ -112,7 +119,7 @@ function ComboBoxComponent({ descriptor }: { descriptor: UIElementDescriptor }) 
           value={selected}
           onChange={(e) => {
             setSelected(e.target.value);
-            sendToNative({ id: descriptor.id, type: 'selectChange', selectedOption: e.target.value });
+            sendToNative({ id: descriptor.id, type: 'changeValue', value: e.target.value });
           }}
         >
           <option value="">Selecione...</option>

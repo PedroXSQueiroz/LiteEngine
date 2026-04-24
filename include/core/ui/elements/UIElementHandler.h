@@ -15,7 +15,7 @@ namespace lite {
 
             
         template<typename T>
-        void invokeEvents(std::string eventName);
+        void invokeEvents(std::string eventName, std::string value = "");
             
     private:
         
