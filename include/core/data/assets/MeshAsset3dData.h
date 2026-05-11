@@ -28,6 +28,27 @@ public:
     std::string materialName;
 
     bool isMesh() const override { return true; }
+
+    std::unique_ptr<Asset3dData> clone() const override {
+        auto copy = std::make_unique<MeshAsset3dData>();
+        copy->name = name;
+        copy->localTransform = localTransform;
+        for (const auto& child : children) {
+            auto childClone = child->clone();
+            childClone->parent = copy.get();
+            copy->children.push_back(std::move(childClone));
+        }
+        copy->positions = positions;
+        copy->normals    = normals;
+        copy->uvs        = uvs;
+        copy->indices    = indices;
+        copy->boundsMin  = boundsMin;
+        copy->boundsMax  = boundsMax;
+        copy->center     = center;
+        copy->radius     = radius;
+        copy->materialName = materialName;
+        return copy;
+    }
 };
 
 } // namespace lite

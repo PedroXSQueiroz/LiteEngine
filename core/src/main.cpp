@@ -441,13 +441,13 @@ int main(int argc, char** argv){
 
     FilamentAsset3dInstance* assetPtr = nullptr;
     if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
-        
+
         currentInstanceId = currentScene->create(
             rootNode,
-            materials, 
-            TransformUtils<FilamentAsset3dTransform>::build(),
-            assetPtr
+            materials,
+            TransformUtils<FilamentAsset3dTransform>::build()
         );
+        assetPtr = currentScene->get(currentInstanceId);
     }
     
     std::unique_ptr<FilamentAsset3dInstance> assetInstance = std::unique_ptr<FilamentAsset3dInstance>(assetPtr);
@@ -539,10 +539,10 @@ int main(int argc, char** argv){
         {
             currentInstanceId = currentScene->create(
                 rootNode,
-                materials, 
-                TransformUtils<FilamentAsset3dTransform>::build(),
-                assetPtr
+                materials,
+                TransformUtils<FilamentAsset3dTransform>::build()
             );
+            assetPtr = currentScene->get(currentInstanceId);
         }
     });
     UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");

@@ -40,6 +40,18 @@ public:
 
     // Type identification
     virtual bool isMesh() const { return false; }
+
+    virtual std::unique_ptr<Asset3dData> clone() const {
+        auto copy = std::make_unique<Asset3dData>();
+        copy->name = name;
+        copy->localTransform = localTransform;
+        for (const auto& child : children) {
+            auto childClone = child->clone();
+            childClone->parent = copy.get();
+            copy->children.push_back(std::move(childClone));
+        }
+        return copy;
+    }
 };
 
 } // namespace lite

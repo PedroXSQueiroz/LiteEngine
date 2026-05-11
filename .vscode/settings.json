@@ -1,4 +1,6 @@
 {
+    "C_Cpp.intelliSenseEngine": "default",
+    "cmake.configureOnOpen": false,
     "files.associations": {
         "algorithm": "cpp",
         "array": "cpp",
@@ -102,5 +104,13 @@
         "unordered_set": "cpp",
         "valarray": "cpp",
         "*.inc": "cpp"
+    },
+    "files.exclude": {
+        "**/3rd_party": true,
+        "**/external": true
+    },
+    "search.exclude": {
+        "**/3rd_party": true,
+        "**/external": true
     }
 }
