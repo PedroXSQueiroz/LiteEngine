@@ -35,9 +35,13 @@ namespace lite
         : m_asset3dFactory(std::move(asset3dFactory))
         , m_uiRenderer(std::move(uiRenderer)){}
 
-        int create(const Asset3dData& data, const std::vector<MaterialData>& materials, TransformType transform) {
+        // deepIds: quando true, TODOS os nós da árvore instanciada recebem ids
+        // (mesmo espaço de numeração da raiz), permitindo endereçar subobjetos
+        // (picking, seleção). Default false — atribuição profunda tem custo por
+        // nó e em gameplay normalmente só a raiz importa.
+        int create(const Asset3dData& data, const std::vector<MaterialData>& materials, TransformType transform, bool deepIds = false) {
             std::lock_guard<std::mutex> lock(m_instancesMutex);
-            m_creatingObjects.push_back({ ++m_lastId, data.clone(), materials, transform });
+            m_creatingObjects.push_back({ ++m_lastId, data.clone(), materials, transform, deepIds });
             return m_lastId;
         }
 
@@ -179,6 +183,7 @@ namespace lite
             std::unique_ptr<Asset3dData> data;
             std::vector<MaterialData> materials;
             TransformType transform;
+            bool deepIds = false;
         };
 
         void instantiate() {
@@ -192,9 +197,27 @@ namespace lite
                 Asset3DReference instance = m_asset3dFactory->instantiateAsset(*entry.data, entry.transform, entry.materials);
                 {
                     std::lock_guard<std::mutex> lock(m_instancesMutex);
+                    if (instance) {
+                        // A raiz recebe o MESMO id pré-alocado no create()
+                        // (chave do mapa); filhos entram no mesmo espaço de
+                        // numeração quando deepIds.
+                        instance->setId(entry.id);
+                        if (entry.deepIds) {
+                            assignChildIds(*instance);
+                        }
+                    }
                     m_3dInstances.emplace(entry.id, std::move(instance));
                 }
                 m_instantiatedCV.notify_all();
+            }
+        }
+
+        // Atribui ids a toda a subárvore (percurso determinístico, mesmo espaço
+        // de m_lastId). Chamar com m_instancesMutex adquirido.
+        void assignChildIds(Asset3dInstance<TransformType>& node) {
+            for (auto& child : node.children) {
+                child->setId(++m_lastId);
+                assignChildIds(*child);
             }
         }
 

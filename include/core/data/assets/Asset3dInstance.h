@@ -26,6 +26,13 @@ public:
     // Node identification
     std::string name;
 
+    // Id no espaço de numeração da Scene (o mesmo usado como chave de
+    // m_3dInstances para a raiz). -1 = sem id: nó fora de cena (ex.: câmera do
+    // renderer) ou filho de asset criado sem deepIds.
+    // A atribuição é responsabilidade exclusiva da Scene (create/instantiate).
+    int getId() const { return m_id; }
+    void setId(int id) { m_id = id; }
+
     // Transform access (implementation provides concrete transform)
     Asset3dTransform* getTransform() { return m_transform.get(); }
     const Asset3dTransform* getTransform() const { return m_transform.get(); }
@@ -62,6 +69,7 @@ public:
 protected:
     std::unique_ptr<Transform> m_transform;
     bool m_visible = true;
+    int m_id = -1;
 };
 
 } // namespace lite
