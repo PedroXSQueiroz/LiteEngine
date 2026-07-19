@@ -132,6 +132,10 @@ target_include_directories(app PRIVATE
   ${Vulkan_INCLUDE_DIRS}
 )
 
+# ==================== COMPILE DEFINITIONS ====================
+# Suppress std::byte vs Windows SDK byte conflict (CEF + Filament + MSVC)
+target_compile_definitions(app PRIVATE _HAS_STD_BYTE=0)
+
 # ==================== LINK LIBRARIES ====================
 target_link_libraries(app PRIVATE
     # CEF - IMPORTANTE: libcef_dll_wrapper ANTES de libcef.lib
@@ -225,6 +229,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentCameraAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
+  ${CMAKE_SOURCE_DIR}/filament/scene/FilamentSceneRenderer.cpp
   ${CMAKE_SOURCE_DIR}/filament/utils/FilamentTransformUtils.cpp
   ${CMAKE_SOURCE_DIR}/filament/utils/FilamentUtils.cpp
 

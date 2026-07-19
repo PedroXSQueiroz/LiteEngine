@@ -169,6 +169,10 @@ void FilamentSceneRenderer::renderLoop() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
+    // --- UI: recursos GPU criados aqui, na thread do Engine (thread affinity) ---
+    // Antes do set_value(): garante que existem quando waitReady() retornar na main.
+    m_scene->getCurrentUI()->createFilamentResources();
+
     // Process any remaining setup commands before the first frame
     processCommands();
 

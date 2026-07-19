@@ -63,6 +63,13 @@ public:
     virtual bool start() override;
     virtual bool stop() override;
 
+    // THREADING: ambos DEVEM ser chamados na thread que criou o filament::Engine
+    // (a render thread do FilamentSceneRenderer). Não são thread-safe.
+    // createFilamentResources é chamado pelo renderLoop() antes do waitReady();
+    // destroyFilamentResources é chamado por stop() no cleanup da render thread.
+    void createFilamentResources();
+    void destroyFilamentResources();
+
     virtual void update();
     virtual void render(filament::Renderer* renderer);
     virtual void sendInputEvent(const InputEvent& event) override;
@@ -125,7 +132,6 @@ public:
 
 private:
     void cefThreadFunc(const std::string& initialUrl);
-    void createFilamentResources();
     void createQuad();
     void createMaterial();
     void processModifiers(int32_t modifier, lite::InputEvent event, std::initializer_list<INPUT_KEYS> keys);
@@ -145,6 +151,7 @@ private:
     filament::VertexBuffer* m_vertexBuffer = nullptr;
     filament::IndexBuffer* m_indexBuffer = nullptr;
     utils::Entity m_quadEntity;
+    bool m_filamentResourcesCreated = false;
 
     // Dimensoes
     std::atomic<uint32_t> m_width;

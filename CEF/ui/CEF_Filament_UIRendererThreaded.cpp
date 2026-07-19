@@ -50,8 +50,10 @@ bool CEF_Filament_UIRendererThreaded::start() {
     this->cef_events.emplace("ui_ready", [&](int uiElementId){
         this->m_uiAppReady = true;
     });
-    
-    createFilamentResources();
+
+    // Recursos Filament NÃO são criados aqui: start() pode rodar em qualquer thread
+    // (a main chama), e o Engine exige thread affinity. createFilamentResources()
+    // é invocado pelo FilamentSceneRenderer::renderLoop() na render thread.
 
     m_running = true;
     m_cefThread = std::thread(&CEF_Filament_UIRendererThreaded::cefThreadFunc, this, initialUrl);
@@ -73,33 +75,51 @@ bool CEF_Filament_UIRendererThreaded::start() {
 }
 
 bool CEF_Filament_UIRendererThreaded::stop() {
-    if (!m_running) return false;
+    if (!m_running && !m_filamentResourcesCreated) return false;
 
     std::cout << "[UIRendererThreaded] Stopping..." << std::endl;
-    m_running = false;
 
-    if (m_cefThread.joinable()) {
-        m_cefThread.join();
-    }
+    // Parte CEF: só se start() chegou a rodar
+    if (m_running) {
+        m_running = false;
 
-    if (m_engine) {
-        if (!m_quadEntity.isNull()) m_engine->destroy(m_quadEntity);
-        if (m_vertexBuffer) m_engine->destroy(m_vertexBuffer);
-        if (m_indexBuffer) m_engine->destroy(m_indexBuffer);
-        if (m_materialInstance) m_engine->destroy(m_materialInstance);
-        if (m_material) m_engine->destroy(m_material);
-        if (m_texture) m_engine->destroy(m_texture);
-        if (m_view) m_engine->destroy(m_view);
-        if (m_scene) m_engine->destroy(m_scene);
-        if (m_camera) {
-            m_engine->destroyCameraComponent(m_cameraEntity);
-            utils::EntityManager::get().destroy(m_cameraEntity);
+        if (m_cefThread.joinable()) {
+            m_cefThread.join();
         }
     }
+
+    // Parte GPU: independe de start() — os recursos são criados pela render thread
+    // no setup do renderLoop, mesmo que a UI nunca tenha iniciado o CEF.
+    // stop() é chamado no cleanup do renderLoop, portanto na thread certa.
+    destroyFilamentResources();
 
     std::cout << "[UIRendererThreaded] Stopped" << std::endl;
 
     return true;
+}
+
+void CEF_Filament_UIRendererThreaded::destroyFilamentResources() {
+    if (!m_filamentResourcesCreated || !m_engine) return;
+
+    if (!m_quadEntity.isNull()) {
+        m_engine->destroy(m_quadEntity);
+        m_quadEntity = utils::Entity();
+    }
+    if (m_vertexBuffer) { m_engine->destroy(m_vertexBuffer); m_vertexBuffer = nullptr; }
+    if (m_indexBuffer) { m_engine->destroy(m_indexBuffer); m_indexBuffer = nullptr; }
+    if (m_materialInstance) { m_engine->destroy(m_materialInstance); m_materialInstance = nullptr; }
+    if (m_material) { m_engine->destroy(m_material); m_material = nullptr; }
+    if (m_texture) { m_engine->destroy(m_texture); m_texture = nullptr; }
+    if (m_view) { m_engine->destroy(m_view); m_view = nullptr; }
+    if (m_scene) { m_engine->destroy(m_scene); m_scene = nullptr; }
+    if (m_camera) {
+        m_engine->destroyCameraComponent(m_cameraEntity);
+        utils::EntityManager::get().destroy(m_cameraEntity);
+        m_camera = nullptr;
+        m_cameraEntity = utils::Entity();
+    }
+
+    m_filamentResourcesCreated = false;
 }
 
 void CEF_Filament_UIRendererThreaded::cefThreadFunc(const std::string& initialUrl) {
@@ -436,6 +456,8 @@ void CEF_Filament_UIRendererThreaded::GetViewRect(CefRefPtr<CefBrowser> browser,
 }
 
 void CEF_Filament_UIRendererThreaded::createFilamentResources() {
+    if (m_filamentResourcesCreated) return;
+
     createMaterial();
     createQuad();
 
@@ -457,6 +479,8 @@ void CEF_Filament_UIRendererThreaded::createFilamentResources() {
     m_view->setBlendMode(filament::View::BlendMode::TRANSLUCENT);
 
     m_scene->addEntity(m_quadEntity);
+
+    m_filamentResourcesCreated = true;
 }
 
 void CEF_Filament_UIRendererThreaded::createMaterial() {
