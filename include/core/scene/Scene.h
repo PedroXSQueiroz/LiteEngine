@@ -110,19 +110,17 @@ namespace lite
                     2. PROCESSA LÓGICA DE GAME (NO MOMENTO, SÓ A ATUALIZAÇÃO DO CURSOR)
                         2.1 COMO FAZER ISSO AGNÓSTICO?
                         2.2 NO FUTURO ELE VAI LUPAR ENTRE OS ASSETS E INVOCAR AS LÓGICAS DELES E DE SEUS COMPONENTES
-                    3. RENDERIZA UI
-                    4. LIMPA OBJETOS DELETADOS
-                    5. RENDERIZA CENA
             */
 
             instantiate();
 
-            for(std::function<void()> callback : m_preRenderCallback) callback();
+            for(SceneScopeSystem* system : m_systems) system->onFrameBegin(deltaTime);
+
+            if(this->m_uiRenderer) this->m_uiRenderer->update();
 
             if(this->prepareRender())
             {
-                //FIXME: MELHOR QUE SEJA "FIRE AND FORGET" POR ISSO EM OUTRA THREAD SE POSSÍVEL
-                for(std::function<void()> callback : m_preparedRenderCallback) callback();
+                for(SceneScopeSystem* system : m_systems) system->onRenderPrepared(deltaTime);
 
                 for(SceneScopeSystem* system : m_systems) system->preRenderScene(deltaTime);
 
@@ -130,26 +128,28 @@ namespace lite
 
                 for(SceneScopeSystem* system : m_systems) system->postRenderScene(deltaTime);
 
-                for(std::function<void()> callback : m_renderedCallback) callback();
+                this->renderUI();
+
+                for(SceneScopeSystem* system : m_systems) system->onSceneRendered(deltaTime);
 
                 this->finishRender();
             }
 
-            for(std::function<void()> callback : m_postRenderCallback) callback();
+            for(SceneScopeSystem* system : m_systems) system->onFrameEnd(deltaTime);
 
             return true;
         }
 
+        // THREADING: registrar/remover antes de SceneRenderer::start() (main
+        // thread) ou via postCommand (render thread) — o vetor não tem lock.
         void addSystem(SceneScopeSystem* system) { m_systems.push_back(system); }
 
-
-        std::vector<std::function<void()>> m_preRenderCallback;
-
-        std::vector<std::function<void()>> m_preparedRenderCallback;
-
-        std::vector<std::function<void()>> m_renderedCallback;
-
-        std::vector<std::function<void()>> m_postRenderCallback;
+        void removeSystem(SceneScopeSystem* system) {
+            m_systems.erase(
+                std::remove(m_systems.begin(), m_systems.end(), system),
+                m_systems.end()
+            );
+        }
 
         UIRenderer* getCurrentUI()
         {
@@ -159,6 +159,11 @@ namespace lite
     protected:
 
         virtual bool renderScene() = 0;
+
+        // Composição da UI por cima da cena, dentro do frame aberto. A base não
+        // conhece o renderer gráfico concreto — a implementação (ex.:
+        // FilamentScene) chama m_uiRenderer->render(rendererConcreto).
+        virtual void renderUI() {}
 
         std::unique_ptr<InstanceFactory> m_asset3dFactory;
 

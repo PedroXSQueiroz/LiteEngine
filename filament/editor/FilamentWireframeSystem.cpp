@@ -6,6 +6,8 @@
 #include <filament/TransformManager.h>
 #include <utils/EntityManager.h>
 
+#include <filament/scene/FilamentScene.h>
+
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -274,6 +276,81 @@ void FilamentWireframeSystem::updateWireframeEntities() {
 
     std::cout << "FilamentWireframeSystem: Updated " << m_wireframeEntities.size()
               << " wireframe entities" << std::endl;
+}
+
+void FilamentWireframeSystem::ensureGpuResources() {
+    if (m_gpuReady || m_materialPath.empty()) return;
+
+    loadMaterial(m_materialPath);
+    m_gpuReady = (m_wireframeMaterialInstance != nullptr);
+
+    if (!m_gpuReady) {
+        // Falhou (path errado, arquivo corrompido): não tentar de novo a cada frame
+        m_materialPath.clear();
+    }
+}
+
+void FilamentWireframeSystem::forEachMesh(
+    Asset3dInstance<FilamentAsset3dTransform>& node,
+    const std::function<void(FilamentMeshAsset3dInstance*)>& fn
+) {
+    if (node.isMesh()) {
+        if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(&node)) {
+            fn(mesh);
+        }
+    }
+    for (auto& child : node.children) {
+        forEachMesh(*child, fn);
+    }
+}
+
+// Fase onFrameBegin: roda logo após Scene::instantiate(), então assets criados
+// neste frame já estão no mapa e ganham wireframe imediatamente.
+void FilamentWireframeSystem::onFrameBegin(float) {
+    if (!m_initialized || !m_liteScene) return;
+
+    ensureGpuResources();
+
+    if (!m_autoTrack || !m_wireframeMaterialInstance) return;
+
+    bool changed = false;
+    auto alive = m_liteScene->find([](FilamentAsset3dInstance* asset) {
+        return !asset->isDeleted();
+    });
+
+    for (auto* asset : alive) {
+        forEachMesh(*asset, [&](FilamentMeshAsset3dInstance* mesh) {
+            if (!m_wireframeMeshes.contains(mesh)) {
+                m_wireframeMeshes.insert(mesh);
+                changed = true;
+            }
+        });
+    }
+
+    // Rebuild único por frame, não um por mesh (addWireframeMesh reconstruiria N vezes)
+    if (changed) updateWireframeEntities();
+}
+
+// Fase onFrameEnd: roda após finishRender() — o flush já destruiu os recursos
+// GPU dos assets deletados; as entidades wireframe têm buffers próprios e são
+// destruídas aqui, no mesmo frame.
+void FilamentWireframeSystem::onFrameEnd(float) {
+    if (!m_liteScene || m_wireframeMeshes.empty()) return;
+
+    bool changed = false;
+    auto deleted = m_liteScene->find([](FilamentAsset3dInstance* asset) {
+        return asset->isDeleted();
+    });
+
+    for (auto* asset : deleted) {
+        forEachMesh(*asset, [&](FilamentMeshAsset3dInstance* mesh) {
+            if (m_wireframeMeshes.erase(mesh) > 0) {
+                changed = true;
+            }
+        });
+    }
+
+    if (changed) updateWireframeEntities();
 }
 
 void FilamentWireframeSystem::update() {

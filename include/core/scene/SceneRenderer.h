@@ -124,6 +124,12 @@ private:
 
             waitStart();
             renderLoop();
+
+            // Drena comandos de teardown postados durante o shutdown (ex.:
+            // destruir sistemas com recursos GPU) — ainda na render thread,
+            // antes do cleanup. Garante que "postCommand + stop()" na main
+            // execute o comando mesmo se o loop saiu antes de processá-lo.
+            processCommands();
         } else {
             // Destrava waitReady() mesmo em falha (getScene() retornará nulo)
             m_readyPromise.set_value();

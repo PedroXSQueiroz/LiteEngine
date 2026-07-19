@@ -50,6 +50,13 @@ public:
         return true;
     };
 
+    virtual void renderUI() override {
+        auto* uiRenderer = this->getCurrentUI();
+        if (uiRenderer) {
+            uiRenderer->render(this->m_filamentRenderer);
+        }
+    };
+
     virtual bool finishRender() override {
         this->m_filamentRenderer->endFrame();
         this->m_asset3dFactory->flushDeletedFilament3dAssets();

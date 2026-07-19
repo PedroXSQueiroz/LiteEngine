@@ -217,17 +217,21 @@ int main(int argc, char** argv){
     );
 
     /*----------------------------------------------------------------------------
-    SETUP WIREFRAME SYSTEM (posted to render thread — needs GPU access)
+    SETUP WIREFRAME SYSTEM
+    Configuração é 100% CPU (main thread); os recursos GPU são criados de forma
+    preguiçosa pelo próprio sistema no primeiro hook, já na render thread.
+    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
     ----------------------------------------------------------------------------*/
-    std::unique_ptr<FilamentWireframeSystem> wireframeSystem;
-    sceneRenderer.postCommand([&, fbW, fbH]() {
-        auto* engine = FilamentUtils::getEngine();
-        auto* fScene = currentScene->getFilamentScene();
-        wireframeSystem = std::make_unique<FilamentWireframeSystem>(engine, fScene);
-        wireframeSystem->initialize(fbW, fbH);
-        wireframeSystem->loadMaterial("D:/Workspace/LiteEngine/core/resources/filament/editor/materials/wireframe.filamat");
-        wireframeSystem->setWireframeColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.6f));
-    });
+    std::unique_ptr<FilamentWireframeSystem> wireframeSystem =
+        std::make_unique<FilamentWireframeSystem>(
+            FilamentUtils::getEngine(),
+            currentScene->getFilamentScene()
+        );
+    wireframeSystem->initialize(fbW, fbH);
+    wireframeSystem->setMaterialPath("D:/Workspace/LiteEngine/core/resources/filament/editor/materials/wireframe.filamat");
+    wireframeSystem->setWireframeColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.6f));
+    wireframeSystem->attachTo(currentScene);
+    currentScene->addSystem(wireframeSystem.get());
 
     /*----------------------------------------------------------------------------
     SETUP CAMERA INITIAL POSITION
@@ -293,40 +297,10 @@ int main(int argc, char** argv){
     root->draw();
 
     /*----------------------------------------------------------------------------
-    REGISTER SCENE CALLBACKS (before start — render thread not looping yet)
-    ----------------------------------------------------------------------------*/
-    currentScene->m_renderedCallback.push_back([&]() {
-        if (uiRenderer) {
-            uiRenderer->render(currentScene->getFilamentRenderer());
-        }
-    });
-
-    currentScene->m_preRenderCallback.push_back([&]() {
-        uiRenderer->update();
-    });
-
-    currentScene->m_postRenderCallback.push_back([&]() {
-        auto deletedAssets = currentScene->find([](FilamentAsset3dInstance* asset) {
-            return asset->isDeleted();
-        });
-
-        std::function<void(lite::Asset3dInstance<lite::FilamentAsset3dTransform>&)> removeWireframeRecursive =
-            [&](lite::Asset3dInstance<lite::FilamentAsset3dTransform>& node) {
-                if (node.isMesh()) {
-                    auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(&node);
-                    if (mesh && wireframeSystem) wireframeSystem->removeWireframeMesh(mesh);
-                }
-                for (auto& child : node.children)
-                    removeWireframeRecursive(*child);
-            };
-
-        for (FilamentAsset3dInstance* asset : deletedAssets)
-            removeWireframeRecursive(*asset);
-    });
-
-    /*----------------------------------------------------------------------------
     START RENDER LOOP
-    Commands (IBL, lights, wireframe init) are processed before first frame.
+    UI (update/render) é responsabilidade interna da Scene; a limpeza de
+    wireframes de assets deletados é do FilamentWireframeSystem (onFrameEnd).
+    Commands (IBL, lights) são processados antes do primeiro frame.
     ----------------------------------------------------------------------------*/
     sceneRenderer.start();
 
@@ -341,25 +315,8 @@ int main(int argc, char** argv){
         );
         assetPtr = currentScene->get(currentInstanceId);
     }
-
-    std::unique_ptr<FilamentAsset3dInstance> assetInstance = std::unique_ptr<FilamentAsset3dInstance>(assetPtr);
-
-    // if (assetInstance && wireframeSystem) {
-    //     std::function<void(Asset3dInstance<FilamentAsset3dTransform>*)> addMeshesToWireframe =
-    //         [&](Asset3dInstance<FilamentAsset3dTransform>* node) {
-    //             if (node) {
-    //                 if (node->isMesh()) {
-    //                     wireframeSystem->addWireframeMesh(dynamic_cast<FilamentMeshAsset3dInstance*>(node));
-    //                 }
-    //                 for (auto& child : node->children) {
-    //                     addMeshesToWireframe(child.get());
-    //                 }
-    //             }
-    //         };
-    //     addMeshesToWireframe(assetInstance.get());
-    // }
-
-    currentScene->addSystem(wireframeSystem.get());
+    // assetPtr é EMPRÉSTIMO (dono é a Scene) — nunca envolver em unique_ptr.
+    // Os meshes ganham wireframe automaticamente (auto-track do sistema).
 
     std::cout << "Starting main loop..." << std::endl;
 
@@ -493,21 +450,27 @@ int main(int argc, char** argv){
 
         // uiText->setText("Hello world=> X:" + std::to_string(horizontal_direction) + "Y:" + std::to_string(vertical_direction));
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     std::cout << "Shutting down..." << std::endl;
 
     /*----------------------------------------------------------------------------
     CLEANUP
-    sceneRenderer.stop() (called by destructor) handles all GPU cleanup on render thread.
+    O destrutor do wireframe toca GPU → destruição vai para a render thread via
+    postCommand (removendo do scene no mesmo comando, antes do reset). O stop()
+    explícito garante que o comando é drenado antes dos locais da main morrerem;
+    o stop() do destrutor do sceneRenderer vira no-op (idempotente).
     ----------------------------------------------------------------------------*/
-    wireframeSystem.reset();
-
-    if (assetInstance) {
-        currentScene->destroy(std::move(assetInstance));
-        assetInstance.reset();
+    if (currentInstanceId >= 0) {
+        currentScene->destroy(currentInstanceId);   // por id — a Scene é a dona
     }
+
+    sceneRenderer.postCommand([&]() {
+        currentScene->removeSystem(wireframeSystem.get());
+        wireframeSystem.reset();
+    });
+    sceneRenderer.stop();
 
     importer.reset();
 
