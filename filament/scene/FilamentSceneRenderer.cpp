@@ -11,52 +11,27 @@
 #include <filament/utils/FilamentUtils.h>
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 
-#include <chrono>
 #include <iostream>
 
+namespace lite {
+
 FilamentSceneRenderer::FilamentSceneRenderer(void* nativeWindowHandle, int width, int height)
-    : m_nativeWindowHandle(nativeWindowHandle)
-    , m_width(width)
-    , m_height(height)
-    , m_readyFuture(m_readyPromise.get_future())
+    : SceneRenderer<FilamentScene>(nativeWindowHandle, width, height)
 {
-    m_renderThread = std::thread(&FilamentSceneRenderer::renderLoop, this);
+    // THREADING: última instrução do construtor — o objeto já está completo,
+    // então a render thread pode despachar as fases virtuais com segurança.
+    launchRenderThread();
 }
 
 FilamentSceneRenderer::~FilamentSceneRenderer() {
+    // THREADING: join aqui, antes da parte derivada do objeto ser destruída
+    // (a render thread executa overrides desta classe até o fim do cleanup()).
     stop();
-}
-
-void FilamentSceneRenderer::waitReady() {
-    m_readyFuture.wait();
-}
-
-void FilamentSceneRenderer::start() {
-    m_started.store(true);
-}
-
-void FilamentSceneRenderer::stop() {
-    m_running.store(false);
-    m_started.store(true);  // unblock spin-wait if start() was never called
-    if (m_renderThread.joinable()) {
-        m_renderThread.join();
-    }
-}
-
-FilamentScene* FilamentSceneRenderer::getScene() {
-    return m_scene.get();
-}
-
-void FilamentSceneRenderer::setCameraState(const glm::vec3& eye, const glm::vec3& target) {
-    std::lock_guard<std::mutex> lock(m_cameraMutex);
-    m_pendingCamera.eye = eye;
-    m_pendingCamera.target = target;
-    m_pendingCamera.dirty = true;
 }
 
 void FilamentSceneRenderer::setIBL(const std::string& path, float intensity) {
     postCommand([this, path, intensity]() {
-        m_ibl = std::make_unique<lite::FilamentIBL>(m_engine, m_scene->getFilamentScene());
+        m_ibl = std::make_unique<FilamentIBL>(m_engine, m_scene->getFilamentScene());
         if (!m_ibl->load(path)) {
             std::cerr << "Warning: IBL failed to load from " << path << std::endl;
             m_ibl.reset();
@@ -89,24 +64,7 @@ void FilamentSceneRenderer::resize(int width, int height) {
     });
 }
 
-void FilamentSceneRenderer::postCommand(std::function<void()> command) {
-    std::lock_guard<std::mutex> lock(m_commandsMutex);
-    m_commands.push(std::move(command));
-}
-
-void FilamentSceneRenderer::processCommands() {
-    std::queue<std::function<void()>> batch;
-    {
-        std::lock_guard<std::mutex> lock(m_commandsMutex);
-        std::swap(batch, m_commands);
-    }
-    while (!batch.empty()) {
-        batch.front()();
-        batch.pop();
-    }
-}
-
-void FilamentSceneRenderer::renderLoop() {
+bool FilamentSceneRenderer::setup() {
     // --- Engine creation ---
     m_engine = filament::Engine::Builder()
         .backend(filament::Engine::Backend::VULKAN)
@@ -121,8 +79,7 @@ void FilamentSceneRenderer::renderLoop() {
 
     if (!m_engine) {
         std::cerr << "FilamentSceneRenderer: failed to create engine" << std::endl;
-        m_readyPromise.set_value();
-        return;
+        return false;
     }
 
     FilamentUtils::setEngine(m_engine);
@@ -131,24 +88,26 @@ void FilamentSceneRenderer::renderLoop() {
     m_swapChain = m_engine->createSwapChain(m_nativeWindowHandle);
     if (!m_swapChain) {
         std::cerr << "FilamentSceneRenderer: failed to create swap chain" << std::endl;
-        filament::Engine::destroy(&m_engine);
-        m_readyPromise.set_value();
-        return;
+        return false;  // cleanup() destrói o engine
     }
 
     // --- Scene + factory + UI ---
     filament::Scene* fScene = m_engine->createScene();
     m_scene = std::make_unique<FilamentScene>(
-        std::make_unique<lite::FilamentInstanceFactory>(m_engine, fScene),
-        std::make_unique<lite::CEF_Filament_UIRendererThreaded>(m_engine, m_width, m_height),
+        std::make_unique<FilamentInstanceFactory>(m_engine, fScene),
+        std::make_unique<CEF_Filament_UIRendererThreaded>(m_engine, m_width, m_height),
         m_engine->createRenderer(),
         fScene,
         m_engine->createView(),
         m_swapChain
     );
 
+    // --- UI: recursos GPU criados aqui, na thread do Engine (thread affinity) ---
+    // Antes do set_value(): garante que existem quando waitReady() retornar na main.
+    m_scene->getCurrentUI()->createFilamentResources();
+
     // --- Camera ---
-    m_camera = std::make_unique<lite::FilamentCameraAsset3dInstance>(m_engine);
+    m_camera = std::make_unique<FilamentCameraAsset3dInstance>(m_engine);
 
     // --- View setup ---
     auto* view = m_scene->getFilamentView();
@@ -158,71 +117,55 @@ void FilamentSceneRenderer::renderLoop() {
     view->setViewport({0, 0, (uint32_t)m_width, (uint32_t)m_height});
     m_camera->setProjection(45.0f, float(m_width) / float(m_height), 0.1f, 2000.0f);
 
-    m_running.store(true);
+    return true;
+}
 
-    // Signal main thread: setup complete
-    m_readyPromise.set_value();
-
-    // Spin-wait for start() — process setup commands (IBL, lights, etc.) while waiting
-    while (!m_started.load() && m_running.load()) {
-        processCommands();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+void FilamentSceneRenderer::renderFrame(float dt) {
+    glm::vec3 eye, target;
+    if (takePendingCamera(eye, target)) {
+        m_camera->getTransform()->setPosition(eye);
+        m_camera->lookAt(target);
     }
 
-    // --- UI: recursos GPU criados aqui, na thread do Engine (thread affinity) ---
-    // Antes do set_value(): garante que existem quando waitReady() retornar na main.
-    m_scene->getCurrentUI()->createFilamentResources();
+    m_scene->update(dt);
+}
 
-    // Process any remaining setup commands before the first frame
-    processCommands();
-
-    // --- Render loop (B2: independent, no per-frame sync with main) ---
-    auto prevTime = std::chrono::high_resolution_clock::now();
-
-    while (m_running.load()) {
-        auto now = std::chrono::high_resolution_clock::now();
-        float dt = std::chrono::duration<float>(now - prevTime).count();
-        prevTime = now;
-
-        processCommands();
-
-        {
-            std::lock_guard<std::mutex> lock(m_cameraMutex);
-            if (m_pendingCamera.dirty) {
-                m_camera->getTransform()->setPosition(m_pendingCamera.eye);
-                m_camera->lookAt(m_pendingCamera.target);
-                m_pendingCamera.dirty = false;
-            }
-        }
-
-        m_scene->update(dt);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    // --- Cleanup (on render thread, correct thread affinity) ---
+void FilamentSceneRenderer::cleanup() {
+    // Roda na render thread (thread affinity). Tolerante a setup parcial:
+    // falha de engine/swapchain passa pelo mesmo caminho do shutdown normal.
     m_ibl.reset();
 
-    auto* filamentRenderer = m_scene->getFilamentRenderer();
-    auto* filamentView     = m_scene->getFilamentView();
-    auto* filamentScene    = m_scene->getFilamentScene();
-    auto* uiRenderer       = m_scene->getCurrentUI();
+    if (m_scene) {
+        auto* filamentRenderer = m_scene->getFilamentRenderer();
+        auto* filamentView     = m_scene->getFilamentView();
+        auto* filamentScene    = m_scene->getFilamentScene();
+        auto* uiRenderer       = m_scene->getCurrentUI();
 
-    if (uiRenderer) {
-        uiRenderer->stop();
+        if (uiRenderer) {
+            uiRenderer->stop();
+        }
+
+        m_scene.reset();
+        m_camera.reset();
+
+        if (!m_lightEntity.isNull()) {
+            m_engine->destroy(m_lightEntity);
+        }
+
+        m_engine->destroy(filamentRenderer);
+        m_engine->destroy(filamentView);
+        m_engine->destroy(filamentScene);
     }
 
-    m_scene.reset();
-    m_camera.reset();
+    if (m_engine) {
+        if (m_swapChain) {
+            m_engine->destroy(m_swapChain);
+            m_swapChain = nullptr;
+        }
 
-    if (!m_lightEntity.isNull()) {
-        m_engine->destroy(m_lightEntity);
+        FilamentUtils::setEngine(nullptr);
+        filament::Engine::destroy(&m_engine);  // também zera m_engine
     }
-
-    m_engine->destroy(filamentRenderer);
-    m_engine->destroy(m_swapChain);
-    m_engine->destroy(filamentView);
-    m_engine->destroy(filamentScene);
-
-    filament::Engine::destroy(&m_engine);
 }
+
+} // namespace lite

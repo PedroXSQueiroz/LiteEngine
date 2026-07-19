@@ -22,7 +22,7 @@ Game engine em **C++20** com foco em **modularidade extrema**: um `core/` agnós
 ## Peças centrais
 
 - `lite::Scene<Asset, Transform, Factory, UIRenderer>` (`include/core/scene/Scene.h`) — dono das instâncias; criação de assets é **enfileirada** (`create()` retorna id; instanciação ocorre na render thread), deleção é **em duas fases** (marca + flush pós-frame).
-- `FilamentSceneRenderer` (`filament/scene/FilamentSceneRenderer.cpp`) — facade que possui a **render thread**. O `filament::Engine` só pode ser usado na thread que o criou; trabalho GPU de fora entra por `postCommand()`.
+- `lite::SceneRenderer<SceneType>` (`include/core/scene/SceneRenderer.h`) — facade abstrato que possui a **render thread** (Template Method: `setup`/`renderFrame`/`cleanup` virtuais). `FilamentSceneRenderer` é a implementação. O `filament::Engine` só pode ser usado na thread que o criou; trabalho GPU de fora entra por `postCommand()`.
 - `CEF_Filament_UIRendererThreaded` — CEF roda em thread própria; pixels via double-buffer → textura Filament num quad translúcido. C++→JS: `window.liteUI.addElement/updateElement`; JS→C++: `cefQuery` com JSON `{id, type, value}`.
 - Concepts em `include/core/concepts/` (umbrella `EngineConcepts.h`) definem os contratos entre core e implementações.
 
