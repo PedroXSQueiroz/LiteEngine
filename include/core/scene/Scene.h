@@ -37,9 +37,8 @@ namespace lite
 
         int create(const Asset3dData& data, const std::vector<MaterialData>& materials, TransformType transform) {
             std::lock_guard<std::mutex> lock(m_instancesMutex);
-            int id = ++m_lastId;
-            m_creatingObjects.push_back({ id, data.clone(), materials, transform });
-            return id;
+            m_creatingObjects.push_back({ ++m_lastId, data.clone(), materials, transform });
+            return m_lastId;
         }
 
         AssetType* get(int id) {
