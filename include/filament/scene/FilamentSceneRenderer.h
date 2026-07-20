@@ -33,6 +33,10 @@ public:
                              const glm::vec3& direction, bool castShadows) override;
     void resize(int width, int height) override;
 
+    FilamentCameraAsset3dInstance* getCurrentCamera(){
+        return this->m_camera.get();
+    }
+
 protected:
     // Fases do ciclo de vida — executam na render thread (ver SceneRenderer.h)
     bool setup() override;              // engine, swapchain, FilamentScene (+ UI GPU), câmera

@@ -62,6 +62,25 @@ namespace lite
             return m_3dInstances.at(id).get();
         }
 
+        // Busca por id em TODA a hierarquia (raízes e filhos com deepIds).
+        // Retorna o tipo BASE dos nós — filhos (ex.: meshes) não são AssetType,
+        // então o get() clássico não consegue devolvê-los. Solução interina até
+        // o índice de nós por id: busca linear recursiva, O(total de nós).
+        // Ao contrário de get(), NÃO espera instanciação: ids de filhos só
+        // nascem durante instantiate(), então id desconhecido retorna nullptr.
+        Asset3dInstance<TransformType>* getNode(int id) {
+            std::lock_guard<std::mutex> lock(m_instancesMutex);
+
+            auto it = m_3dInstances.find(id);
+            if (it != m_3dInstances.end()) return it->second.get();
+
+            for (auto& [rootId, root] : m_3dInstances) {
+                if (!root) continue;
+                if (auto* found = findNodeById(*root, id)) return found;
+            }
+            return nullptr;
+        }
+
         std::vector<AssetType*> find(std::function<bool(AssetType*)> criteria) {
             std::lock_guard<std::mutex> lock(m_instancesMutex);
             std::vector<AssetType*> result;
@@ -210,6 +229,18 @@ namespace lite
                 }
                 m_instantiatedCV.notify_all();
             }
+        }
+
+        // Percurso em profundidade atrás de um id. Chamar com m_instancesMutex
+        // adquirido (getNode).
+        static Asset3dInstance<TransformType>* findNodeById(
+            Asset3dInstance<TransformType>& node, int id
+        ) {
+            if (node.getId() == id) return &node;
+            for (auto& child : node.children) {
+                if (auto* found = findNodeById(*child, id)) return found;
+            }
+            return nullptr;
         }
 
         // Atribui ids a toda a subárvore (percurso determinístico, mesmo espaço

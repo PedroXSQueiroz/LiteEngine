@@ -45,6 +45,7 @@
 #include <glm/glm.hpp>
 
 #include <core/input/InputEvent.h>
+#include <filament/editor/FilamentObjectSelectorSystem.h>
 
 using namespace std;
 using namespace lite;
@@ -248,6 +249,19 @@ int main(int argc, char** argv){
     std::vector<MaterialData> materials;
     int currentInstanceId = -1;
     FilamentAsset3dInstance* assetPtr = nullptr;
+
+    /*----------------------------------------------------------------------------
+    SETUP SELECT OBJECT SYSTEM
+    Configuração é 100% CPU (main thread); os recursos GPU são criados de forma
+    preguiçosa pelo próprio sistema no primeiro hook, já na render thread.
+    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
+    ----------------------------------------------------------------------------*/
+
+    std::unique_ptr<FilamentObjectSelectorSystem> objectSelector = std::make_unique<FilamentObjectSelectorSystem>();
+    objectSelector->setCamera(sceneRenderer.getCurrentCamera());
+    objectSelector->attachTo(sceneRenderer.getScene());
+    currentScene->addSystem(objectSelector.get());
+
     /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF)
     ----------------------------------------------------------------------------*/
@@ -307,11 +321,15 @@ int main(int argc, char** argv){
     /*----------------------------------------------------------------------------
     LOAD INITIAL ASSET (after start — render thread will instantiate via update)
     ----------------------------------------------------------------------------*/
-    if (importer->import("C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx", rootNode, materials)) {
+    if (importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
+        , rootNode, materials)) {
         currentInstanceId = currentScene->create(
             rootNode,
             materials,
-            TransformUtils<FilamentAsset3dTransform>::build()
+            TransformUtils<FilamentAsset3dTransform>::build(),
+            true
         );
         assetPtr = currentScene->get(currentInstanceId);
     }
@@ -326,6 +344,7 @@ int main(int argc, char** argv){
     bool running = true;
 
     bool mov_front = false, mov_back = false, mov_right = false, mov_left = false, mov_up = false, mov_down = false;
+    bool start_object_query_select = false;
     const float VELOCITY_MOVEMENT = radius * 50.f;
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
@@ -394,7 +413,7 @@ int main(int argc, char** argv){
                 if (ev.key.keysym.sym == SDLK_a)      mov_left  = true;
                 if (ev.key.keysym.sym == SDLK_SPACE)  mov_up    = true;
                 if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down  = true;
-
+                
                 INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
                 if (key != INPUT_KEYS::KEY_UNKNOWN)
                     inputEvent.keys[key] = lite::INPUT_KEY_STATES::DOWN;
@@ -446,7 +465,54 @@ int main(int argc, char** argv){
             offsetEye += glm::normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
         }
 
+        if( inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_LEFT) &&
+            inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
+        {
+            // // Posição do clique capturada no evento (ev já pode ser outro evento
+            // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
+            // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
+            // int winW = 0, winH = 0;
+            // SDL_GetWindowSize(window, &winW, &winH);
+
+            glm::vec3 clickDirection = objectSelector->getCameraRay(
+                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE],
+                glm::vec2(SCREEN_WIDTH, SCREEN_HEIGHT),
+                10000.0f
+            );
+            
+            glm::vec3 currentCamLocation = sceneRenderer   
+                                .getCurrentCamera()
+                                ->getTransform()
+                                ->getPosition();
+
+            int objectFoundId = objectSelector->intersect(
+                currentCamLocation, 
+                clickDirection
+            );
+            
+            std::cout << "Mouse pressed" << std::endl;
+            std::string objectQueryMsg = ( objectFoundId == -1 ? "No object found" : std::format("Object {} found", objectFoundId) );
+            std::cout << objectQueryMsg << std::endl;
+            std::cout << std::format("Cam at x:{},y:{},z:{} looking at x:{},y:{},z:{}",
+                currentCamLocation.x,
+                currentCamLocation.y,
+                currentCamLocation.z,
+                clickDirection.x,
+                clickDirection.y,
+                clickDirection.z
+            ) << std::endl;
+
+            auto objectFound = sceneRenderer.getScene()->get(objectFoundId);
+
+            wireframeSystem->clearWireframeMeshes();
+            if(objectFound)
+            {
+                wireframeSystem->addWireframeMesh( (FilamentMeshAsset3dInstance*) objectFound );
+            }
+        }
+
         sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
+
 
         // uiText->setText("Hello world=> X:" + std::to_string(horizontal_direction) + "Y:" + std::to_string(vertical_direction));
 

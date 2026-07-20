@@ -24,6 +24,14 @@ public:
 
     void setVisible(bool visible) override;
 
+    // Geometry access (MeshAsset3dInstance interface)
+    std::vector<glm::vec3> getVertex() const override;
+    std::vector<int64_t> getIndex() const override;
+    std::vector<glm::vec2> getUVS(int index) const override;
+    std::vector<glm::vec3> getBoundingBox() override;
+    void setBoundingBox(const std::vector<glm::vec3>& bounds) override;
+    std::vector<glm::vec3> calcBoundingBox() const override;
+
     // Initialize transform after entity is created
     void initializeTransform(utils::Entity entity);
 
@@ -49,6 +57,7 @@ private:
     filament::Engine* m_engine;
     filament::Scene* m_scene;
     utils::Entity m_entity;
+    bool m_boundsSet = false;
 };
 
 } // namespace lite

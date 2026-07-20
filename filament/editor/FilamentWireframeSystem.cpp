@@ -311,24 +311,24 @@ void FilamentWireframeSystem::onFrameBegin(float) {
 
     ensureGpuResources();
 
-    if (!m_autoTrack || !m_wireframeMaterialInstance) return;
+    // if (!m_autoTrack || !m_wireframeMaterialInstance) return;
 
-    bool changed = false;
-    auto alive = m_liteScene->find([](FilamentAsset3dInstance* asset) {
-        return !asset->isDeleted();
-    });
+    // bool changed = false;
+    // auto alive = m_liteScene->find([](FilamentAsset3dInstance* asset) {
+    //     return !asset->isDeleted();
+    // });
 
-    for (auto* asset : alive) {
-        forEachMesh(*asset, [&](FilamentMeshAsset3dInstance* mesh) {
-            if (!m_wireframeMeshes.contains(mesh)) {
-                m_wireframeMeshes.insert(mesh);
-                changed = true;
-            }
-        });
-    }
+    // for (auto* asset : alive) {
+    //     forEachMesh(*asset, [&](FilamentMeshAsset3dInstance* mesh) {
+    //         if (!m_wireframeMeshes.contains(mesh)) {
+    //             m_wireframeMeshes.insert(mesh);
+    //             changed = true;
+    //         }
+    //     });
+    // }
 
     // Rebuild único por frame, não um por mesh (addWireframeMesh reconstruiria N vezes)
-    if (changed) updateWireframeEntities();
+    // if (changed) updateWireframeEntities();
 }
 
 // Fase onFrameEnd: roda após finishRender() — o flush já destruiu os recursos
