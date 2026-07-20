@@ -471,12 +471,12 @@ int main(int argc, char** argv){
             // // Posição do clique capturada no evento (ev já pode ser outro evento
             // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
             // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
-            // int winW = 0, winH = 0;
-            // SDL_GetWindowSize(window, &winW, &winH);
+            int winW = 0, winH = 0;
+            SDL_GetWindowSize(window, &winW, &winH);
 
             glm::vec3 clickDirection = objectSelector->getCameraRay(
                 inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE],
-                glm::vec2(SCREEN_WIDTH, SCREEN_HEIGHT),
+                glm::vec2(winW, winH),
                 10000.0f
             );
             
@@ -502,13 +502,16 @@ int main(int argc, char** argv){
                 clickDirection.z
             ) << std::endl;
 
-            auto objectFound = sceneRenderer.getScene()->get(objectFoundId);
+            auto objectFound = sceneRenderer.getScene()->getNode(objectFoundId);
 
-            wireframeSystem->clearWireframeMeshes();
-            if(objectFound)
-            {
-                wireframeSystem->addWireframeMesh( (FilamentMeshAsset3dInstance*) objectFound );
-            }
+            // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
+            // do Filament exige a render thread) — postar como comando
+            sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound]() {
+                wireframe->clearWireframeMeshes();
+                if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(objectFound)) {
+                    wireframe->addWireframeMesh(mesh);
+                }
+            });
         }
 
         sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
