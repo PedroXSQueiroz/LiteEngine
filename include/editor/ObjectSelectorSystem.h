@@ -10,6 +10,8 @@
 #include <vector>
 #include <cmath>
 #include <utility>
+#include <optional>
+#include <limits>
 
 namespace lite {
 
@@ -33,7 +35,7 @@ namespace lite {
 //   selector->setCamera(cameraInstance);          // CameraAsset3dInstance da câmera
 //   glm::vec3 origin = selector->getCameraPosition();
 //   glm::vec3 ray    = selector->getCameraRay({mouseX, mouseY}, {width, height}, 100.0f);
-//   int id = selector->intersect(origin, ray);    // -1 = nada atingido
+//   int id = selector->intersect(origin, ray, coneHalfAngle);  // -1 = nada atingido
 //
 // THREADING: intersect() usa Scene::find() (lock interno) e só enxerga
 // instâncias já instanciadas — seguro de qualquer thread. getBoundingBox() é
@@ -103,42 +105,112 @@ public:
 
     // origin: início do segmento (mundo); ray: direção JÁ escalada pelo
     // alcance (mundo) — o teste cobre apenas o segmento [origin, origin+ray].
+    // coneHalfAngle: meio-ângulo (radianos) do cone que envolve a direção do
+    // raio; a broad phase mantém só objetos cuja esfera envolvente cai DENTRO
+    // desse cone (direcional) e ao alcance do segmento. Calcule-o a partir da
+    // abertura (FOV) da câmera no chamador.
     // Retorna o id do primeiro mesh cuja geometria é atingida, ou -1.
-    int intersect(const glm::vec3& origin, const glm::vec3& ray) {
+    int intersect(const glm::vec3& origin, const glm::vec3& ray, float coneHalfAngle) {
         if (!m_scene) return -1;
+
+        const float rayLength = glm::length(ray);
+        if (rayLength < 1e-8f) return -1;
+        const glm::vec3 rayDir = ray / rayLength;
 
         // Instâncias deletadas permanecem no mapa da Scene (deleção em duas
         // fases) — filtra quando o tipo concreto expõe isDeleted().
-        auto roots = m_scene->find([](auto* node) {
+        //FIXME: é possível usar Asset3dInstance ao invés de auto?
+        auto roots = m_scene->find([origin, rayDir, rayLength, coneHalfAngle](auto* node) {
+            if (node == nullptr) return false;
             if constexpr (requires { node->isDeleted(); }) {
-                return node != nullptr && !node->isDeleted();
-            } else {
-                return node != nullptr;
+                if (node->isDeleted()) return false;
             }
+
+            // Esfera envolvente (mundo) de todos os meshes descendentes. Usa o
+            // RAIO do bounding box, não o pivô — asset cujo pivô está longe mas
+            // a malha perto não é descartado.
+            glm::vec3 mn, mx;
+            bool hasGeometry = false;
+            accumulateWorldBounds(*node, mn, mx, hasGeometry);
+            if (!hasGeometry) return true; // nó sem mesh: nada a cular → mantém
+
+            const glm::vec3 center = 0.5f * (mn + mx);
+            const float radius = 0.5f * glm::length(mx - mn);
+            const glm::vec3 toCenter = center - origin;
+            const float dist = glm::length(toCenter);
+
+            // Alcance: esfera além do fim do segmento → descarta.
+            if (dist > rayLength + radius) return false;
+            // Origem dentro da esfera → mantém (ângulo indefinido).
+            if (dist <= radius) return true;
+
+            // Direcional: o ângulo do centro à direção do raio, descontado o
+            // meio-ângulo subentendido pela esfera (asin(r/dist)), tem de caber
+            // no cone.
+            const float alpha = std::acos(glm::clamp(glm::dot(toCenter / dist, rayDir), -1.0f, 1.0f));
+            const float beta = std::asin(radius / dist);
+            return (alpha - beta) <= coneHalfAngle;
         });
 
+        // Varre TODOS os roots/meshes e fica com o hit de menor t (mais próximo
+        // da origem). t é comparável entre meshes: o segmento de mundo é o
+        // mesmo, apenas transformado para o espaço local de cada mesh.
+        int bestId = -1;
+        float bestT = std::numeric_limits<float>::max();
         for (auto* root : roots) {
-            int id = intersectNode(*root, origin, ray);
-            if (id != -1) return id;
+            intersectNode(*root, origin, ray, bestId, bestT);
         }
-        return -1;
+        return bestId;
     }
 
 protected:
-    int intersectNode(NodeType& node, const glm::vec3& origin, const glm::vec3& ray) {
+    // Expande [mn, mx] com a AABB (em mundo) de todos os meshes descendentes de
+    // `node`. hasGeometry vira true na primeira contribuição — enquanto false,
+    // mn/mx não têm valor válido. Broad-phase do filtro por distância no
+    // intersect(); getBoundingBox() é lazy (cacheia na 1ª chamada).
+    static void accumulateWorldBounds(NodeType& node, glm::vec3& mn, glm::vec3& mx, bool& hasGeometry) {
         if (node.isMesh()) {
             if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
-                if (meshHit(*mesh, origin, ray)) return mesh->getId();
+                const std::vector<glm::vec3> bounds = mesh->getBoundingBox();
+                if (bounds.size() >= 2) {
+                    const glm::mat4 world = mesh->getWorldMatrix();
+                    // 8 cantos da AABB local → mundo (cobre rotação e escala)
+                    for (int i = 0; i < 8; ++i) {
+                        const glm::vec3 corner(
+                            (i & 1) ? bounds[1].x : bounds[0].x,
+                            (i & 2) ? bounds[1].y : bounds[0].y,
+                            (i & 4) ? bounds[1].z : bounds[0].z);
+                        const glm::vec3 wc = glm::vec3(world * glm::vec4(corner, 1.0f));
+                        if (!hasGeometry) { mn = mx = wc; hasGeometry = true; }
+                        else { mn = glm::min(mn, wc); mx = glm::max(mx, wc); }
+                    }
+                }
             }
         }
         for (auto& child : node.children) {
-            int id = intersectNode(*child, origin, ray);
-            if (id != -1) return id;
+            accumulateWorldBounds(*child, mn, mx, hasGeometry);
         }
-        return -1;
     }
 
-    bool meshHit(MeshNodeType& mesh, const glm::vec3& worldOrigin, const glm::vec3& worldRay) {
+    // Percorre a subárvore; atualiza bestId/bestT com o hit de menor t.
+    void intersectNode(NodeType& node, const glm::vec3& origin, const glm::vec3& ray,
+                       int& bestId, float& bestT) {
+        if (node.isMesh()) {
+            if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
+                if (std::optional<float> t = meshHit(*mesh, origin, ray); t && *t < bestT) {
+                    bestT = *t;
+                    bestId = mesh->getId();
+                }
+            }
+        }
+        for (auto& child : node.children) {
+            intersectNode(*child, origin, ray, bestId, bestT);
+        }
+    }
+
+    // Retorna o MENOR t (∈[0,1], parâmetro ao longo do segmento de mundo) entre
+    // todos os triângulos atingidos, ou nullopt se o mesh não é atingido.
+    std::optional<float> meshHit(MeshNodeType& mesh, const glm::vec3& worldOrigin, const glm::vec3& worldRay) {
         // Geometria e bounding box são locais ao mesh: leva o segmento para o
         // espaço local (direção NÃO normalizada — t em [0,1] cobre o segmento
         // inteiro em qualquer espaço, mesmo com escala não uniforme).
@@ -148,21 +220,22 @@ protected:
 
         const std::vector<glm::vec3> bounds = mesh.getBoundingBox();
         if (bounds.size() < 2 || !segmentIntersectsAabb(o, d, bounds[0], bounds[1])) {
-            return false;
+            return std::nullopt;
         }
 
         const std::vector<glm::vec3> vertices = mesh.getVertex();
         const std::vector<int64_t> indices = mesh.getIndex();
+        std::optional<float> best;
         for (size_t i = 0; i + 2 < indices.size(); i += 3) {
             const glm::vec3& a = vertices[static_cast<size_t>(indices[i])];
             const glm::vec3& b = vertices[static_cast<size_t>(indices[i + 1])];
             const glm::vec3& c = vertices[static_cast<size_t>(indices[i + 2])];
             float t;
-            if (mollerTrumbore(o, d, a, b, c, t) && t >= 0.0f && t <= 1.0f) {
-                return true;
+            if (mollerTrumbore(o, d, a, b, c, t) && t >= 0.0f && t <= 1.0f && (!best || t < *best)) {
+                best = t;
             }
         }
-        return false;
+        return best;
     }
 
     // Slab test do segmento o + t*d, t em [0,1], contra a AABB [mn, mx]

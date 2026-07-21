@@ -17,6 +17,7 @@ public:
     // CameraAsset3dInstance interface
     glm::mat4 getViewMatrix() const override;
     glm::mat4 getProjectionMatrix() const override;
+    float getFieldOfViewInRadians() const override;
     void lookAt(const glm::vec3& center) override;
     void setProjection(float fovDegrees, float aspect, float near, float far) override;
 

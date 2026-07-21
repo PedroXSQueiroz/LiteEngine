@@ -56,6 +56,13 @@ glm::mat4 FilamentCameraAsset3dInstance::getProjectionMatrix() const {
     return result;
 }
 
+float FilamentCameraAsset3dInstance::getFieldOfViewInRadians() const {
+    if (!m_camera) return 0.0f;
+    // Filament devolve em graus; o contrato do core é radianos
+    float fovDegrees = m_camera->getFieldOfViewInDegrees(filament::Camera::Fov::VERTICAL);
+    return glm::radians(fovDegrees);
+}
+
 void FilamentCameraAsset3dInstance::lookAt(const glm::vec3& center) {
     if (!m_camera || !m_transform) return;
 

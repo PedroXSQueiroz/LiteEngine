@@ -21,6 +21,9 @@ public:
     // Projection matrix
     virtual glm::mat4 getProjectionMatrix() const = 0;
 
+    // Ângulo de abertura vertical da lente (FOV), em radianos.
+    virtual float getFieldOfViewInRadians() const = 0;
+
     // LookAt - uses position from transform as eye, up is world up (0,1,0)
     // center: point to look at (world space)
     virtual void lookAt(const glm::vec3& center) = 0;

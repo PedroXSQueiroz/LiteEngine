@@ -244,17 +244,8 @@ int main(int argc, char** argv){
 
     sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
 
-    auto importer = std::make_unique<AssimpImporter>();
-    Asset3dData rootNode;
-    std::vector<MaterialData> materials;
-    int currentInstanceId = -1;
-    FilamentAsset3dInstance* assetPtr = nullptr;
-
     /*----------------------------------------------------------------------------
     SETUP SELECT OBJECT SYSTEM
-    Configuração é 100% CPU (main thread); os recursos GPU são criados de forma
-    preguiçosa pelo próprio sistema no primeiro hook, já na render thread.
-    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
     ----------------------------------------------------------------------------*/
 
     std::unique_ptr<FilamentObjectSelectorSystem> objectSelector = std::make_unique<FilamentObjectSelectorSystem>();
@@ -286,23 +277,23 @@ int main(int argc, char** argv){
     UIButtonElement<CEF_Filament_UIRendererThreaded>* loadModelButton = new CEF_UIButtonElement(uiRenderer, "Carregar");
     loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded*, int, std::string) {
         std::cout << "load model invoked" << std::endl;
-        if (importer->import(uiInput->getText(), rootNode, materials)) {
-            currentInstanceId = currentScene->create(
-                rootNode,
-                materials,
-                TransformUtils<FilamentAsset3dTransform>::build()
-            );
-            assetPtr = currentScene->get(currentInstanceId);
-        }
+        // if (importer->import(uiInput->getText(), rootNode, materials)) {
+        //     currentInstanceId = currentScene->create(
+        //         rootNode,
+        //         materials,
+        //         TransformUtils<FilamentAsset3dTransform>::build()
+        //     );
+        //     assetPtr = currentScene->get(currentInstanceId);
+        // }
     });
 
     UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
     deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded*, int, std::string) {
-        if (currentScene->destroy(currentInstanceId)) {
-            std::cout << "current model deleted" << std::endl;
-        } else {
-            std::cout << "something went wrong on deletion" << std::endl;
-        }
+        // if (currentScene->destroy(currentInstanceId)) {
+        //     std::cout << "current model deleted" << std::endl;
+        // } else {
+        //     std::cout << "something went wrong on deletion" << std::endl;
+        // }
     });
 
     leftPanel->addChildComponent(loadModelButton, 2, 0);
@@ -321,6 +312,13 @@ int main(int argc, char** argv){
     /*----------------------------------------------------------------------------
     LOAD INITIAL ASSET (after start — render thread will instantiate via update)
     ----------------------------------------------------------------------------*/
+    auto importer = std::make_unique<AssimpImporter>();
+    
+    Asset3dData rootNode;
+    std::vector<MaterialData> materials;
+    int currentInstanceId = -1;
+    FilamentAsset3dInstance* assetPtr = nullptr;
+
     if (importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
         "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
@@ -333,6 +331,26 @@ int main(int argc, char** argv){
         );
         assetPtr = currentScene->get(currentInstanceId);
     }
+
+    Asset3dData rootGizmoNode;
+    std::vector<MaterialData> gizmoMaterials;
+    int gizmoInstanceId = -1;
+    FilamentAsset3dInstance* gizmoAssetPtr = nullptr;
+
+
+    if (importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo.fbx"
+        , rootGizmoNode, gizmoMaterials)) {
+        gizmoInstanceId = currentScene->create(
+            rootGizmoNode,
+            gizmoMaterials,
+            TransformUtils<FilamentAsset3dTransform>::build(),
+            true
+        );
+        gizmoAssetPtr = currentScene->get(gizmoInstanceId);
+    }
+
     // assetPtr é EMPRÉSTIMO (dono é a Scene) — nunca envolver em unique_ptr.
     // Os meshes ganham wireframe automaticamente (auto-track do sistema).
 
@@ -485,9 +503,14 @@ int main(int argc, char** argv){
                                 ->getTransform()
                                 ->getPosition();
 
+            // Meio-ângulo do cone de broad-phase = metade da abertura de lente
+            // (FOV vertical) da câmera.
+            float coneHalfAngle = sceneRenderer.getCurrentCamera()->getFieldOfViewInRadians() * 0.5f;
+
             int objectFoundId = objectSelector->intersect(
-                currentCamLocation, 
-                clickDirection
+                currentCamLocation,
+                clickDirection,
+                coneHalfAngle
             );
             
             std::cout << "Mouse pressed" << std::endl;
