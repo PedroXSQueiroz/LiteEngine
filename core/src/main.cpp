@@ -46,6 +46,7 @@
 
 #include <core/input/InputEvent.h>
 #include <filament/editor/FilamentObjectSelectorSystem.h>
+#include <filament/editor/FilamentGizmoSystem.h>
 
 using namespace std;
 using namespace lite;
@@ -244,6 +245,8 @@ int main(int argc, char** argv){
 
     sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
 
+    auto importer = std::make_unique<AssimpImporter>();
+
     /*----------------------------------------------------------------------------
     SETUP SELECT OBJECT SYSTEM
     ----------------------------------------------------------------------------*/
@@ -252,6 +255,153 @@ int main(int argc, char** argv){
     objectSelector->setCamera(sceneRenderer.getCurrentCamera());
     objectSelector->attachTo(sceneRenderer.getScene());
     currentScene->addSystem(objectSelector.get());
+
+    /*----------------------------------------------------------------------------
+    SETUP GIZMO SYSTEM
+    O gizmo é desenhado num overlay próprio (cena + view separadas), composto por
+    cima da cena 3D dentro do mesmo frame — por isso não é ocluído pela geometria
+    nem aparece no picking da cena principal.
+    Os recursos GPU (cena/view/factory/root) são criados de forma preguiçosa no
+    primeiro hook, já na render thread; aqui só se injetam dependências.
+    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
+
+    TODO: preencher os 9 modelos em `gizmoParts` (move/rotate/scale × X/Y/Z).
+          Enquanto os slots estiverem vazios o overlay é criado e desenhado vazio.
+    ----------------------------------------------------------------------------*/
+    
+    //MOVE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartXMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx"
+        , *gizmoPartXMoveMeshData, gizmoPartXMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //MOVE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartYMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx"
+        , *gizmoPartYMoveMeshData, gizmoPartYMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //MOVE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartZMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx"
+        , *gizmoPartZMoveMeshData, gizmoPartZMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartXRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx"
+        , *gizmoPartXRotateMeshData, gizmoPartXRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartYRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx"
+        , *gizmoPartYRotateMeshData, gizmoPartYRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartZRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx"
+        , *gizmoPartZRotateMeshData, gizmoPartZRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartXScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx"
+        , *gizmoPartXScaleMeshData, gizmoPartXScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartYScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx"
+        , *gizmoPartYScaleMeshData, gizmoPartYScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<MaterialData> gizmoPartZScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
+        , *gizmoPartZScaleMeshData, gizmoPartZScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+    
+    // GizmoParts é move-only (Asset3dData não é copiável nem movível): a posse
+    // dos dados passa para o sistema.
+    lite::GizmoParts gizmoParts = {
+        //MOVE
+        {std::move(gizmoPartXMoveMeshData), std::move(gizmoPartXMoveMaterials)},
+        {std::move(gizmoPartYMoveMeshData), std::move(gizmoPartYMoveMaterials)},
+        {std::move(gizmoPartZMoveMeshData), std::move(gizmoPartZMoveMaterials)},
+        //ROTATE
+        {std::move(gizmoPartXRotateMeshData), std::move(gizmoPartXRotateMaterials)},
+        {std::move(gizmoPartYRotateMeshData), std::move(gizmoPartYRotateMaterials)},
+        {std::move(gizmoPartZRotateMeshData), std::move(gizmoPartZRotateMaterials)},
+        //SCALE
+        {std::move(gizmoPartXScaleMeshData), std::move(gizmoPartXScaleMaterials)},
+        {std::move(gizmoPartYScaleMeshData), std::move(gizmoPartYScaleMaterials)},
+        {std::move(gizmoPartZScaleMeshData), std::move(gizmoPartZScaleMaterials)}
+    };
+
+    std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
+        std::make_unique<lite::FilamentGizmoSystem>(
+            FilamentUtils::getEngine(),
+            std::move(gizmoParts)
+        );
+    gizmoSystem->setCamera(sceneRenderer.getCurrentCamera());
+    gizmoSystem->attachTo(currentScene);
+    currentScene->addSystem(gizmoSystem.get());
 
     /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF)
@@ -312,7 +462,6 @@ int main(int argc, char** argv){
     /*----------------------------------------------------------------------------
     LOAD INITIAL ASSET (after start — render thread will instantiate via update)
     ----------------------------------------------------------------------------*/
-    auto importer = std::make_unique<AssimpImporter>();
     
     Asset3dData rootNode;
     std::vector<MaterialData> materials;
@@ -332,24 +481,24 @@ int main(int argc, char** argv){
         assetPtr = currentScene->get(currentInstanceId);
     }
 
-    Asset3dData rootGizmoNode;
-    std::vector<MaterialData> gizmoMaterials;
-    int gizmoInstanceId = -1;
-    FilamentAsset3dInstance* gizmoAssetPtr = nullptr;
+    // Asset3dData rootGizmoNode;
+    // std::vector<MaterialData> gizmoMaterials;
+    // int gizmoInstanceId = -1;
+    // FilamentAsset3dInstance* gizmoAssetPtr = nullptr;
 
 
-    if (importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo.fbx"
-        , rootGizmoNode, gizmoMaterials)) {
-        gizmoInstanceId = currentScene->create(
-            rootGizmoNode,
-            gizmoMaterials,
-            TransformUtils<FilamentAsset3dTransform>::build(),
-            true
-        );
-        gizmoAssetPtr = currentScene->get(gizmoInstanceId);
-    }
+    // if (importer->import(
+    //     // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+    //     "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo.fbx"
+    //     , rootGizmoNode, gizmoMaterials)) {
+    //     gizmoInstanceId = currentScene->create(
+    //         rootGizmoNode,
+    //         gizmoMaterials,
+    //         TransformUtils<FilamentAsset3dTransform>::build(),
+    //         true
+    //     );
+    //     gizmoAssetPtr = currentScene->get(gizmoInstanceId);
+    // }
 
     // assetPtr é EMPRÉSTIMO (dono é a Scene) — nunca envolver em unique_ptr.
     // Os meshes ganham wireframe automaticamente (auto-track do sistema).
@@ -561,6 +710,11 @@ int main(int argc, char** argv){
     sceneRenderer.postCommand([&]() {
         currentScene->removeSystem(wireframeSystem.get());
         wireframeSystem.reset();
+
+        // Mesmo motivo: o destrutor do gizmo destrói view/scene/factory do
+        // overlay (recursos do Engine) — tem de rodar na render thread.
+        currentScene->removeSystem(gizmoSystem.get());
+        gizmoSystem.reset();
     });
     sceneRenderer.stop();
 

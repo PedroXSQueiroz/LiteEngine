@@ -229,6 +229,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentCameraAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
+  ${CMAKE_SOURCE_DIR}/filament/editor/FilamentGizmoSystem.cpp
   ${CMAKE_SOURCE_DIR}/filament/scene/FilamentSceneRenderer.cpp
   ${CMAKE_SOURCE_DIR}/filament/utils/FilamentTransformUtils.cpp
   ${CMAKE_SOURCE_DIR}/filament/utils/FilamentUtils.cpp

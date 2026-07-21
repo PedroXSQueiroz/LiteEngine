@@ -152,12 +152,29 @@ public:
             return (alpha - beta) <= coneHalfAngle;
         });
 
-        // Varre TODOS os roots/meshes e fica com o hit de menor t (mais próximo
-        // da origem). t é comparável entre meshes: o segmento de mundo é o
-        // mesmo, apenas transformado para o espaço local de cada mesh.
+        // A varredura em si é a sobrecarga pública abaixo. Converte para o tipo
+        // BASE dos nós (só cópia de ponteiros): find() devolve AssetType*, mas
+        // os meshes descendem de MeshAsset3dInstance — o ancestral comum é
+        // Asset3dInstance<TransformType>.
+        std::vector<NodeType*> candidates(roots.begin(), roots.end());
+        return intersect(origin, ray, candidates);
+    }
+
+    // Mesma varredura do intersect() acima, porém sobre um conjunto de roots
+    // JÁ escolhido pelo chamador — sem broad phase (o cone/alcance vive no
+    // filtro do find(), ou seja, antes deste ponto).
+    // Serve para consultar conjuntos que não estão na cena deste selector (ex.:
+    // o gizmo, que vive em outra Scene): chama-se primeiro com os roots do
+    // gizmo e, se voltar -1, chama-se o intersect() normal com o MESMO raio.
+    // Retorna o id do mesh de menor t (mais próximo da origem), ou -1.
+    int intersect(const glm::vec3& origin, const glm::vec3& ray,
+                  const std::vector<NodeType*>& roots) {
+        // t é comparável entre meshes: o segmento de mundo é o mesmo, apenas
+        // transformado para o espaço local de cada mesh.
         int bestId = -1;
         float bestT = std::numeric_limits<float>::max();
         for (auto* root : roots) {
+            if (root == nullptr) continue;
             intersectNode(*root, origin, ray, bestId, bestT);
         }
         return bestId;
