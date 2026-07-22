@@ -23,7 +23,6 @@ FilamentGizmoSystem::~FilamentGizmoSystem() {
     // THREADING: destrói recursos do Engine — precisa rodar na render thread
     // (ver nota de uso no header).
     m_gizmoScene.reset();   // destrói as instâncias e a factory do overlay
-    m_root.reset();
 
     if (!m_engine) return;
 
@@ -75,20 +74,30 @@ bool FilamentGizmoSystem::initializeOverlay() {
         m_view
     );
 
-    // --- Root: só entity + transform. Não passa pela Scene de propósito — a
-    // Scene seria dona dele, e o root precisa ser do sistema.
+    // Picking dos eixos: o selector da base varre a cena de overlay (só as 9
+    // peças) usando a mesma câmera da cena 3D.
+    attachSelector(m_gizmoScene.get(), m_camera);
+
+    std::cout << "FilamentGizmoSystem: overlay scene/view created" << std::endl;
+    return true;
+}
+
+std::unique_ptr<FilamentGizmoSystem::NodeType> FilamentGizmoSystem::createRoot() {
+    // Só entity + componente de transform: o root não tem geometria, serve de
+    // pai comum das 9 peças. A entity fica guardada aqui porque o parentesco
+    // (setParent) e a destruição são trabalho do renderer; a posse do nó vai
+    // para a base.
     auto& transformManager = m_engine->getTransformManager();
     m_rootEntity = utils::EntityManager::get().create();
     transformManager.create(m_rootEntity);
 
-    m_root = std::make_unique<FilamentAsset3dInstance>(
+    auto root = std::make_unique<FilamentAsset3dInstance>(
         m_rootEntity,
         FilamentAsset3dTransform(transformManager, m_rootEntity)
     );
-    m_root->name = "gizmo_root";
+    root->name = "gizmo_root";
 
-    std::cout << "FilamentGizmoSystem: overlay scene/view created" << std::endl;
-    return true;
+    return root;
 }
 
 int FilamentGizmoSystem::createPart(const Asset3dData& data,

@@ -100,6 +100,65 @@ Acessores Filament-specific (`getFilamentRenderer/Scene/View`) existem para os p
 
 Contrato implementado (tudo de `Asset3dTransform`): `setPosition/getPosition`, `setRotation/getRotation` (quat), `setScale/getScale`, `setLocalMatrix/getLocalMatrix/getWorldMatrix` (herda os Euler default da base).
 
+### 4.1 Propagação: mexer num nó move a subárvore inteira
+
+Este é o comportamento mais importante do transform e **não está implementado em nenhuma linha de código `lite`** — é herdado do `filament::TransformManager`, que mantém a hierarquia de entities e calcula o world transform subindo a cadeia de pais.
+
+**Como a hierarquia nasce.** O `FilamentInstanceFactory` cria cada entity já apontando para o pai:
+
+```cpp
+// raiz do asset: sem pai
+transformManager.create(rootEntity);
+// cada nó filho (mesh ou intermediário): com o instance do pai + transform local
+auto parentTransformInstance = transformManager.getInstance(parentEntity);
+transformManager.create(meshEntity, parentTransformInstance, toFilament(mesh.localTransform));
+```
+
+Ou seja, a árvore de `Asset3dInstance` (lado `lite`) e a árvore de transforms (lado Filament) são **espelhadas**, montadas no mesmo percurso do `processNode`. Fora do factory, o mesmo efeito se obtém com `TransformManager::setParent(childInstance, parentInstance)` — é assim que o `GizmoSystem` prende as 9 peças ao root do gizmo, já que cada peça é uma raiz separada na cena de overlay.
+
+**O que acontece ao escrever.** `setPosition/setRotation/setScale/setLocalMatrix` escrevem **só a matriz local daquele nó** (`TransformManager::setTransform`). Nenhum filho é tocado, nenhum valor é recalculado na hora. A propagação é *lazy* e acontece na leitura: `getWorldMatrix()` chama `TransformManager::getWorldTransform(instance)`, que compõe a cadeia `raiz → … → nó`. Consequências práticas:
+
+- mover a raiz de um asset **move todos os meshes descendentes** — inclusive os que já foram instanciados, sem nenhum trabalho extra;
+- mover um nó intermediário move só a subárvore dele; os irmãos ficam parados;
+- a escala e a rotação também compõem — escalar a raiz escala as posições dos filhos (é o mecanismo que o gizmo usará para escala constante em tela, mexendo só no root);
+- não há evento/callback de "meu pai mudou": quem depende de world (picking via `getWorldMatrix`, bounds agregados, wireframe) simplesmente lê de novo no frame seguinte e enxerga o valor novo;
+- **quem cacheia world precisa invalidar por conta própria.** O `FilamentWireframeSystem` copia o world transform do mesh para a entity do wireframe a cada frame (`update()` no hook `preRenderScene`) exatamente por isso.
+
+**Bounding boxes não são afetados**: `getBoundingBox()` do mesh é em **espaço local** (cache lazy sobre `cpuPositions`), então mover/rotacionar/escalar não invalida nada — o picking transforma o raio para o espaço local do mesh usando `inverse(getWorldMatrix())` a cada consulta.
+
+### 4.2 Armadilhas de `modifyComponent` (decompose/recompose)
+
+`setPosition`, `setRotation` e `setScale` não escrevem "só aquele componente": os três passam por `modifyComponent`, que **lê a matriz local, decompõe, troca o componente pedido e recompõe**:
+
+```cpp
+glm::decompose(current, scale, rotation, position, skew, perspective);
+if (newPosition) position = *newPosition;   // (idem rotation/scale)
+glm::mat4 result = glm::translate(I, position) * glm::mat4_cast(rotation) * glm::scale(I, scale);
+setLocalMatrix(result);
+```
+
+Duas consequências:
+
+- **Perda de informação**: `skew` e `perspective` saem da decomposição e **são descartados** na recomposição. Uma matriz importada com shear (cisalhamento) perde o shear no primeiro `setPosition` — mesmo que a intenção fosse só transladar.
+- **Ordem imposta**: o resultado é sempre `T * R * S`. Se a matriz original tinha outra ordem de composição (ex.: escala aplicada depois da rotação), ela é normalizada silenciosamente para essa forma.
+
+Quem precisa preservar a matriz exata deve usar `setLocalMatrix()` com a matriz montada pelo chamador, que escreve direto no TransformManager sem passar pelo decompose.
+
+### 4.3 Local × world: só a raiz pode tratar os dois como iguais
+
+Todos os setters do contrato são **locais** (relativos ao pai). O `getPosition()` devolve `m[3]` da **matriz local**, e o único acesso a world é o `getWorldMatrix()` — **não existe setter em world**.
+
+- **Raiz de asset** (criada com `transformManager.create(rootEntity)`, sem pai): local == world. Escrever `setPosition(p)` põe o nó em `p` no mundo.
+- **Sub-nó** (mesh ou intermediário, que é o que o picking devolve quando o asset foi criado com `deepIds`): local ≠ world. Para aplicar um deslocamento `delta` calculado em world é preciso levá-lo para o espaço do pai antes:
+
+```cpp
+const glm::mat4 parentWorld = node->parent->getWorldMatrix();
+const glm::vec3 deltaLocal  = glm::vec3(glm::inverse(parentWorld) * glm::vec4(delta, 0.0f));
+node->getTransform()->setPosition(node->getTransform()->getPosition() + deltaLocal);
+```
+
+(`vec4(delta, 0)` porque é direção, não ponto.) Não há helper para isso hoje.
+
 ## 5. Instâncias: `FilamentAsset3dInstance` / `FilamentMeshAsset3dInstance` / `FilamentCameraAsset3dInstance`
 
 ### `FilamentAsset3dInstance` — implementa `Asset3dInstance<FilamentAsset3dTransform>`

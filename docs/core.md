@@ -243,7 +243,7 @@ PBR agnóstico: `baseColorFactor` (vec4), `metallicFactor`, `roughnessFactor`, `
 
 Template parametrizado por `TransformConcept`. Exporta `using TransformType = Transform` (base do idioma de tipos associados dos concepts). Estado e API:
 - **`getId()/setId()` — id no espaço de numeração da Scene** (`-1` = sem id). A raiz recebe o mesmo id pré-alocado pelo `create()` (chave de `m_3dInstances`); filhos só recebem ids se o asset foi criado com `deepIds=true`. Atribuição é exclusiva da `Scene` (`instantiate()`); nós fora de cena (ex.: câmera do renderer) ficam com `-1`;
-- `m_transform` (`unique_ptr<Transform>`) — acessível via `getTransform()` (retorna `Asset3dTransform*` — o chamador genérico só vê a interface);
+- `m_transform` (`unique_ptr<Transform>`) — acessível via `getTransform()`, que devolve `Transform*`, o **tipo concreto do template** (sobrecarga const devolve `const Transform*`);
 - conveniências `getLocalMatrix()/getWorldMatrix()/setLocalMatrix()` delegando ao transform (com fallback identidade se nulo);
 - hierarquia idêntica à de `Asset3dData`: `parent` raw não-dono, `children` de `unique_ptr` — **`addChild(ptr)` toma posse do ponteiro cru** passado (atenção: quem chama não pode deletar);
 - `isMesh()` virtual, `setVisible/isVisible`.

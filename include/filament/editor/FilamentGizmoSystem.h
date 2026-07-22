@@ -29,7 +29,8 @@ namespace lite {
 // THREADING: o destrutor destrói recursos GPU (view, scene, factory da cena de
 // overlay) — destruir via postCommand (render thread), removendo antes o system
 // da cena no mesmo comando, como já é feito com o FilamentWireframeSystem.
-class FilamentGizmoSystem : public GizmoSystem {
+class FilamentGizmoSystem
+    : public GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform> {
 public:
     FilamentGizmoSystem(filament::Engine* engine, GizmoParts parts);
     ~FilamentGizmoSystem() override;
@@ -42,10 +43,6 @@ public:
     // nada a sincronizar por frame.
     void setCamera(FilamentCameraAsset3dInstance* camera) { m_camera = camera; }
 
-    // Root do gizmo: nó dono do sistema (NÃO pertence a nenhuma Scene). As 9
-    // peças são presas a ele pela hierarquia de transform da Filament.
-    FilamentAsset3dInstance* getRoot() { return m_root.get(); }
-
     // Cena de overlay (dona das peças). Null até o primeiro frame.
     FilamentOverlayScene* getOverlayScene() { return m_gizmoScene.get(); }
 
@@ -54,6 +51,7 @@ public:
 protected:
     // --- Contrato do GizmoSystem: tudo executa na render thread ---
     bool initializeOverlay() override;
+    std::unique_ptr<NodeType> createRoot() override;
     int  createPart(const Asset3dData& data,
                     const std::vector<MaterialData>& materials) override;
     void updateOverlay(float deltaTime) override;
@@ -72,9 +70,9 @@ private:
     filament::View* m_view = nullptr;
     std::unique_ptr<FilamentOverlayScene> m_gizmoScene;
 
-    // Root do gizmo — só entity + transform; não passa pela Scene
+    // Entity do root (o nó em si é possuído pela base, via createRoot).
+    // Guardada aqui porque o parentesco e a destruição são trabalho do renderer.
     utils::Entity m_rootEntity;
-    std::unique_ptr<FilamentAsset3dInstance> m_root;
 };
 
 } // namespace lite

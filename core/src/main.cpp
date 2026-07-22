@@ -522,6 +522,10 @@ int main(int argc, char** argv){
     const float VELOCITY_MOVEMENT = radius * 50.f;
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
+    
+    std::optional<GizmoAction> gizmoAction = std::nullopt;
+    glm::vec3 startDraggingLocation = glm::vec3(0, 0, 0);
+    float startingDraggingDistance = 0;
 
     while (running) {
         SDL_Event ev;
@@ -655,69 +659,123 @@ int main(int argc, char** argv){
             sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
         }
 
+        glm::vec3 currentCamLocation = sceneRenderer   
+                                    .getCurrentCamera()
+                                    ->getTransform()
+                                    ->getPosition();
+        
+        // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
+        // // Posição do clique capturada no evento (ev já pode ser outro evento
+        // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
+        // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
+        int winW = 0, winH = 0;
+        SDL_GetWindowSize(window, &winW, &winH);
+        glm::vec3 cameraRayDirection = objectSelector->getCameraRay(
+                    inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE],
+                    glm::vec2(winW, winH),
+                    10000.0f
+                );
+
         //------------------------------------------------------------------------------------------------
-        //SELECIONA OBJETO
+        //CLICK TOGGLE
         //------------------------------------------------------------------------------------------------
-        if( inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_LEFT) &&
-            inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
+        if( inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_LEFT))
         {
-            // // Posição do clique capturada no evento (ev já pode ser outro evento
-            // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
-            // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
-            int winW = 0, winH = 0;
-            SDL_GetWindowSize(window, &winW, &winH);
-
-            glm::vec3 clickDirection = objectSelector->getCameraRay(
-                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE],
-                glm::vec2(winW, winH),
-                10000.0f
-            );
             
-            glm::vec3 currentCamLocation = sceneRenderer   
-                                .getCurrentCamera()
-                                ->getTransform()
-                                ->getPosition();
+            //------------------------------------------------------------------------------------------------
+            //CLICK PRESSED
+            //------------------------------------------------------------------------------------------------
+            if(inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
+            {
+                
+                // Meio-ângulo do cone de broad-phase = metade da abertura de lente
+                // (FOV vertical) da câmera.
+                float coneHalfAngle = sceneRenderer.getCurrentCamera()->getFieldOfViewInRadians() * 0.5f;
+    
+                //------------------------------------------------------------------------------------------------
+                //ENCONTRA PARTE DO GIZMO
+                //------------------------------------------------------------------------------------------------
+    
+                gizmoAction = gizmoSystem->intersectGizmo(
+                    currentCamLocation,
+                    cameraRayDirection,
+                    coneHalfAngle
+                );
 
-            // Meio-ângulo do cone de broad-phase = metade da abertura de lente
-            // (FOV vertical) da câmera.
-            float coneHalfAngle = sceneRenderer.getCurrentCamera()->getFieldOfViewInRadians() * 0.5f;
-
-            int objectFoundId = objectSelector->intersect(
-                currentCamLocation,
-                clickDirection,
-                coneHalfAngle
-            );
-            
-            std::cout << "Mouse pressed" << std::endl;
-            std::string objectQueryMsg = ( objectFoundId == -1 ? "No object found" : std::format("Object {} found", objectFoundId) );
-            std::cout << objectQueryMsg << std::endl;
-            std::cout << std::format("Cam at x:{},y:{},z:{} looking at x:{},y:{},z:{}",
-                currentCamLocation.x,
-                currentCamLocation.y,
-                currentCamLocation.z,
-                clickDirection.x,
-                clickDirection.y,
-                clickDirection.z
-            ) << std::endl;
-
-            auto objectFound = sceneRenderer.getScene()->getNode(objectFoundId);
-
-            // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
-            // do Filament exige a render thread) — postar como comando
-            sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound]() {
-                wireframe->clearWireframeMeshes();
-                if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(objectFound)) {
-                    wireframe->addWireframeMesh(mesh);
+                if(gizmoAction.has_value())
+                {
+                    startDraggingLocation = gizmoSystem->getGizmoTransform()->getPosition();
+                    startingDraggingDistance = gizmoSystem->dragDistanceOnAxis(
+                                                                axisOf(gizmoAction.value())
+                                                                ,   currentCamLocation
+                                                                ,   cameraRayDirection
+                                                                ,   startDraggingLocation
+                                                            );
                 }
-            });
+    
+                //------------------------------------------------------------------------------------------------
+                //END || ENCONTRA PARTE DO GIZMO
+                //------------------------------------------------------------------------------------------------
+    
+                if(!gizmoAction.has_value())
+                {
+                    //------------------------------------------------------------------------------------------------
+                    //ENCONTRA OBJETO NA CENA
+                    //------------------------------------------------------------------------------------------------
+        
+                    int objectFoundId = objectSelector->intersect(
+                        currentCamLocation,
+                        cameraRayDirection,
+                        coneHalfAngle
+                    );
+                    
+                    auto objectFound = sceneRenderer.getScene()->getNode(objectFoundId);
+        
+                    // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
+                    // do Filament exige a render thread) — postar como comando
+                    sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound]() {
+                        wireframe->clearWireframeMeshes();
+                        if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(objectFound)) {
+                            wireframe->addWireframeMesh(mesh);
+                        }
+                    });
+        
+                    //------------------------------------------------------------------------------------------------
+                    //END || ENCONTRA OBJETO NA CENA
+                    //------------------------------------------------------------------------------------------------
+                }
+            }
+            //------------------------------------------------------------------------------------------------
+            //END || CLICK PRESSED
+            //------------------------------------------------------------------------------------------------
+            //------------------------------------------------------------------------------------------------
+            // CLICK RELEASED
+            //------------------------------------------------------------------------------------------------
+            else
+            {
+                gizmoAction = std::nullopt;
+            }
+            //------------------------------------------------------------------------------------------------
+            // END || CLICK RELEASED
+            //------------------------------------------------------------------------------------------------
         }
         //------------------------------------------------------------------------------------------------
-        //END || SELECIONA OBJETO
+        //END || CLICK TOGGLE
         //------------------------------------------------------------------------------------------------
 
-        // uiText->setText("Hello world=> X:" + std::to_string(horizontal_direction) + "Y:" + std::to_string(vertical_direction));
-
-        // std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if(gizmoAction.has_value())
+        {
+            float draggingDistance =
+            startingDraggingDistance - 
+            gizmoSystem->dragDistanceOnAxis(
+                axisOf(gizmoAction.value())
+                ,   currentCamLocation
+                ,   cameraRayDirection
+                ,   startDraggingLocation
+            );
+            
+            std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
+        }
     }
 
     std::cout << "Shutting down..." << std::endl;

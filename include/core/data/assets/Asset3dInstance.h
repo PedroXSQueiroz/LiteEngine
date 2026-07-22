@@ -34,8 +34,8 @@ public:
     void setId(int id) { m_id = id; }
 
     // Transform access (implementation provides concrete transform)
-    Asset3dTransform* getTransform() { return m_transform.get(); }
-    const Asset3dTransform* getTransform() const { return m_transform.get(); }
+    Transform* getTransform() { return m_transform.get(); }
+    const Transform* getTransform() const { return m_transform.get(); }
 
     // Convenience methods that delegate to transform
     glm::mat4 getLocalMatrix() const {
