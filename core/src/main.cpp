@@ -510,7 +510,14 @@ int main(int argc, char** argv){
     ----------------------------------------------------------------------------*/
     bool running = true;
 
-    bool mov_front = false, mov_back = false, mov_right = false, mov_left = false, mov_up = false, mov_down = false;
+    bool    mov_front = false
+        ,   mov_back = false
+        ,   mov_right = false
+        ,   mov_left = false
+        ,   mov_up = false
+        ,   mov_down = false
+        ,   mov_active = false;
+
     bool start_object_query_select = false;
     const float VELOCITY_MOVEMENT = radius * 50.f;
     const float VELOCITY_LOOK = 0.003f;
@@ -528,19 +535,23 @@ int main(int argc, char** argv){
                 break;
 
             case SDL_MOUSEMOTION: {
-                horizontal_direction += ev.motion.xrel * VELOCITY_LOOK;
-                vertical_direction   -= ev.motion.yrel * VELOCITY_LOOK;
-
-                const float MAX_PITCH = 1.5f;
-                if (vertical_direction >  MAX_PITCH) vertical_direction =  MAX_PITCH;
-                if (vertical_direction < -MAX_PITCH) vertical_direction = -MAX_PITCH;
-
-                float yaw   = horizontal_direction;
-                float pitch = vertical_direction;
-
-                offsetCenter.x = cos(pitch) * sin(yaw);
-                offsetCenter.y = sin(pitch);
-                offsetCenter.z = -cos(pitch) * cos(yaw);
+                if(mov_active)
+                {
+                    horizontal_direction += ev.motion.xrel * VELOCITY_LOOK;
+                    vertical_direction   -= ev.motion.yrel * VELOCITY_LOOK;
+    
+                    const float MAX_PITCH = 1.5f;
+                    if (vertical_direction >  MAX_PITCH) vertical_direction =  MAX_PITCH;
+                    if (vertical_direction < -MAX_PITCH) vertical_direction = -MAX_PITCH;
+    
+                    float yaw   = horizontal_direction;
+                    float pitch = vertical_direction;
+    
+                    offsetCenter.x = cos(pitch) * sin(yaw);
+                    offsetCenter.y = sin(pitch);
+                    offsetCenter.z = -cos(pitch) * cos(yaw);
+    
+                }
 
                 inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
                     glm::vec2(ev.motion.x, ev.motion.y);
@@ -574,12 +585,13 @@ int main(int argc, char** argv){
                     SDL_bool mode = SDL_GetRelativeMouseMode();
                     SDL_SetRelativeMouseMode(mode == SDL_TRUE ? SDL_FALSE : SDL_TRUE);
                 }
-                if (ev.key.keysym.sym == SDLK_w)      mov_front = true;
-                if (ev.key.keysym.sym == SDLK_s)      mov_back  = true;
-                if (ev.key.keysym.sym == SDLK_d)      mov_right = true;
-                if (ev.key.keysym.sym == SDLK_a)      mov_left  = true;
-                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up    = true;
-                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down  = true;
+                
+                if (ev.key.keysym.sym == SDLK_w)      mov_front         = true;
+                if (ev.key.keysym.sym == SDLK_s)      mov_back          = true;
+                if (ev.key.keysym.sym == SDLK_d)      mov_right         = true;
+                if (ev.key.keysym.sym == SDLK_a)      mov_left          = true;
+                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = true;
+                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down          = true;
                 
                 INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
                 if (key != INPUT_KEYS::KEY_UNKNOWN)
@@ -587,12 +599,13 @@ int main(int argc, char** argv){
                 break;
             }
             case SDL_KEYUP: {
-                if (ev.key.keysym.sym == SDLK_w)      mov_front = false;
-                if (ev.key.keysym.sym == SDLK_s)      mov_back  = false;
-                if (ev.key.keysym.sym == SDLK_d)      mov_right = false;
-                if (ev.key.keysym.sym == SDLK_a)      mov_left  = false;
-                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up    = false;
-                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down  = false;
+
+                if (ev.key.keysym.sym == SDLK_w)      mov_front         = false;
+                if (ev.key.keysym.sym == SDLK_s)      mov_back          = false;
+                if (ev.key.keysym.sym == SDLK_d)      mov_right         = false;
+                if (ev.key.keysym.sym == SDLK_a)      mov_left          = false;
+                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = false;
+                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down          = false;
 
                 INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
                 if (key != INPUT_KEYS::KEY_UNKNOWN)
@@ -611,27 +624,40 @@ int main(int argc, char** argv){
             uiRenderer->sendInputEvent(inputEvent);
         }
 
-        glm::vec3 front = glm::normalize(offsetCenter);
-        glm::vec3 upAbsolute(0, 1, 0);
-        glm::vec3 right = glm::normalize(glm::cross(front, upAbsolute));
-
-        glm::vec3 movement(0, 0, 0);
-        if (mov_front) movement += front;
-        if (mov_back)  movement -= front;
-        if (mov_right) movement += right;
-        if (mov_left)  movement -= right;
-        if (mov_up)    movement += upAbsolute;
-        if (mov_down)  movement -= upAbsolute;
-
-        Uint64 now   = SDL_GetPerformanceCounter();
-        static Uint64 prevTicks = SDL_GetPerformanceCounter();
-        float deltaTime = (float)((now - prevTicks) / (double)SDL_GetPerformanceFrequency());
-        prevTicks = now;
-
-        if (glm::length(movement) > 0.001f) {
-            offsetEye += glm::normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
+        if(inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_RIGHT))
+        {
+            mov_active = inputEvent.keys[lite::INPUT_KEYS::MOUSE_RIGHT] == lite::INPUT_KEY_STATES::DOWN;
         }
 
+        if(mov_active)
+        {
+            glm::vec3 front = glm::normalize(offsetCenter);
+            glm::vec3 upAbsolute(0, 1, 0);
+            glm::vec3 right = glm::normalize(glm::cross(front, upAbsolute));
+    
+            glm::vec3 movement(0, 0, 0);
+            if (mov_front) movement += front;
+            if (mov_back)  movement -= front;
+            if (mov_right) movement += right;
+            if (mov_left)  movement -= right;
+            if (mov_up)    movement += upAbsolute;
+            if (mov_down)  movement -= upAbsolute;
+    
+            Uint64 now   = SDL_GetPerformanceCounter();
+            static Uint64 prevTicks = SDL_GetPerformanceCounter();
+            float deltaTime = (float)((now - prevTicks) / (double)SDL_GetPerformanceFrequency());
+            prevTicks = now;
+    
+            if (glm::length(movement) > 0.001f) {
+                offsetEye += glm::normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
+            }
+    
+            sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
+        }
+
+        //------------------------------------------------------------------------------------------------
+        //SELECIONA OBJETO
+        //------------------------------------------------------------------------------------------------
         if( inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_LEFT) &&
             inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
         {
@@ -685,9 +711,9 @@ int main(int argc, char** argv){
                 }
             });
         }
-
-        sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
-
+        //------------------------------------------------------------------------------------------------
+        //END || SELECIONA OBJETO
+        //------------------------------------------------------------------------------------------------
 
         // uiText->setText("Hello world=> X:" + std::to_string(horizontal_direction) + "Y:" + std::to_string(vertical_direction));
 
