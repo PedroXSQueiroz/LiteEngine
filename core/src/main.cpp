@@ -526,6 +526,8 @@ int main(int argc, char** argv){
     std::optional<GizmoAction> gizmoAction = std::nullopt;
     glm::vec3 startDraggingLocation = glm::vec3(0, 0, 0);
     float startingDraggingDistance = 0;
+    glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
+    glm::vec2 lastMousePosition = glm::vec2(0, 0);
 
     while (running) {
         SDL_Event ev;
@@ -557,8 +559,9 @@ int main(int argc, char** argv){
     
                 }
 
-                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
+                lastMousePosition = inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
                     glm::vec2(ev.motion.x, ev.motion.y);
+                
                 break;
             }
             case SDL_MOUSEBUTTONDOWN: {
@@ -671,7 +674,7 @@ int main(int argc, char** argv){
         int winW = 0, winH = 0;
         SDL_GetWindowSize(window, &winW, &winH);
         glm::vec3 cameraRayDirection = objectSelector->getCameraRay(
-                    inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE],
+                    lastMousePosition,
                     glm::vec2(winW, winH),
                     10000.0f
                 );
@@ -695,22 +698,26 @@ int main(int argc, char** argv){
                 //------------------------------------------------------------------------------------------------
                 //ENCONTRA PARTE DO GIZMO
                 //------------------------------------------------------------------------------------------------
-    
-                gizmoAction = gizmoSystem->intersectGizmo(
-                    currentCamLocation,
-                    cameraRayDirection,
-                    coneHalfAngle
-                );
-
-                if(gizmoAction.has_value())
+                
+                if(!gizmoAction.has_value())
                 {
-                    startDraggingLocation = gizmoSystem->getGizmoTransform()->getPosition();
-                    startingDraggingDistance = gizmoSystem->dragDistanceOnAxis(
-                                                                axisOf(gizmoAction.value())
-                                                                ,   currentCamLocation
-                                                                ,   cameraRayDirection
-                                                                ,   startDraggingLocation
-                                                            );
+                    gizmoAction = gizmoSystem->intersectGizmo(
+                        currentCamLocation,
+                        cameraRayDirection,
+                        coneHalfAngle
+                    );
+    
+                    if(gizmoAction.has_value())
+                    {
+                        startDraggingLocation = gizmoSystem->getGizmoTransform()->getPosition();
+                        startingDraggingDistance = gizmoSystem->dragDistanceOnAxis(
+                                                                    axisOf(gizmoAction.value())
+                                                                    ,   currentCamLocation
+                                                                    ,   cameraRayDirection
+                                                                    ,   startDraggingLocation
+                                                                );
+                        startingDragginObjectLocation = assetPtr->getTransform()->getPosition();
+                    }
                 }
     
                 //------------------------------------------------------------------------------------------------
@@ -773,6 +780,26 @@ int main(int argc, char** argv){
                 ,   cameraRayDirection
                 ,   startDraggingLocation
             );
+
+            glm::vec3 dealocated = glm::vec3(
+                startingDragginObjectLocation.x,
+                startingDragginObjectLocation.y,
+                startingDragginObjectLocation.z
+            );
+
+            switch(gizmoAction.value()){
+                case GizmoAction::MOVE_X:{
+                    dealocated.x += draggingDistance;
+                }break;
+                case GizmoAction::MOVE_Y:{
+                    dealocated.y += draggingDistance;
+                }break;
+                case GizmoAction::MOVE_Z:{
+                    dealocated.z += draggingDistance;
+                }break;
+            }
+            
+            assetPtr->getTransform()->setPosition(dealocated);
             
             std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
         }
