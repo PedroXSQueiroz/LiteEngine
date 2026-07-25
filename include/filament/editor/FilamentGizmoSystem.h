@@ -39,9 +39,8 @@ public:
     // no frame dela) e o viewport de referência.
     void attachTo(::FilamentScene* liteScene) { m_liteScene = liteScene; }
 
-    // Câmera da cena 3D — a view do overlay usa a MESMA câmera, então não há
-    // nada a sincronizar por frame.
-    void setCamera(FilamentCameraAsset3dInstance* camera) { m_camera = camera; }
+    // setCamera é herdado da base (câmera agnóstica). A view do overlay usa a
+    // MESMA câmera da cena 3D, então não há nada a sincronizar por frame.
 
     // Cena de overlay (dona das peças). Null até o primeiro frame.
     FilamentOverlayScene* getOverlayScene() { return m_gizmoScene.get(); }
@@ -51,7 +50,7 @@ public:
 protected:
     // --- Contrato do GizmoSystem: tudo executa na render thread ---
     bool initializeOverlay() override;
-    std::unique_ptr<NodeType> createRoot() override;
+    std::unique_ptr<MeshAsset3dInstance<FilamentAsset3dTransform>> createRoot() override;
     int  createPart(const Asset3dData& data,
                     const std::vector<MaterialData>& materials) override;
     void updateOverlay(float deltaTime) override;
@@ -61,9 +60,9 @@ protected:
 private:
     filament::Engine* m_engine;
 
-    // Dependências injetadas pela main antes do start
+    // Dependências injetadas pela main antes do start (a câmera é herdada da
+    // base, em tipo agnóstico — ver GizmoSystem::m_camera)
     ::FilamentScene* m_liteScene = nullptr;
-    FilamentCameraAsset3dInstance* m_camera = nullptr;
 
     // Recursos do overlay (criados no primeiro hook, na render thread)
     filament::Scene* m_filamentScene = nullptr;

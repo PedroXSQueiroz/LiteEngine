@@ -55,8 +55,11 @@ bool FilamentGizmoSystem::initializeOverlay() {
     m_view = m_engine->createView();
 
     m_view->setScene(m_filamentScene);
-    // Mesma câmera da cena 3D: nada a sincronizar por frame.
-    m_view->setCamera(m_camera->getFilamentCamera());
+    // Mesma câmera da cena 3D: nada a sincronizar por frame. m_camera é herdado
+    // da base em tipo agnóstico; getFilamentCamera() não é do contrato, então
+    // aqui (única classe que sabe o tipo nativo) fazemos o cast.
+    m_view->setCamera(
+        static_cast<FilamentCameraAsset3dInstance*>(m_camera)->getFilamentCamera());
     m_view->setViewport(sceneView->getViewport());
     // Sem pós-processamento: tone mapping/FXAA lavariam as cores dos eixos.
     m_view->setPostProcessingEnabled(false);
@@ -82,7 +85,7 @@ bool FilamentGizmoSystem::initializeOverlay() {
     return true;
 }
 
-std::unique_ptr<FilamentGizmoSystem::NodeType> FilamentGizmoSystem::createRoot() {
+std::unique_ptr<MeshAsset3dInstance<FilamentAsset3dTransform>> FilamentGizmoSystem::createRoot() {
     // Só entity + componente de transform: o root não tem geometria, serve de
     // pai comum das 9 peças. A entity fica guardada aqui porque o parentesco
     // (setParent) e a destruição são trabalho do renderer; a posse do nó vai
@@ -91,12 +94,13 @@ std::unique_ptr<FilamentGizmoSystem::NodeType> FilamentGizmoSystem::createRoot()
     m_rootEntity = utils::EntityManager::get().create();
     transformManager.create(m_rootEntity);
 
-    auto root = std::make_unique<FilamentAsset3dInstance>(
-        m_rootEntity,
-        FilamentAsset3dTransform(transformManager, m_rootEntity)
+    auto root = std::make_unique<FilamentMeshAsset3dInstance>(
+        m_engine,
+        m_gizmoScene.get()->getFilamentScene()
     );
     root->name = "gizmo_root";
-
+    root->initializeTransform(m_rootEntity);
+    
     return root;
 }
 
@@ -120,6 +124,7 @@ void FilamentGizmoSystem::updateOverlay(float deltaTime) {
     // frame e o renderScene() estão neutralizados em FilamentOverlayScene.
     // Instanciar dentro do frame quebraria o commit das MaterialInstance feito
     // por FEngine::prepare() no beginFrame (ver nota no header da cena).
+
     m_gizmoScene->update(deltaTime);
 }
 

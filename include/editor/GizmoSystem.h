@@ -150,7 +150,18 @@ public:
 
             m_initialized = true;
             m_pendingWiring = true;
+
+            m_initialGizmoScale = getGizmoTransform()->getScale();
         }
+
+        float gizmoTargetScaleWorld = calcGizmoScaleFactor(m_gizTargetSizeOnScreen);
+        
+        std::vector<glm::vec3> boundingBox = m_root.get()->getBoundingBox();
+        glm::vec3 boundingBoxExtension = boundingBox[1] - boundingBox[0];
+        
+        float gizmoScaleFactor = gizmoTargetScaleWorld / boundingBoxExtension.y;
+        glm::vec3 currentGizmoScale = gizmoScaleFactor * m_initialGizmoScale;
+        getGizmoTransform()->setScale(currentGizmoScale);
 
         // Ciclo da cena de overlay fora do frame: instancia o que estiver na
         // fila, roda os systems dela e faz o flush das deleções.
@@ -265,6 +276,41 @@ public:
         return m_root.get()->getTransform();
     }
 
+    // Fator de escala para o gizmo ter tamanho aparente constante na tela
+    // (opção 1: escala linear pela distância à câmera). Aplicar no root.
+    //
+    // size = altura desejada como FRAÇÃO da altura da viewport (0..1). Ex.: 0.2
+    // → o gizmo ocupa ~20% da altura da tela, a qualquer distância.
+    //
+    // Matemática: à distância d da câmera, a altura de mundo visível é
+    // 2·d·tan(fov/2); a fração `size` dela é a altura de mundo que o gizmo deve
+    // ter. O retorno É essa altura de mundo — vale como fator DESDE QUE o gizmo
+    // seja autorado a 1 unidade de altura (root em escala 1 = 1 unidade). Se os
+    // modelos tiverem outra altura nativa, o fator sai proporcional a ela.
+    //
+    // d é a distância euclidiana câmera↔root (aproximação padrão da opção 1; o
+    // refino exato usaria a profundidade projetada — ver memória dos algoritmos).
+    // Sem câmera/root ainda → 1 (escala neutra).
+    float calcGizmoScaleFactor(float size) const {
+        if (!m_camera || !m_root) return 1.0f;
+
+        const glm::vec3 cameraPosition = glm::vec3(m_camera->getWorldMatrix()[3]);
+        const glm::vec3 gizmoPosition  = glm::vec3(m_root->getWorldMatrix()[3]);
+
+        const float distance = glm::length(gizmoPosition - cameraPosition);
+        const float halfFov  = m_camera->getFieldOfViewInRadians() * 0.5f;
+
+        return size * 2.0f * distance * std::tan(halfFov);
+    }
+
+    // Câmera da cena 3D — a view do overlay usa a MESMA câmera. Guardada em tipo
+    // AGNÓSTICO: a base a usa via contrato (getFieldOfViewInRadians, matrizes,
+    // posição pelo world). A classe concreta que precisar da câmera nativa faz
+    // o cast para o tipo dela. Injetada pela main antes do start.
+    void setCamera(CameraAsset3dInstance<TransformType>* camera) { m_camera = camera; }
+
+    float m_gizTargetSizeOnScreen = 0.1;
+
 protected:
     // Instancia e configura o selector do gizmo. Chamar do initializeOverlay()
     // da classe concreta, quando a cena de overlay já existe.
@@ -284,7 +330,7 @@ protected:
     // e ENTREGA A POSSE para a base. Chamado uma única vez, logo após o
     // initializeOverlay() bem-sucedido. Não passa pela cena de overlay de
     // propósito: a cena seria dona dele, e o root precisa ser do sistema.
-    virtual std::unique_ptr<NodeType> createRoot() = 0;
+    virtual std::unique_ptr<MeshAsset3dInstance<TransformType>> createRoot() = 0;
 
     // Enfileira a criação de uma peça na cena de overlay; retorna o id.
     virtual int createPart(const Asset3dData& data,
@@ -305,12 +351,18 @@ protected:
     bool m_pendingWiring = false;
 
     // Root do gizmo: criado pela classe concreta (createRoot), possuído aqui.
-    std::unique_ptr<NodeType> m_root;
+    std::unique_ptr<MeshAsset3dInstance<TransformType>> m_root;
 
     // Picking dos eixos: vive aqui (e não na classe concreta) porque o selector
     // é agnóstico — só precisa dos dois tipos do template.
     std::unique_ptr<SelectorType> m_selector;
     SceneType* m_overlayScene = nullptr;
+
+    // Câmera da cena 3D (emprestada — dono é o SceneRenderer). Agnóstica.
+    CameraAsset3dInstance<TransformType>* m_camera = nullptr;
+
+    glm::vec3 m_initialGizmoScale;
+    glm::vec3 m_initialBoundingBoxExtension;
 };
 
 } // namespace lite

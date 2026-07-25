@@ -773,13 +773,12 @@ int main(int argc, char** argv){
         if(gizmoAction.has_value())
         {
             float draggingDistance =
-            startingDraggingDistance - 
             gizmoSystem->dragDistanceOnAxis(
                 axisOf(gizmoAction.value())
                 ,   currentCamLocation
                 ,   cameraRayDirection
                 ,   startDraggingLocation
-            );
+            ) - startingDraggingDistance;
 
             glm::vec3 dealocated = glm::vec3(
                 startingDragginObjectLocation.x,

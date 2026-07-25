@@ -28,7 +28,7 @@ public:
     virtual std::vector<glm::vec3> getBoundingBox() = 0;
     virtual void setBoundingBox(const std::vector<glm::vec3>& bounds) = 0;
     virtual std::vector<glm::vec3> calcBoundingBox() const = 0;
-
+    
     // Material name reference (for lookup)
     std::string materialName;
 };
