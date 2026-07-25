@@ -57,6 +57,8 @@ public:
         std::unique_ptr<Asset3dInstance> child(instance3d);
         child->parent = this;
         children.push_back(std::move(child));
+
+        //TODO: ADICIONAR MÉTODO VIRTUAL AQUI. NO FILHO (FILAMENT) ELE DEVE PARENTEAR OS ENTITTIES DA FILAMENT.
     };
 
     // Type identification

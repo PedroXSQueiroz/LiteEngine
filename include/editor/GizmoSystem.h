@@ -124,6 +124,9 @@ public:
         m_parts[SCALE_Y]  = std::move(parts.scaleY);
         m_parts[SCALE_Z]  = std::move(parts.scaleZ);
         m_partIds.fill(-1);
+
+        m_initialBoundingBoxExtension = glm::vec3(0, 0, 0);
+        m_initialGizmoScale = glm::vec3(0, 0, 0);
     }
 
     ~GizmoSystem() override = default;
@@ -150,22 +153,31 @@ public:
 
             m_initialized = true;
             m_pendingWiring = true;
-
-            m_initialGizmoScale = getGizmoTransform()->getScale();
         }
 
         float gizmoTargetScaleWorld = calcGizmoScaleFactor(m_gizTargetSizeOnScreen);
         
-        std::vector<glm::vec3> boundingBox = m_root.get()->getBoundingBox();
-        glm::vec3 boundingBoxExtension = boundingBox[1] - boundingBox[0];
         
-        float gizmoScaleFactor = gizmoTargetScaleWorld / boundingBoxExtension.y;
-        glm::vec3 currentGizmoScale = gizmoScaleFactor * m_initialGizmoScale;
-        getGizmoTransform()->setScale(currentGizmoScale);
-
         // Ciclo da cena de overlay fora do frame: instancia o que estiver na
         // fila, roda os systems dela e faz o flush das deleções.
         updateOverlay(deltaTime);
+        
+        if(glm::length( m_initialBoundingBoxExtension ) > 0)
+        {
+            float gizmoScaleFactor = gizmoTargetScaleWorld / m_initialBoundingBoxExtension.y;
+            glm::vec3 currentGizmoScale = gizmoScaleFactor * m_initialGizmoScale;
+            // Escreve a escala montando a matriz direto, SEM passar pelo
+            // modifyComponent/decompose (opção A, por precaução): o root está na
+            // origem com rotação identidade, então a matriz é só a escala.
+            // ATENÇÃO: quando o gizmo passar a ser posicionado no objeto
+            // selecionado, esta linha precisa compor a translação (T * S).
+            // getGizmoTransform()->setLocalMatrix(glm::scale(glm::mat4(1.0f), currentGizmoScale));
+            getGizmoTransform()->setScale(currentGizmoScale);
+        }else{
+            m_initialGizmoScale = getGizmoTransform()->getScale();
+            std::vector<glm::vec3> boundingBox = m_root.get()->getCompleteBoundingBox();
+            m_initialBoundingBoxExtension = boundingBox[1] - boundingBox[0];
+        }
 
         // Depois da instanciação as peças existem — e o parentesco já vale para
         // o desenho deste mesmo frame.
@@ -173,6 +185,7 @@ public:
             for (size_t slot = 0; slot < SLOT_COUNT; ++slot) {
                 if (m_partIds[slot] >= 0) attachPartToRoot(m_partIds[slot]);
             }
+
             m_pendingWiring = false;
         }
     }
@@ -294,8 +307,8 @@ public:
     float calcGizmoScaleFactor(float size) const {
         if (!m_camera || !m_root) return 1.0f;
 
-        const glm::vec3 cameraPosition = glm::vec3(m_camera->getWorldMatrix()[3]);
-        const glm::vec3 gizmoPosition  = glm::vec3(m_root->getWorldMatrix()[3]);
+        const glm::vec3 cameraPosition = m_camera->getTransform()->getPosition();
+        const glm::vec3 gizmoPosition  = m_root->getTransform()->getPosition();
 
         const float distance = glm::length(gizmoPosition - cameraPosition);
         const float halfFov  = m_camera->getFieldOfViewInRadians() * 0.5f;
@@ -309,7 +322,7 @@ public:
     // o cast para o tipo dela. Injetada pela main antes do start.
     void setCamera(CameraAsset3dInstance<TransformType>* camera) { m_camera = camera; }
 
-    float m_gizTargetSizeOnScreen = 0.1;
+    float m_gizTargetSizeOnScreen = 0.3;
 
 protected:
     // Instancia e configura o selector do gizmo. Chamar do initializeOverlay()

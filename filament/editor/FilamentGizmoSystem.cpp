@@ -100,7 +100,13 @@ std::unique_ptr<MeshAsset3dInstance<FilamentAsset3dTransform>> FilamentGizmoSyst
     );
     root->name = "gizmo_root";
     root->initializeTransform(m_rootEntity);
-    
+
+    // Força um setTransform explícito: create() reserva o componente, mas o
+    // world transform do Filament só é preenchido num setTransform/commit. Como
+    // nada mais move o root, sem isto getWorldMatrix() leria memória não
+    // inicializada (0xCCCCCCCC). Escrever identidade preenche local E world.
+    root->getTransform()->setLocalMatrix(glm::mat4(1.0f));
+
     return root;
 }
 
@@ -157,6 +163,8 @@ void FilamentGizmoSystem::attachPartToRoot(int partId) {
 
     if (partTransform && rootTransform) {
         transformManager.setParent(partTransform, rootTransform);
+        //FIXME: PERTÊNCIMENTO "DUPLO" DO PONTEIRO DO PART
+        m_root->addChild(part);
     }
 }
 

@@ -27,17 +27,18 @@ void FilamentAsset3dTransform::modifyComponent(
     glm::vec3 position, scale, skew;
     glm::quat rotation;
     glm::vec4 perspective;
-    glm::decompose(current, scale, rotation, position, skew, perspective);
-
-    if (newPosition) position = *newPosition;
-    if (newRotation) rotation = *newRotation;
-    if (newScale) scale = *newScale;
-
-    glm::mat4 result = glm::translate(glm::mat4(1.0f), position)
-                     * glm::mat4_cast(rotation)
-                     * glm::scale(glm::mat4(1.0f), scale);
-
-    setLocalMatrix(result);
+    if( glm::decompose(current, scale, rotation, position, skew, perspective) ) 
+    {
+        if (newPosition) position = *newPosition;
+        if (newRotation) rotation = *newRotation;
+        if (newScale) scale = *newScale;
+    
+        glm::mat4 result = glm::translate(glm::mat4(1.0f), position)
+                         * glm::mat4_cast(rotation)
+                         * glm::scale(glm::mat4(1.0f), scale);
+    
+        setLocalMatrix(result);
+    }
 }
 
 void FilamentAsset3dTransform::setPosition(const glm::vec3& position) {
