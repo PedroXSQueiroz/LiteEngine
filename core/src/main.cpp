@@ -531,12 +531,16 @@ int main(int argc, char** argv){
 
     std::optional<GizmoAction> gizmoAction = std::nullopt;
     
-    glm::vec3 startDraggingGizmoLocation = glm::vec3(0, 0, 0);
+    glm::vec3 startingGizmoLocation = glm::vec3(0, 0, 0);
+    
     float startingDraggingDistance = 0;
     glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
 
-    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
     float startingTurningAngle = 0;
+    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
+
+    float startingScaleFactorDistance = 0;
+    glm::vec3 startingSizeObjectScale = glm::vec3(1, 1, 1);
     
     glm::vec2 lastMousePosition = glm::vec2(0, 0);
 
@@ -730,13 +734,14 @@ int main(int argc, char** argv){
                     {
                         GizmoAction currentGizmoAction = gizmoAction.value();
                         
-                        startDraggingGizmoLocation = gizmoSystem->getGizmoTransform()->getPosition();
+                        startingGizmoLocation = gizmoSystem->getGizmoTransform()->getPosition();
+                        
                         
                         startingDraggingDistance = gizmoSystem->getDistanceOnAxis(
                                 axisOf(gizmoAction.value())
                             ,   currentCamLocation
                             ,   cameraRayDirection
-                            ,   startDraggingGizmoLocation
+                            ,   startingGizmoLocation
                         );
                         startingDragginObjectLocation = assetPtr->getTransform()->getPosition();
                         
@@ -744,11 +749,12 @@ int main(int argc, char** argv){
                                 axisOf(gizmoAction.value())
                             ,   currentCamLocation
                             ,   cameraRayDirection
-                            ,   startDraggingGizmoLocation
+                            ,   startingGizmoLocation
                         );
-                        
                         startingTurningObjectRotation = assetPtr->getTransform()->getRotation();
 
+                        startingScaleFactorDistance = startingDraggingDistance; 
+                        startingSizeObjectScale = assetPtr->getTransform()->getScale();
                 
                     }
                 }
@@ -835,7 +841,7 @@ int main(int argc, char** argv){
                     axisOf(gizmoAction.value())
                     ,   currentCamLocation
                     ,   cameraRayDirection
-                    ,   startDraggingGizmoLocation
+                    ,   startingGizmoLocation
                 ) - startingDraggingDistance;
                 
                 glm::vec3 dealocated = glm::vec3(
@@ -871,7 +877,7 @@ int main(int argc, char** argv){
                         axisOf(gizmoAction.value())
                     ,   currentCamLocation
                     ,   cameraRayDirection
-                    ,   startDraggingGizmoLocation
+                    ,   startingGizmoLocation
                 ) - startingTurningAngle;
 
                 // NaN = ângulo inválido (raio paralelo ao plano / cursor no
@@ -885,13 +891,50 @@ int main(int argc, char** argv){
                     // unitário → mat4_cast o interpreta como rotação * |q|² →
                     // vira escala (estica e some). Ver memória do projeto.
                     glm::quat delta = glm::angleAxis(
-                        glm::radians(turningAngle), axisOf(gizmoAction.value()));
+                        glm::radians(turningAngle), 
+                        axisOf(gizmoAction.value()));
                     glm::quat rotated = delta * startingTurningObjectRotation;
 
                     assetPtr->getTransform()->setRotation(rotated, true); // world-space
 
                     std::cout << std::format("Rotating gizmo: {} angle: {}", toString(gizmoAction.value()), turningAngle) << std::endl;
                 }
+            }
+            else if(
+                gizmoAction == GizmoAction::SCALE_X || 
+                gizmoAction == GizmoAction::SCALE_Y || 
+                gizmoAction == GizmoAction::SCALE_Z
+            )
+            {
+                float scalingDistance =
+                gizmoSystem->getDistanceOnAxis(
+                    axisOf(gizmoAction.value())
+                    ,   currentCamLocation
+                    ,   cameraRayDirection
+                    ,   startingGizmoLocation
+                ) - startingScaleFactorDistance;
+
+                glm::vec3 scaled = glm::vec3(
+                    startingSizeObjectScale.x,
+                    startingSizeObjectScale.y,
+                    startingSizeObjectScale.z
+                );
+
+                switch(gizmoAction.value()){
+                    case GizmoAction::SCALE_X:{
+                        scaled.x += scalingDistance / startingScaleFactorDistance;
+                    }break;
+                    case GizmoAction::SCALE_Y:{
+                        scaled.y += scalingDistance / startingScaleFactorDistance;
+                    }break;
+                    case GizmoAction::SCALE_Z:{
+                        scaled.z += scalingDistance / startingScaleFactorDistance;
+                    }break;
+                }
+
+                assetPtr->getTransform()->setScale(scaled);
+
+                std::cout << std::format("Scalcing gizmo: {} distance: {}", toString(gizmoAction.value()), scalingDistance) << std::endl;
             }
 
         }
