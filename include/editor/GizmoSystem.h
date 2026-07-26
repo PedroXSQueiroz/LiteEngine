@@ -14,6 +14,7 @@
 #include <optional>
 #include <ostream>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -183,7 +184,16 @@ public:
         // o desenho deste mesmo frame.
         if (m_pendingWiring) {
             for (size_t slot = 0; slot < SLOT_COUNT; ++slot) {
-                if (m_partIds[slot] >= 0) attachPartToRoot(m_partIds[slot]);
+                if (m_partIds[slot] < 0) continue;
+
+                attachPartToRoot(m_partIds[slot]);
+
+                // Mapeia cada mesh da peça → ação (uma vez, agora que a peça já
+                // foi instanciada). É o que o intersectGizmo consulta direto, no
+                // lugar de subir a hierarquia.
+                if (NodeType* partRoot = m_overlayScene->getNode(m_partIds[slot])) {
+                    mapMeshesToAction(*partRoot, static_cast<GizmoAction>(slot));
+                }
             }
 
             m_pendingWiring = false;
@@ -216,21 +226,16 @@ public:
         float coneHalfAngle
     )
     {
-        if (!m_initialized || !m_selector || !m_overlayScene) return std::nullopt;
+        if (!m_initialized || !m_selector) return std::nullopt;
 
+        // intersect() devolve o id do MESH (folha) atingido. O mapa liga esse id
+        // à ação DIRETO — sem subir a hierarquia, então é imune a quantos níveis
+        // a árvore tenha (peça sob o root, meshes achatados, nós intermediários).
         const int hitId = m_selector->intersect(currentCamLocation, clickDirection, coneHalfAngle);
         if (hitId < 0) return std::nullopt;
 
-        // O id que volta é o do MESH atingido (filho, com deepIds), não o da
-        // raiz criada por createPart — sobe a hierarquia até a raiz da peça.
-        NodeType* node = m_overlayScene->getNode(hitId);
-        if (!node) return std::nullopt;
-        while (node->parent) node = node->parent;
-
-        const int rootId = node->getId();
-        for (size_t slot = 0; slot < SLOT_COUNT; ++slot) {
-            if (m_partIds[slot] == rootId) return static_cast<GizmoAction>(slot);
-        }
+        auto it = m_meshToAction.find(hitId);
+        if (it != m_meshToAction.end()) return it->second;
 
         return std::nullopt;
     }
@@ -325,6 +330,17 @@ public:
     float m_gizTargetSizeOnScreen = 0.3;
 
 protected:
+    // Mapeia todos os meshes descendentes de `node` → `action`. Recursivo, então
+    // aceita peça com um mesh, vários meshes, ou meshes sob nós intermediários.
+    void mapMeshesToAction(NodeType& node, GizmoAction action) {
+        if (node.isMesh()) {
+            m_meshToAction[node.getId()] = action;
+        }
+        for (auto& child : node.children) {
+            mapMeshesToAction(*child, action);
+        }
+    }
+
     // Instancia e configura o selector do gizmo. Chamar do initializeOverlay()
     // da classe concreta, quando a cena de overlay já existe.
     void attachSelector(SceneType* overlayScene, CameraAsset3dInstance<TransformType>* camera) {
@@ -360,6 +376,10 @@ protected:
 
     std::array<GizmoPart, SLOT_COUNT> m_parts;
     std::array<int, SLOT_COUNT> m_partIds;
+
+    // Mapa id-do-mesh (folha) → ação, construído uma vez após a instanciação.
+    // Consultado pelo intersectGizmo no lugar de subir a hierarquia.
+    std::unordered_map<int, GizmoAction> m_meshToAction;
     bool m_initialized = false;
     bool m_pendingWiring = false;
 

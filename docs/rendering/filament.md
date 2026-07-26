@@ -16,9 +16,11 @@ Esta tabela é o contrato do módulo. Toda classe daqui ou **implementa uma inte
 | `lite::CameraAsset3dInstance<T>` | `lite::FilamentCameraAsset3dInstance` | (via `Asset3dConcept`) | `include/filament/data/assets/FilamentCameraAsset3dInstance.h` + `filament/data/assets/FilamentCameraAsset3dInstance.cpp` |
 | `lite::Asset3dInstanceFactory<A,T>` | `lite::FilamentInstanceFactory` | `Asset3dInstanceFactoryConcept` | `include/filament/assets/instanceFactory/FilamentInstanceFactory.h` + `filament/assets/instanceFactory/FilamentInstanceFactory.cpp` |
 | `lite::Scene<A,T,F,U>` | `FilamentScene` (classe de **amarração**) | — | `include/filament/scene/FilamentScene.h` (header-only) |
+| `FilamentScene` (cena de overlay) | `FilamentOverlayScene` (não abre frame nem se desenha) | — | `include/filament/scene/FilamentOverlayScene.h` (header-only) |
 | `lite::IBL` | `lite::FilamentIBL` | — | `include/filament/lightning/FilamentIBL.h` + `filament/lightning/FilamentIBL.cpp` |
 | `lite::WireframeSystem<M>` (→ `SceneScopeSystem`) | `lite::FilamentWireframeSystem` | consome `MeshAsset3dConcept` | `include/filament/editor/FilamentWireframeSystem.h` + `filament/editor/FilamentWireframeSystem.cpp` |
 | `lite::ObjectSelectorSystem<S,T>` (→ `SceneScopeSystem`) | `lite::FilamentObjectSelectorSystem` (só fixa `<FilamentScene, FilamentAsset3dTransform>`) | — | `include/filament/editor/FilamentObjectSelectorSystem.h` (header-only) |
+| `lite::GizmoSystem<S,T>` (→ `SceneScopeSystem`) | `lite::FilamentGizmoSystem` (fixa `<FilamentOverlayScene, FilamentAsset3dTransform>`) | — | `include/filament/editor/FilamentGizmoSystem.h` + `filament/editor/FilamentGizmoSystem.cpp` |
 | `lite::TransformUtils<T>::build()` (especialização) | `TransformUtils<FilamentAsset3dTransform>::build()` | — | `filament/utils/FilamentTransformUtils.cpp` |
 | `lite::SceneRenderer<SceneType>` | `lite::FilamentSceneRenderer` (= `SceneRenderer<FilamentScene>`) | — | `include/filament/scene/FilamentSceneRenderer.h` + `filament/scene/FilamentSceneRenderer.cpp` |
 | — (utilitário global) | `FilamentUtils` | — | `include/filament/utils/FilamentUtils.h` + `filament/utils/FilamentUtils.cpp` |
@@ -128,21 +130,24 @@ Ou seja, a árvore de `Asset3dInstance` (lado `lite`) e a árvore de transforms 
 
 ### 4.2 Armadilhas de `modifyComponent` (decompose/recompose)
 
-`setPosition`, `setRotation` e `setScale` não escrevem "só aquele componente": os três passam por `modifyComponent`, que **lê a matriz local, decompõe, troca o componente pedido e recompõe**:
+`setPosition`, `setRotation` e `setScale` não escrevem "só aquele componente": os três passam por `modifyComponent`, que **lê a matriz local, decompõe, troca o componente pedido e recompõe** — e **só grava se o decompose suceder**:
 
 ```cpp
-glm::decompose(current, scale, rotation, position, skew, perspective);
-if (newPosition) position = *newPosition;   // (idem rotation/scale)
-glm::mat4 result = glm::translate(I, position) * glm::mat4_cast(rotation) * glm::scale(I, scale);
-setLocalMatrix(result);
+if (glm::decompose(current, scale, rotation, position, skew, perspective)) {
+    if (newPosition) position = *newPosition;   // (idem rotation/scale)
+    glm::mat4 result = glm::translate(I, position) * glm::mat4_cast(rotation) * glm::scale(I, scale);
+    setLocalMatrix(result);
+}   // decompose falha (matriz singular) → não escreve nada, mantém o transform anterior
 ```
 
-Duas consequências:
+O guard `if (glm::decompose(...))` foi adicionado depois de um bug real: sem ele, quando o decompose **falhava** (matriz (quase) singular — ex.: escala ~0), `position`/`rotation` ficavam com **lixo de stack (`0xCCCCCCCC`)** e eram gravados, corrompendo o transform (o gizmo, ao aplicar escalas pequenas, entrava em cascata até o Filament abortar). **Atenção**: os getters `getScale()`/`getRotation()` ainda ignoram o retorno do decompose (mesmo risco, não corrigido).
+
+Duas consequências que persistem mesmo quando o decompose sucede:
 
 - **Perda de informação**: `skew` e `perspective` saem da decomposição e **são descartados** na recomposição. Uma matriz importada com shear (cisalhamento) perde o shear no primeiro `setPosition` — mesmo que a intenção fosse só transladar.
 - **Ordem imposta**: o resultado é sempre `T * R * S`. Se a matriz original tinha outra ordem de composição (ex.: escala aplicada depois da rotação), ela é normalizada silenciosamente para essa forma.
 
-Quem precisa preservar a matriz exata deve usar `setLocalMatrix()` com a matriz montada pelo chamador, que escreve direto no TransformManager sem passar pelo decompose.
+Quem precisa preservar a matriz exata (ou evitar o decompose de vez) deve usar `setLocalMatrix()` com a matriz montada pelo chamador, que escreve direto no TransformManager. É o que o gizmo faz para a escala do seu root (`setLocalMatrix(glm::scale(I, escala))`), fugindo do decompose por completo.
 
 ### 4.3 Local × world: só a raiz pode tratar os dois como iguais
 
@@ -222,12 +227,29 @@ Sistema de editor (overlay wireframe). Cadeia de herança completa: `SceneScopeS
 
 **Teardown**: o destrutor destrói recursos GPU ⇒ o `reset()` deve rodar na render thread. Padrão usado pela main no shutdown: `postCommand([&]{ scene->removeSystem(ws.get()); ws.reset(); })` seguido de `sceneRenderer.stop()` — a base drena a fila de comandos após o loop, antes do `cleanup()`, garantindo a execução.
 
-## 9. Utilitários
+## 9. Gizmo — `FilamentGizmoSystem` + `FilamentOverlayScene`
+
+Implementação Filament do gizmo de transformação ([core.md §4.15](../core.md)). Cadeia: `SceneScopeSystem → GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform> → FilamentGizmoSystem`.
+
+**Padrão de overlay — o gizmo é dono de uma SEGUNDA cena.** Ao contrário do wireframe (que injeta entidades na cena 3D), o gizmo tem `filament::Scene` + `View` próprias, compostas **por cima** da cena 3D:
+- A view do overlay usa a **mesma câmera** da cena 3D (nada a sincronizar por frame), `BlendMode::TRANSLUCENT`, `setPostProcessingEnabled(false)`, `setShadowingEnabled(false)`, `setScreenSpaceRefractionEnabled(false)`.
+- Um render pass extra: `renderOverlay()` chama `renderer->render(m_view)` no hook `postRenderScene`, **dentro** do frame já aberto pela cena principal.
+- A `FilamentOverlayScene` (subclasse de `FilamentScene`) **neutraliza as fases de frame**: `prepareRender()`/`renderScene()` são no-op e `finishRender()` só faz o flush de deleções — ela NÃO abre `beginFrame`/`endFrame` (o frame é da cena principal) e NÃO se desenha (quem desenha é o sistema). Não recebe `swapChain` nem `UIRenderer`. Seu `update(dt)` roda **fora** do frame (no `onFrameBegin`), porque instanciar dentro do frame quebraria o commit das `MaterialInstance` do Filament (feito no `beginFrame`).
+
+**As 9 peças e o root.** Cada peça é criada pela cena de overlay (`create(..., deepIds=true)`) — a factory própria do overlay aponta para a `filament::Scene` do gizmo, então tudo nasce lá. O `createRoot()` cria um `FilamentMeshAsset3dInstance` **sem geometria** (só para agregar bounds via `getCompleteBoundingBox`), com `setLocalMatrix(identidade)` explícito no `createRoot` (senão o world transform nasce não inicializado). O `attachPartToRoot` liga cada peça ao root em **duas hierarquias**: `TransformManager::setParent` (Filament, propaga transform) **e** `m_root->addChild(part)` (lite, para a agregação de bounds) — este último cria **duplo dono** do ponteiro (`//FIXME` no código, deleção adiada).
+
+**Picking dos eixos.** O `intersectGizmo` da base usa um `ObjectSelectorSystem` interno (atado à cena de overlay); o id da folha (mesh) atingida é casado num mapa `id→GizmoAction` construído após a instanciação — **sem subir a hierarquia**, imune à estrutura da árvore.
+
+**Escala em tela** (`calcGizmoScaleFactor`) escreve a escala do root via `setLocalMatrix(glm::scale(...))` direto, **sem passar pelo `modifyComponent`/decompose** (ver §4.2).
+
+**Teardown**: o destrutor destrói recursos GPU (view, scene, factory do overlay) ⇒ mesmo padrão do wireframe (`postCommand([&]{ removeSystem; reset; })` antes do `stop()`).
+
+## 10. Utilitários
 
 - **`FilamentUtils`** (namespace global) — singleton estático do `filament::Engine*`. Setado pela render thread na criação do engine; usado onde ainda não há injeção de dependência (ex.: setup do wireframe na main). Candidato a remoção quando as facades cobrirem esses casos.
 - **`TransformUtils<FilamentAsset3dTransform>::build()`** (`filament/utils/FilamentTransformUtils.cpp`) — especialização exigida pelo core: constrói um `FilamentAsset3dTransform` a partir do TransformManager do engine global (via `FilamentUtils::getEngine()`), **sem entity** (o factory liga depois com `of()`). É o que permite à main escrever `TransformUtils<FilamentAsset3dTransform>::build()` sem tocar no engine.
 
-## 10. Recursos (materiais)
+## 11. Recursos (materiais)
 
 Materiais fonte `.mat` são compilados para `.filamat` com o `matc` do Filament. Local: `core/resources/filament/`:
 
@@ -237,7 +259,7 @@ Materiais fonte `.mat` são compilados para `.filamat` com o `matc` do Filament.
 | `materials/ui_overlay.filamat` | quad de composição da UI (usado pelo módulo CEF) |
 | `editor/materials/wireframe.filamat` | overlay de wireframe (baricêntrico) |
 
-## 11. Dívidas específicas do módulo
+## 12. Dívidas específicas do módulo
 
 - Paths hardcoded: `lit.filamat` (ctor do factory), IBL e wireframe (main).
 - A `main` ainda instancia `FilamentSceneRenderer` pelo tipo concreto (inevitável em algum ponto de composição), mas poderia programar contra `lite::SceneRenderer<FilamentScene>` no restante.

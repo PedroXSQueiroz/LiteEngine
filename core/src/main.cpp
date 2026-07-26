@@ -516,7 +516,9 @@ int main(int argc, char** argv){
         ,   mov_left = false
         ,   mov_up = false
         ,   mov_down = false
-        ,   mov_active = false;
+        ,   mov_active = false
+        
+        ,   multiple_selection_active = false;
 
     bool start_object_query_select = false;
     const float VELOCITY_MOVEMENT = radius * 50.f;
@@ -598,7 +600,9 @@ int main(int argc, char** argv){
                 if (ev.key.keysym.sym == SDLK_d)      mov_right         = true;
                 if (ev.key.keysym.sym == SDLK_a)      mov_left          = true;
                 if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = true;
-                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down          = true;
+                if (ev.key.keysym.sym == SDLK_LCTRL)  mov_down           = true;
+
+                if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active           = true;
                 
                 INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
                 if (key != INPUT_KEYS::KEY_UNKNOWN)
@@ -612,7 +616,9 @@ int main(int argc, char** argv){
                 if (ev.key.keysym.sym == SDLK_d)      mov_right         = false;
                 if (ev.key.keysym.sym == SDLK_a)      mov_left          = false;
                 if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = false;
-                if (ev.key.keysym.sym == SDLK_LSHIFT) mov_down          = false;
+                if (ev.key.keysym.sym == SDLK_LCTRL)  mov_down           = false;
+
+                if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active           = false;
 
                 INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
                 if (key != INPUT_KEYS::KEY_UNKNOWN)
@@ -735,17 +741,37 @@ int main(int argc, char** argv){
                         cameraRayDirection,
                         coneHalfAngle
                     );
-                    
-                    auto objectFound = sceneRenderer.getScene()->getNode(objectFoundId);
-        
-                    // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
-                    // do Filament exige a render thread) — postar como comando
-                    sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound]() {
-                        wireframe->clearWireframeMeshes();
-                        if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(objectFound)) {
-                            wireframe->addWireframeMesh(mesh);
+
+                    if(objectFoundId != -1)
+                    {
+                        Asset3dInstance<FilamentAsset3dTransform>* objectFound = sceneRenderer.getScene()->getNode(objectFoundId);
+
+                        if(!multiple_selection_active)
+                        {
+                            objectSelector->clearSelected();    
                         }
-                    });
+
+                        objectSelector->addSelected(objectFound);
+
+                        glm::vec3 selectionMedianPoint = objectSelector->getSelectionMedianPoint();
+
+                        gizmoSystem->getGizmoTransform()->setPosition(selectionMedianPoint);
+            
+                        // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
+                        // do Filament exige a render thread) — postar como comando
+                        sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound, multiple_selection_active]() {
+                            
+                            if(!multiple_selection_active)
+                            {
+                                wireframe->clearWireframeMeshes();
+                            }
+                            
+                            if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(objectFound)) {
+                                wireframe->addWireframeMesh(mesh);
+                            }
+                        });
+                    }
+                    
         
                     //------------------------------------------------------------------------------------------------
                     //END || ENCONTRA OBJETO NA CENA

@@ -20,9 +20,10 @@ FilamentAsset3dTransform::FilamentAsset3dTransform(
 void FilamentAsset3dTransform::modifyComponent(
     const glm::vec3* newPosition,
     const glm::quat* newRotation,
-    const glm::vec3* newScale
+    const glm::vec3* newScale,
+    const bool isWorldSpace
 ) {
-    glm::mat4 current = getLocalMatrix();
+    glm::mat4 current = isWorldSpace ? getWorldMatrix(): getLocalMatrix();
 
     glm::vec3 position, scale, skew;
     glm::quat rotation;
@@ -37,25 +38,28 @@ void FilamentAsset3dTransform::modifyComponent(
                          * glm::mat4_cast(rotation)
                          * glm::scale(glm::mat4(1.0f), scale);
     
-        setLocalMatrix(result);
+        if(isWorldSpace)
+            setWorldMatrix(result);
+        else    
+            setLocalMatrix(result);
     }
 }
 
-void FilamentAsset3dTransform::setPosition(const glm::vec3& position) {
-    modifyComponent(&position, nullptr, nullptr);
+void FilamentAsset3dTransform::setPosition(const glm::vec3& position, bool isWorldSpace) {
+    modifyComponent(&position, nullptr, nullptr, isWorldSpace);
 }
 
-glm::vec3 FilamentAsset3dTransform::getPosition() {
-    glm::mat4 m = getLocalMatrix();
+glm::vec3 FilamentAsset3dTransform::getPosition(bool isWorldSpace) {
+    glm::mat4 m = isWorldSpace? getWorldMatrix(): getLocalMatrix();
     return glm::vec3(m[3]);
 }
 
-void FilamentAsset3dTransform::setRotation(const glm::quat& rotation) {
-    modifyComponent(nullptr, &rotation, nullptr);
+void FilamentAsset3dTransform::setRotation(const glm::quat& rotation, bool isWorldSpace) {
+    modifyComponent(nullptr, &rotation, nullptr, isWorldSpace);
 }
 
-glm::quat FilamentAsset3dTransform::getRotation() {
-    glm::mat4 m = getLocalMatrix();
+glm::quat FilamentAsset3dTransform::getRotation(bool isWorldSpace) {
+    glm::mat4 m = isWorldSpace ? getWorldMatrix() : getLocalMatrix();
     glm::vec3 position, scale, skew;
     glm::quat rotation;
     glm::vec4 perspective;
@@ -63,12 +67,12 @@ glm::quat FilamentAsset3dTransform::getRotation() {
     return rotation;
 }
 
-void FilamentAsset3dTransform::setScale(const glm::vec3& scale) {
-    modifyComponent(nullptr, nullptr, &scale);
+void FilamentAsset3dTransform::setScale(const glm::vec3& scale, bool isWorldSpace) {
+    modifyComponent(nullptr, nullptr, &scale, isWorldSpace);
 }
 
-glm::vec3 FilamentAsset3dTransform::getScale() {
-    glm::mat4 m = getLocalMatrix();
+glm::vec3 FilamentAsset3dTransform::getScale(bool isWorldSpace) {
+    glm::mat4 m = isWorldSpace ? getWorldMatrix() : getLocalMatrix();
     glm::vec3 position, scale, skew;
     glm::quat rotation;
     glm::vec4 perspective;
@@ -85,6 +89,30 @@ void FilamentAsset3dTransform::setLocalMatrix(const glm::mat4& matrix) {
     filament::math::mat4f mat;
     std::memcpy(&mat, glm::value_ptr(matrix), sizeof(float) * 16);
     m_transformManager.setTransform(instance, mat);
+}
+
+void FilamentAsset3dTransform::setWorldMatrix(const glm::mat4& matrix) {
+    this->assertEntity();
+
+    auto instance = m_transformManager.getInstance(m_entity.value());
+    if (!instance) return;
+
+    // Filament só tem setter LOCAL → converte world → local:
+    //   local = inverse(parentWorld) · world
+    glm::mat4 localMatrix = matrix;
+
+    utils::Entity parent = m_transformManager.getParent(instance);
+    if (!parent.isNull()) {                 // tem pai → não é raiz
+        auto parentInstance = m_transformManager.getInstance(parent);
+        if (parentInstance) {
+            const auto& pw = m_transformManager.getWorldTransform(parentInstance);
+            glm::mat4 parentWorld;
+            std::memcpy(glm::value_ptr(parentWorld), &pw, sizeof(float) * 16);
+            localMatrix = glm::inverse(parentWorld) * matrix;
+        }
+    }
+
+    setLocalMatrix(localMatrix);   
 }
 
 glm::mat4 FilamentAsset3dTransform::getLocalMatrix() {

@@ -12,6 +12,9 @@
 #include <utility>
 #include <optional>
 #include <limits>
+#include <set>
+#include <iostream>
+#include <format>
 
 namespace lite {
 
@@ -180,6 +183,34 @@ public:
         return bestId;
     }
 
+    void addSelected(Asset3dInstance<TransformType>* newSelected)
+    {
+        if( !m_selectedObjects.contains(newSelected) ) {
+            m_selectedObjects.insert(newSelected);
+        }
+    }
+
+    void clearSelected()
+    {
+        m_selectedObjects.empty();
+    }
+
+    glm::vec3 getSelectionMedianPoint()
+    {
+        glm::vec3 medianPoint = glm::vec3(0, 0, 0);
+        
+        for(Asset3dInstance<TransformType>* selected : m_selectedObjects) 
+        { 
+            glm::vec3 position = selected->getTransform()->getPosition(true);
+            std::cout << std::format("Calculating median point => x:{}, y:{}, z:{}", position.x, position.y, position.z) << std::endl;
+            medianPoint += position;
+        } 
+
+        medianPoint /= m_selectedObjects.size();
+
+        return medianPoint;
+    }
+
 protected:
     // Expande [mn, mx] com a AABB (em mundo) de todos os meshes descendentes de
     // `node`. hasGeometry vira true na primeira contribuição — enquanto false,
@@ -299,6 +330,7 @@ protected:
 
     SceneType* m_scene = nullptr;
     CameraAsset3dInstance<TransformType>* m_camera = nullptr;
+    std::set<Asset3dInstance<TransformType>*> m_selectedObjects = {};
 };
 
 } // namespace lite

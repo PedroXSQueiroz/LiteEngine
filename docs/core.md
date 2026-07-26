@@ -153,15 +153,18 @@ Asset3dInstanceFactory<Asset, Transform> [T][A]   # Asset3dData → Asset (GPU);
 ```
 Scene<Asset, Transform, Factory, UIRenderer> [T]  # dona das instâncias; ciclo de frame
 └── FilamentScene (F)                             # + Renderer/Scene/View/SwapChain do Filament
+    └── FilamentOverlayScene (F)                  # cena de overlay: NÃO abre frame nem se desenha (gizmo)
 
 SceneRenderer<SceneType> [T][A]                   # facade da render thread (Template Method:
 └── FilamentSceneRenderer (F)                     #   setup/renderFrame/cleanup virtuais)
 
-SceneScopeSystem [A]                              # hooks preRenderScene/postRenderScene
+SceneScopeSystem [A]                              # 6 hooks de frame (onFrameBegin..onFrameEnd)
 ├── WireframeSystem<MeshAsset3dConcept> [T][A]    # overlay wireframe agnóstico (editor)
 │   └── FilamentWireframeSystem (F)
-└── ObjectSelectorSystem<SceneType, Transform> [T] # picking por raio, 100% GLM (editor)
-    └── FilamentObjectSelectorSystem (F)          # só fixa os parâmetros de template
+├── ObjectSelectorSystem<SceneType, Transform> [T] # picking por raio, 100% GLM (editor)
+│   └── FilamentObjectSelectorSystem (F)          # só fixa os parâmetros de template
+└── GizmoSystem<SceneType, Transform> [T][A]      # gizmo de transformação (dono de cena de overlay)
+    └── FilamentGizmoSystem (F)
 
 IBL [A]                                           # iluminação baseada em imagem
 └── FilamentIBL (F)
@@ -252,8 +255,8 @@ Template parametrizado por `TransformConcept`. Exporta `using TransformType = Tr
 
 ### 4.5 `MeshAsset3dInstance<Transform>` / `CameraAsset3dInstance<Transform>`
 
-- `MeshAsset3dInstance`: acrescenta `materialName`, força `isMesh()==true` e define os **contratos virtuais puros de geometria CPU** (2026-07): `getVertex() → vector<vec3>`, `getIndex() → vector<int64_t>`, `getUVS(int canal) → vector<vec2>` e o trio de bounding box `{min, max}` — `getBoundingBox()` (lazy: calcula via `calcBoundingBox()` na 1ª chamada se não setado), `setBoundingBox()`, `calcBoundingBox()`. São a base do picking agnóstico (`ObjectSelectorSystem`, §4.12). Os recursos GPU e o armazenamento de fato ficam na subclasse concreta.
-- `CameraAsset3dInstance`: câmera **é um nó da cena** (deriva de `Asset3dInstance`). Contrato puro: `getViewMatrix()`, `getProjectionMatrix()`, `lookAt(center)` (eye vem do transform, up é mundo (0,1,0)), `setProjection(fovDeg, aspect, near, far)`.
+- `MeshAsset3dInstance`: acrescenta `materialName`, força `isMesh()==true` e define os **contratos virtuais puros de geometria CPU** (2026-07): `getVertex() → vector<vec3>`, `getIndex() → vector<int64_t>`, `getUVS(int canal) → vector<vec2>` e o trio de bounding box **por mesh** `{min, max}` — `getBoundingBox()` (lazy: calcula via `calcBoundingBox()` na 1ª chamada se não setado; **espaço LOCAL do mesh**), `setBoundingBox()`, `calcBoundingBox()`. São a base do picking agnóstico (`ObjectSelectorSystem`, §4.12). Os recursos GPU e o armazenamento de fato ficam na subclasse concreta. Além do bound por mesh, expõe **`getCompleteBoundingBox()`** (não-virtual, na base): AABB `{min, max}` **agregada** deste nó + todos os meshes descendentes, no **espaço LOCAL deste nó** (cada mesh entra pela transform relativa `inverse(this.world) * mesh.world`, então o resultado independe da world transform do próprio nó); traversal igual ao do picking (nó sem geometria não contribui, mas a recursão desce pelos filhos); **sem cache** (recalcula a cada chamada). Usado pelo gizmo para dimensionar a escala em tela.
+- `CameraAsset3dInstance`: câmera **é um nó da cena** (deriva de `Asset3dInstance`). Contrato puro: `getViewMatrix()`, `getProjectionMatrix()`, `getFieldOfViewInRadians()` (abertura vertical da lente, em radianos), `lookAt(center)` (eye vem do transform, up é mundo (0,1,0)), `setProjection(fovDeg, aspect, near, far)`.
 
 ### 4.6 `Asset3dImporter` — `include/core/assets/importer/Asset3dImporter.h`
 
@@ -293,7 +296,7 @@ O coração do core. Parametrizada pelos 4 concepts. **Possui** (unique_ptr) o f
 - `m_systems : vector<SceneScopeSystem*>` (não-dono, sem lock) — **único mecanismo de extensão do frame** (§4.10); `addSystem`/`removeSystem` antes do `start()` ou via `postCommand`.
 
 **API thread-safe de assets**:
-- `create(data, materials, transform, deepIds=false) → int` — clona `data`, enfileira, retorna id **imediatamente** (a instanciação real acontece na render thread, dentro de `update`). O id retornado é estampado na raiz da instância (`getId()`) no `instantiate()`; com `deepIds=true`, **todos** os nós da árvore recebem ids do mesmo espaço de numeração (`m_lastId`, sob o mesmo mutex), em ordem determinística de percurso — base para endereçar subobjetos (picking futuro). **Nota**: o índice definitivo de subobjetos por id segue adiado (dupla posse e tipo impedem filhos em `m_3dInstances`; ver memória do projeto) — o paliativo é o `getNode` abaixo;
+- `create(data, materials, transform, deepIds=false) → int` — clona `data`, enfileira, retorna id **imediatamente** (a instanciação real acontece na render thread, dentro de `update`). O id retornado é estampado na raiz da instância (`getId()`) no `instantiate()`; com `deepIds=true`, **todos** os nós da árvore recebem ids do mesmo espaço de numeração (`m_lastId`, sob o mesmo mutex), em ordem determinística de percurso — base para endereçar subobjetos (usado pelo picking do `ObjectSelectorSystem` e pelo gizmo). **Nota**: o índice definitivo de subobjetos por id segue adiado (dupla posse e tipo impedem filhos em `m_3dInstances`; ver memória do projeto) — o paliativo é o `getNode` abaixo;
 - `get(id) → Asset*` — empréstimo (dono continua sendo a Scene). Se o id ainda está na fila, **bloqueia** na CV até ser instanciado; se não existe, `nullptr`;
 - `getNode(id) → Asset3dInstance<T>*` — busca por id em **toda a hierarquia** (raízes e filhos com `deepIds`). Retorna o tipo **base** dos nós (filhos, ex.: meshes, não são `Asset`). Fast-path no mapa + DFS linear O(nós) — paliativo até o índice. Ao contrário de `get()`, **não bloqueia**: ids de filhos só nascem no `instantiate()`, então id desconhecido → `nullptr`;
 - `find(predicate) → vector<Asset*>` — filtro sobre as instâncias vivas;
@@ -369,9 +372,13 @@ Sistema de editor agnóstico (overlay de wireframe), parametrizado por `MeshAsse
 
 Sistema de editor agnóstico de **picking por raio**, no mesmo molde do `WireframeSystem` (deriva de `SceneScopeSystem`, liga-se à cena via `attachTo`), **header-only** — toda a lógica é GLM sobre os contratos do core: meshes são detectados por `isMesh()` + `dynamic_cast` para a classe **pai** `MeshAsset3dInstance<TransformType>` (cujos virtuais `getVertex()/getIndex()/getBoundingBox()` fornecem a geometria), então qualquer subclasse de mesh é selecionável sem reinstanciar o template. Não implementa nenhum hook hoje (serviço passivo de consulta); derivar de `SceneScopeSystem` o mantém plugável no ciclo do frame. `SceneType` segue o idioma do `SceneRenderer<SceneType>` (Scene é template sem base comum); `TransformType` existe porque `Asset3dInstance` também é template — quando a `Scene` exportar aliases (§4.9), pode colapsar para um parâmetro só. A subclasse `FilamentObjectSelectorSystem` (`include/filament/editor/FilamentObjectSelectorSystem.h`, header-only) apenas fixa `<FilamentScene, FilamentAsset3dTransform>` — não adiciona lógica nem toca recursos Filament.
 
-API: `setCamera(CameraAsset3dInstance*)` (nó de cena da câmera — posição e view vêm da world matrix do nó, **nunca** da view do renderer; só a projeção usa o contrato agnóstico `getProjectionMatrix()`); `getCameraPosition()`; `getCameraRay(pixel, viewportSize, length)` (unprojection do pixel clicado — inverte viewport → NDC → clip → mundo via `inverse(proj * inverse(world))`, robusta às convenções de depth NO/ZO, direção escalada pelo alcance); `intersect(origin, ray)` — percorre as raízes vivas da cena (`Scene::find`, filtrando `isDeleted()` quando disponível) e a hierarquia de filhos recursivamente; para cada mesh, leva o segmento ao espaço local (direção não normalizada → t∈[0,1] válido mesmo com escala não uniforme), faz broad phase segmento×AABB (slab test sobre `getBoundingBox()`) e narrow phase **Möller–Trumbore** por triângulo; retorna o `getId()` do primeiro mesh atingido ou −1.
+API: `setCamera(CameraAsset3dInstance*)` (nó de cena da câmera — posição e view vêm da world matrix do nó, **nunca** da view do renderer; só a projeção usa o contrato agnóstico `getProjectionMatrix()`); `getCameraPosition()`; `getCameraRay(pixel, viewportSize, length)` (unprojection do pixel clicado — inverte viewport → NDC → clip → mundo via `inverse(proj * inverse(world))`, robusta às convenções de depth NO/ZO, direção escalada pelo alcance); e **duas sobrecargas de `intersect`**:
+- `intersect(origin, ray, coneHalfAngle)` — **broad phase por cone**: percorre as raízes vivas da cena (`Scene::find`, filtrando `isDeleted()`) e mantém só objetos cuja esfera envolvente (agregada dos meshes descendentes) cai dentro do cone de meio-ângulo `coneHalfAngle` em torno da direção do raio e ao alcance do segmento. O `coneHalfAngle` é calculado pelo chamador a partir do FOV da câmera (`CameraAsset3dInstance::getFieldOfViewInRadians()`).
+- `intersect(origin, ray, roots)` — pública, recebe um **conjunto de nós já escolhido** (sem broad phase); absorve toda a lógica posterior ao `find()`. Usada pelo gizmo, que a chama com as peças do overlay antes de cair no picking da cena principal (ver [rendering/filament.md §9](rendering/filament.md)).
 
-Limitações documentadas no header: retorna o primeiro hit na ordem de percurso (não o mais próximo); filhos criados sem `deepIds` têm id −1; `getUVS()` da implementação Filament ainda retorna vazio (decisão pendente).
+Ambas fazem, por mesh: leva o segmento ao espaço local (direção não normalizada → t∈[0,1] válido mesmo com escala não uniforme), broad phase segmento×AABB (slab test sobre `getBoundingBox()`) e narrow phase **Möller–Trumbore** por triângulo; varrem TODOS os candidatos e retornam o `getId()` do mesh de **menor t** (mais próximo da origem), ou −1.
+
+Limitações documentadas no header: escolhe o hit de **menor t** (mais próximo — implementado 2026-07-20); ainda **sem backface culling** (faces de costas contam como hit); filhos criados sem `deepIds` têm id −1; `getUVS()` da implementação Filament ainda retorna vazio (decisão pendente).
 
 ### 4.13 `IBL` — `include/core/lightning/IBL.h`
 
@@ -382,6 +389,16 @@ Interface mínima de iluminação por imagem: `virtual bool load(const std::stri
 Fábrica estática de transforms por especialização de template: o core declara `static TransformType build()` **sem corpo genérico** e cada módulo concreto fornece a especialização (`TransformUtils<FilamentAsset3dTransform>::build()` em `filament/utils/FilamentTransformUtils.cpp`). É como a `main` constrói transforms sem saber o tipo concreto por trás.
 
 **Armadilha**: `buildWithPosition/Rotation/Scale/build(p,r,s)` existem mas **ignoram os argumentos** (retornam `build()` puro) — não implementados.
+
+### 4.15 `GizmoSystem<SceneType, TransformType>` — `include/editor/GizmoSystem.h`
+
+Sistema de editor do **gizmo de transformação** (mover/rotacionar/escalar), agnóstico, derivado de `SceneScopeSystem`. Ao contrário dos outros systems, **é dono de uma cena de overlay** (cena + view separadas, composta por cima da cena 3D) — por isso o gizmo nunca é ocluído pela geometria e fica fora do picking da cena principal. A base cuida do ciclo e da matemática (tudo GLM); a implementação concreta (`FilamentGizmoSystem`, [rendering/filament.md §9](rendering/filament.md)) fornece **6 virtuais**: `initializeOverlay()`, `createRoot()`, `createPart(data, materials)`, `updateOverlay(dt)`, `renderOverlay()`, `attachPartToRoot(id)`.
+
+- **Composição**: 9 peças (um `GizmoPart` = `Asset3dData` + materiais, por eixo × modo — enum `GizmoAction` MOVE/ROTATE/SCALE × X/Y/Z), entregues no construtor (`GizmoParts`, move-only). A base cria a cena de overlay e um **root** (nó dono do sistema) no primeiro `onFrameBegin`, enfileira as 9 peças e as prende ao root. Funções livres no namespace: `toString(GizmoAction)`, `operator<<`, `axisOf(GizmoAction)` (eixo de mundo unitário).
+- **Ciclo**: `onFrameBegin` (fora do frame GPU) instancia e mede; `postRenderScene` (dentro do frame) desenha o overlay. Instanciar fora do frame é **obrigatório** (o commit das MaterialInstance do Filament acontece no `beginFrame`).
+- **Picking dos eixos**: `intersectGizmo(camPos, ray, coneHalfAngle) → optional<GizmoAction>`. Possui um `ObjectSelectorSystem` interno atado à cena de overlay; o id da folha (mesh) atingida é casado **direto** num mapa `id→GizmoAction` (`m_meshToAction`, construído após a instanciação) — sem subir a hierarquia, então é imune à estrutura da árvore.
+- **Escala em tela**: `calcGizmoScaleFactor(size)` — altura de mundo para o gizmo ocupar a fração `size` da viewport (escala linear pela distância câmera↔root; câmera injetada por `setCamera`, agnóstica).
+- **Drag**: `dragDistanceOnAxis(axis, camPos, ray, objPos)` — deslocamento assinado ao longo do eixo pelo algoritmo do ponto mais próximo entre duas retas (raio × eixo infinito). Retorno **absoluto** (o chamador guarda o valor do mouse-down como grab offset).
 
 ## 5. UI abstrata — `include/core/ui/`
 

@@ -18,19 +18,22 @@ public:
     ~FilamentAsset3dTransform() override = default;
 
     // Position
-    void setPosition(const glm::vec3& position) override;
-    glm::vec3 getPosition() override;
+    void setPosition(const glm::vec3& position, bool isWorldSpace = false) override;
+    glm::vec3 getPosition(bool isWorldSpace = false) override;
 
     // Rotation
-    void setRotation(const glm::quat& rotation) override;
-    glm::quat getRotation() override;
+    void setRotation(const glm::quat& rotation, bool isWorldSpace = false) override;
+    glm::quat getRotation(bool isWorldSpace = false) override;
 
     // Scale
-    void setScale(const glm::vec3& scale) override;
-    glm::vec3 getScale() override;
+    void setScale(const glm::vec3& scale, bool isWorldSpace = false) override;
+    glm::vec3 getScale(bool isWorldSpace = false) override;
 
     // Matrix
     void setLocalMatrix(const glm::mat4& matrix) override;
+    //TODO: FAZER VIRTUAL NO PAI?
+    void setWorldMatrix(const glm::mat4& matrix);
+
     glm::mat4 getLocalMatrix() override;
     glm::mat4 getWorldMatrix() override;
 
@@ -49,7 +52,8 @@ private:
     void modifyComponent(
         const glm::vec3* newPosition,
         const glm::quat* newRotation,
-        const glm::vec3* newScale
+        const glm::vec3* newScale,
+        const bool isWorldSpace
     );
 
     void assertEntity()

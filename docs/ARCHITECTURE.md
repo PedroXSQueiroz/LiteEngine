@@ -27,7 +27,7 @@ LiteEngine é uma game engine em **C++20** cujo princípio central é a **modula
 | Animação (planejado) | ozz-animation | `3rd_party/ozz-animation` (não integrado) | — |
 | JSON | nlohmann/json | ponte CEF↔C++ | [ui/cef.md](ui/cef.md) |
 
-**Estado do projeto**: o processo de abstração/modularização está **em andamento**. A `main.cpp` ainda é um sandbox que carrega um IBL e um modelo 3D hardcoded; a intenção declarada é mover tudo para trás de facades e interfaces.
+**Estado do projeto**: o processo de abstração/modularização está **em andamento**. A `main.cpp` ainda é um sandbox que carrega um IBL e um modelo 3D hardcoded; a intenção declarada é mover tudo para trás de facades e interfaces. Já validados em runtime: cena + UI + wireframe, **picking por clique** (`ObjectSelectorSystem`) e o **gizmo de transformação** (`GizmoSystem` — render em overlay, picking dos eixos e drag de translação; escala em tela e os 3 modos ainda em refino). Input ainda é SDL inline na main (planejado virar módulo agnóstico no molde da UI).
 
 ## 2. Estrutura de diretórios
 
@@ -39,7 +39,7 @@ LiteEngine/
 │   ├── filament/             # Headers das implementações Filament
 │   ├── CEF/                  # Headers das implementações CEF
 │   ├── assimp/               # Header do AssimpImporter
-│   └── editor/               # Sistemas de editor agnósticos (WireframeSystem, ObjectSelectorSystem)
+│   └── editor/               # Sistemas de editor agnósticos (WireframeSystem, ObjectSelectorSystem, GizmoSystem)
 ├── core/src/                 # .cpp da camada core + main.cpp
 ├── filament/                 # .cpp das implementações Filament
 ├── CEF/                      # .cpp das implementações CEF + frontend web

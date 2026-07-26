@@ -4,12 +4,12 @@
 
 namespace lite {
 
-void Asset3dTransform::setEulerAngles(const glm::vec3& eulerDegrees) {
-    setRotation(glm::quat(glm::radians(eulerDegrees)));
+void Asset3dTransform::setEulerAngles(const glm::vec3& eulerDegrees, bool isWorldSpace) {
+    setRotation(glm::quat(glm::radians(eulerDegrees)), isWorldSpace);
 }
 
-glm::vec3 Asset3dTransform::getEulerAngles() {
-    return glm::degrees(glm::eulerAngles(getRotation()));
+glm::vec3 Asset3dTransform::getEulerAngles(bool isWorldSpace) {
+    return glm::degrees(glm::eulerAngles(getRotation(isWorldSpace)));
 }
 
 } // namespace lite
