@@ -100,7 +100,7 @@ Acessores Filament-specific (`getFilamentRenderer/Scene/View`) existem para os p
 - `getWorldMatrix()` percorre os pais no TransformManager.
 - **Armadilha**: qualquer operação sem entity ligada lança `const char*` (`assertEntity`) — não é `std::exception`.
 
-Contrato implementado (tudo de `Asset3dTransform`): `setPosition/getPosition`, `setRotation/getRotation` (quat), `setScale/getScale`, `setLocalMatrix/getLocalMatrix/getWorldMatrix` (herda os Euler default da base).
+Contrato implementado (tudo de `Asset3dTransform`): `setPosition/getPosition`, `setRotation/getRotation` (quat), `setScale/getScale`, `setLocalMatrix/getLocalMatrix/getWorldMatrix` (herda os Euler default da base). Desde 2026-07-25 os acessores de componente (`setPosition/getPosition/setRotation/getRotation/setScale/getScale` + os Euler) recebem um flag `bool isWorldSpace = false` (default = local, preserva os chamadores antigos), e a impl concreta ganhou `setWorldMatrix(mat4)` — ambos **em implementação (WIP)**, ver §4.3.
 
 ### 4.1 Propagação: mexer num nó move a subárvore inteira
 
@@ -151,10 +151,30 @@ Quem precisa preservar a matriz exata (ou evitar o decompose de vez) deve usar `
 
 ### 4.3 Local × world: só a raiz pode tratar os dois como iguais
 
-Todos os setters do contrato são **locais** (relativos ao pai). O `getPosition()` devolve `m[3]` da **matriz local**, e o único acesso a world é o `getWorldMatrix()` — **não existe setter em world**.
+Historicamente todos os setters eram **locais** (relativos ao pai): `getPosition()` devolve `m[3]` da **matriz local** e o único acesso a world era `getWorldMatrix()`. Isso incomoda em **sub-nós** (o que o picking devolve com `deepIds=true`), onde local ≠ world:
 
 - **Raiz de asset** (criada com `transformManager.create(rootEntity)`, sem pai): local == world. Escrever `setPosition(p)` põe o nó em `p` no mundo.
-- **Sub-nó** (mesh ou intermediário, que é o que o picking devolve quando o asset foi criado com `deepIds`): local ≠ world. Para aplicar um deslocamento `delta` calculado em world é preciso levá-lo para o espaço do pai antes:
+- **Sub-nó** (mesh ou intermediário): local ≠ world. O caso concreto que expôs a lacuna é o **posicionamento do gizmo**: `ObjectSelectorSystem::getSelectionMedianPoint()` soma `getPosition()` (local) dos selecionados, então o gizmo fica preso em 0,0,0 mesmo com o objeto já deslocado.
+
+**A Filament não tem setter em world.** `TransformManager::setTransform` grava **sempre** a matriz local (relativa ao pai); o world (`getWorldTransform`) é derivado/somente-leitura. Logo, escrever em world **obriga a converter para local** e gravar via `setTransform`:
+
+```cpp
+// local = inverse(parentWorld) · world
+utils::Entity parent = transformManager.getParent(instance);   // null entity se raiz
+if (!parent.isNull()) {
+    const glm::mat4 parentWorld = /* getWorldTransform(getInstance(parent)) → glm via memcpy */;
+    local = glm::inverse(parentWorld) * world;
+}                                                              // raiz: local == world
+```
+
+**Contrato novo (decisão de 2026-07-25, WIP).** Em vez de métodos world separados, os acessores de componente do contrato base ganharam um flag `bool isWorldSpace = false` (default = local), e a impl concreta `FilamentAsset3dTransform` ganhou `setWorldMatrix(mat4)` (só no concreto; header tem TODO `FAZER VIRTUAL NO PAI?` para promover à base). A ideia é `setPosition(p, /*isWorldSpace=*/true)` posicionar em mundo sem o chamador fazer a conversão à mão.
+
+> ⚠️ **Estado em 2026-07-25 — em implementação, NÃO funcional ainda:**
+> 1. `setWorldMatrix` está idêntico ao `setLocalMatrix` (memcpy + `setTransform`, **sem a conversão** acima);
+> 2. `modifyComponent` ganhou o param `isWorldSpace` mas tem um `if(isWorldSpace)` **sem corpo** — o `setLocalMatrix(result)` roda sempre e, com `isWorldSpace==true`, grava em local uma matriz recomposta em mundo;
+> 3. `setPosition/setRotation/setScale` **não repassam** o flag ao `modifyComponent` (e, como o 4º param não tem default, **não compila** como está).
+
+Enquanto o flag não fecha, o contorno no chamador continua sendo levar o `delta` (calculado em world) para o espaço do pai antes de escrever:
 
 ```cpp
 const glm::mat4 parentWorld = node->parent->getWorldMatrix();
@@ -162,9 +182,23 @@ const glm::vec3 deltaLocal  = glm::vec3(glm::inverse(parentWorld) * glm::vec4(de
 node->getTransform()->setPosition(node->getTransform()->getPosition() + deltaLocal);
 ```
 
-(`vec4(delta, 0)` porque é direção, não ponto.) Não há helper para isso hoje.
+(`vec4(delta, 0)` porque é direção, não ponto.) **Ponto de design em aberto:** `setScale`/rotação em world são mal definidos sob escala não-uniforme/rotação nos ancestrais — talvez só posição (e rotação) valham a pena.
 
-## 5. Instâncias: `FilamentAsset3dInstance` / `FilamentMeshAsset3dInstance` / `FilamentCameraAsset3dInstance`
+### 4.4 Aplicar rotação: o quatérnion tem que ser unitário
+
+`setRotation(quat)` espera um quatérnion **unitário** (`|q| = 1`). Um quatérnion não unitário **vaza escala**: `glm::mat4_cast` não normaliza, então gera a rotação **multiplicada por `|q|²`** — o `modifyComponent` recompõe `T·R·S` com essa matriz e o objeto aparece escalado (estica/some), dando a falsa impressão de que `setRotation` mexeu na escala.
+
+**Erro comum a evitar:** tratar o quatérnion como Euler e somar ângulos aos componentes (`q.x += θ`). Os componentes de `q` são `eixo·sin(θ/2)`, não ângulos por eixo — somar quebra a norma.
+
+**Forma correta** — montar o delta com `angleAxis` (já unitário) e compor por multiplicação:
+
+```cpp
+glm::quat delta   = glm::angleAxis(glm::radians(anguloEmGraus), eixoUnitario); // angleAxis usa RADIANOS
+glm::quat rotated = delta * transform->getRotation(true);   // delta * inicial = gira em world
+transform->setRotation(rotated, true);
+```
+
+Ordem da multiplicação: `delta * inicial` aplica o giro no **espaço de mundo**; `inicial * delta`, no espaço **local** do objeto. `FilamentAsset3dInstance` / `FilamentMeshAsset3dInstance` / `FilamentCameraAsset3dInstance`
 
 ### `FilamentAsset3dInstance` — implementa `Asset3dInstance<FilamentAsset3dTransform>`
 Nó raiz ou intermediário. Além do contrato do core:

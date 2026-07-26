@@ -525,11 +525,24 @@ int main(int argc, char** argv){
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
     
+    /*---------------------------------------------------------------------------*/
+    //GIZMO VALUES
+    /*---------------------------------------------------------------------------*/
+
     std::optional<GizmoAction> gizmoAction = std::nullopt;
-    glm::vec3 startDraggingLocation = glm::vec3(0, 0, 0);
+    
+    glm::vec3 startDraggingGizmoLocation = glm::vec3(0, 0, 0);
     float startingDraggingDistance = 0;
     glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
+
+    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
+    float startingTurningAngle = 0;
+    
     glm::vec2 lastMousePosition = glm::vec2(0, 0);
+
+    /*---------------------------------------------------------------------------*/
+    //END || GIZMO VALUES
+    /*---------------------------------------------------------------------------*/
 
     while (running) {
         SDL_Event ev;
@@ -715,14 +728,28 @@ int main(int argc, char** argv){
     
                     if(gizmoAction.has_value())
                     {
-                        startDraggingLocation = gizmoSystem->getGizmoTransform()->getPosition();
-                        startingDraggingDistance = gizmoSystem->dragDistanceOnAxis(
-                                                                    axisOf(gizmoAction.value())
-                                                                    ,   currentCamLocation
-                                                                    ,   cameraRayDirection
-                                                                    ,   startDraggingLocation
-                                                                );
+                        GizmoAction currentGizmoAction = gizmoAction.value();
+                        
+                        startDraggingGizmoLocation = gizmoSystem->getGizmoTransform()->getPosition();
+                        
+                        startingDraggingDistance = gizmoSystem->getDistanceOnAxis(
+                                axisOf(gizmoAction.value())
+                            ,   currentCamLocation
+                            ,   cameraRayDirection
+                            ,   startDraggingGizmoLocation
+                        );
                         startingDragginObjectLocation = assetPtr->getTransform()->getPosition();
+                        
+                        startingTurningAngle = gizmoSystem->getAngleOnAxisOnDegrees(
+                                axisOf(gizmoAction.value())
+                            ,   currentCamLocation
+                            ,   cameraRayDirection
+                            ,   startDraggingGizmoLocation
+                        );
+                        
+                        startingTurningObjectRotation = assetPtr->getTransform()->getRotation();
+
+                
                     }
                 }
     
@@ -798,35 +825,75 @@ int main(int argc, char** argv){
 
         if(gizmoAction.has_value())
         {
-            float draggingDistance =
-            gizmoSystem->dragDistanceOnAxis(
-                axisOf(gizmoAction.value())
-                ,   currentCamLocation
-                ,   cameraRayDirection
-                ,   startDraggingLocation
-            ) - startingDraggingDistance;
-
-            glm::vec3 dealocated = glm::vec3(
-                startingDragginObjectLocation.x,
-                startingDragginObjectLocation.y,
-                startingDragginObjectLocation.z
-            );
-
-            switch(gizmoAction.value()){
-                case GizmoAction::MOVE_X:{
-                    dealocated.x += draggingDistance;
-                }break;
-                case GizmoAction::MOVE_Y:{
-                    dealocated.y += draggingDistance;
-                }break;
-                case GizmoAction::MOVE_Z:{
-                    dealocated.z += draggingDistance;
-                }break;
+            
+            if( gizmoAction == GizmoAction::MOVE_X || 
+                gizmoAction == GizmoAction::MOVE_Y || 
+                gizmoAction == GizmoAction::MOVE_Z)
+            {
+                float draggingDistance =
+                gizmoSystem->getDistanceOnAxis(
+                    axisOf(gizmoAction.value())
+                    ,   currentCamLocation
+                    ,   cameraRayDirection
+                    ,   startDraggingGizmoLocation
+                ) - startingDraggingDistance;
+                
+                glm::vec3 dealocated = glm::vec3(
+                    startingDragginObjectLocation.x,
+                    startingDragginObjectLocation.y,
+                    startingDragginObjectLocation.z
+                );
+    
+                switch(gizmoAction.value()){
+                    case GizmoAction::MOVE_X:{
+                        dealocated.x += draggingDistance;
+                    }break;
+                    case GizmoAction::MOVE_Y:{
+                        dealocated.y += draggingDistance;
+                    }break;
+                    case GizmoAction::MOVE_Z:{
+                        dealocated.z += draggingDistance;
+                    }break;
+                }
+                
+                assetPtr->getTransform()->setPosition(dealocated);
+                
+                std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
             }
-            
-            assetPtr->getTransform()->setPosition(dealocated);
-            
-            std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
+            else if(
+                gizmoAction == GizmoAction::ROTATE_X || 
+                gizmoAction == GizmoAction::ROTATE_Y || 
+                gizmoAction == GizmoAction::ROTATE_Z
+            )
+            {
+                float turningAngle =
+                gizmoSystem->getAngleOnAxisOnDegrees(
+                        axisOf(gizmoAction.value())
+                    ,   currentCamLocation
+                    ,   cameraRayDirection
+                    ,   startDraggingGizmoLocation
+                ) - startingTurningAngle;
+
+                // NaN = ângulo inválido (raio paralelo ao plano / cursor no
+                // centro) — pula o frame para não propagar NaN à rotação.
+                if (!std::isnan(turningAngle))
+                {
+                    // NÃO somar o ângulo a componentes do quatérnion: quatérnion
+                    // não é (θx, θy, θz). Monta-se o DELTA de rotação com
+                    // angleAxis (quatérnion unitário) e compõe-se com a rotação
+                    // inicial. Somar graus a q.x/y/z produz um quatérnion NÃO
+                    // unitário → mat4_cast o interpreta como rotação * |q|² →
+                    // vira escala (estica e some). Ver memória do projeto.
+                    glm::quat delta = glm::angleAxis(
+                        glm::radians(turningAngle), axisOf(gizmoAction.value()));
+                    glm::quat rotated = delta * startingTurningObjectRotation;
+
+                    assetPtr->getTransform()->setRotation(rotated, true); // world-space
+
+                    std::cout << std::format("Rotating gizmo: {} angle: {}", toString(gizmoAction.value()), turningAngle) << std::endl;
+                }
+            }
+
         }
     }
 

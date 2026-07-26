@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -260,9 +261,9 @@ public:
     // que calcular: eixo ou raio nulos, ou câmera olhando quase ao longo do
     // eixo (a solução explode; editores ignoram o update nesse caso, e o handle
     // está quase invisível de qualquer forma).
-    float dragDistanceOnAxis(
+    float getDistanceOnAxis(
         const glm::vec3& axisDirection,
-        const glm::vec3& cameraPosition,
+        const glm::vec3& startPosition,
         const glm::vec3& rayDirection,
         const glm::vec3& objectPosition
     ) const {
@@ -278,7 +279,7 @@ public:
         const glm::vec3 ray = rayDirection / rayLength;
 
         // w0 = origem do raio relativa à origem do eixo
-        const glm::vec3 w0 = cameraPosition - objectPosition;
+        const glm::vec3 w0 = startPosition - objectPosition;
         const float b = glm::dot(ray, axis);
         const float d = glm::dot(ray, w0);
         const float e = glm::dot(axis, w0);
@@ -288,6 +289,66 @@ public:
         if (std::abs(denom) < parallelEps) return 0.0f;
 
         return (e - b * d) / denom;
+    }
+
+    // Ângulo (em GRAUS) do cursor em torno do eixo de rotação — o análogo
+    // rotacional de getDistanceOnAxis. O eixo de rotação passa por
+    // objectPosition (centro = posição do gizmo/objeto); o cursor é projetado no
+    // PLANO que passa por objectPosition com normal = eixo (interseção do raio
+    // com esse plano), e o ângulo é medido nesse plano.
+    //
+    // Mesmo molde de getDistanceOnAxis: STATELESS e ABSOLUTO. Retorna o ângulo
+    // bruto em (-180, 180]. O chamador guarda o valor do mouse-down (grab
+    // offset) e aplica a diferença — e, para giro CONTÍNUO além de ±180°, precisa
+    // DESENROLAR por conta própria (acumular, entre frames, o menor delta e
+    // somar): stateless, este método não consegue detectar a volta sozinho.
+    //
+    // Retorna NaN quando não há ângulo válido (o análogo do "return 0" do drag,
+    // mas 0° é ângulo legítimo, então usa-se NaN): eixo/raio nulos, cursor sobre
+    // o centro, ou raio quase PARALELO ao plano (olhando o anel "de lado" — a
+    // degeneração da rotação). O chamador deve checar std::isnan e pular o frame.
+    float getAngleOnAxisOnDegrees(
+        const glm::vec3& axisDirection,
+        const glm::vec3& startPosition,
+        const glm::vec3& rayDirection,
+        const glm::vec3& objectPosition
+    ) const {
+        constexpr float eps = 1e-8f;
+        constexpr float parallelEps = 1e-4f;   // |cos(ângulo raio×plano)| mínimo
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+
+        const float axisLength = glm::length(axisDirection);
+        if (axisLength < eps) return nan;
+        const glm::vec3 axis = axisDirection / axisLength;
+
+        const float rayLength = glm::length(rayDirection);
+        if (rayLength < eps) return nan;
+        const glm::vec3 ray = rayDirection / rayLength;
+
+        // Interseção raio × plano (normal = axis, passando por objectPosition).
+        // denom = cos do ângulo entre o raio e a normal; ~0 = raio paralelo ao
+        // plano (anel visto de lado) → sem interseção estável.
+        const float denom = glm::dot(ray, axis);
+        if (std::abs(denom) < parallelEps) return nan;
+
+        const float t = glm::dot(objectPosition - startPosition, axis) / denom;
+        const glm::vec3 hit = startPosition + t * ray;
+        const glm::vec3 v = hit - objectPosition;   // vetor no plano, do centro ao cursor
+        if (glm::length(v) < eps) return nan;
+
+        // Frame de referência no plano: u, w perpendiculares a axis e entre si.
+        // Escolhe o eixo de mundo MENOS alinhado com axis para o cross não
+        // degenerar. O zero-referência do ângulo é arbitrário (só o delta
+        // importa), então qualquer frame consistente serve.
+        const float ax = std::abs(axis.x), ay = std::abs(axis.y), az = std::abs(axis.z);
+        const glm::vec3 world =
+            (ax <= ay && ax <= az) ? glm::vec3(1, 0, 0)
+          : (ay <= az)             ? glm::vec3(0, 1, 0)
+          :                          glm::vec3(0, 0, 1);
+        const glm::vec3 u = glm::normalize(glm::cross(axis, world));
+        const glm::vec3 w = glm::cross(axis, u);    // unitário (axis, u unitários e ⟂)
+
+        return glm::degrees(std::atan2(glm::dot(v, w), glm::dot(v, u)));
     }
 
     TransformType* getGizmoTransform(){

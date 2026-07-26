@@ -218,11 +218,13 @@ Interface pura de transform, 100% GLM. Contrato:
 
 | Método | Assinatura | Obrigatório |
 |---|---|---|
-| Posição | `setPosition(vec3)` / `getPosition()` | puro |
-| Rotação | `setRotation(quat)` / `getRotation()` | puro |
-| Escala | `setScale(vec3)` / `getScale()` | puro |
-| Euler | `setEulerAngles(vec3 graus)` / `getEulerAngles()` | virtual com default (converte via quat) — impl. em `core/src/data/assets/Asset3dTransform.cpp` |
+| Posição | `setPosition(vec3, bool isWorldSpace=false)` / `getPosition(bool isWorldSpace=false)` | puro |
+| Rotação | `setRotation(quat, bool isWorldSpace=false)` / `getRotation(bool isWorldSpace=false)` | puro |
+| Escala | `setScale(vec3, bool isWorldSpace=false)` / `getScale(bool isWorldSpace=false)` | puro |
+| Euler | `setEulerAngles(vec3 graus, bool isWorldSpace=false)` / `getEulerAngles(bool isWorldSpace=false)` | virtual com default (converte via quat) — impl. em `core/src/data/assets/Asset3dTransform.cpp` |
 | Matrizes | `setLocalMatrix(mat4)` / `getLocalMatrix()` / `getWorldMatrix()` | puro |
+
+O flag `isWorldSpace` (default `false` = local, adicionado em 2026-07-25) permite ler/escrever em espaço de mundo; a impl Filament ainda tem essa via **em implementação (WIP)** — ver [rendering/filament.md §4.3](rendering/filament.md). `setWorldMatrix` existe **só na impl concreta** `FilamentAsset3dTransform` (ainda não no contrato base).
 
 Note que a interface **não** define hierarquia — parent/child é responsabilidade do `Asset3dInstance` (e, no Filament, do `TransformManager` por baixo).
 
