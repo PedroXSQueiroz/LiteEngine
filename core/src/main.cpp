@@ -934,7 +934,7 @@ int main(int argc, char** argv){
 
                 assetPtr->getTransform()->setScale(scaled);
 
-                std::cout << std::format("Scalcing gizmo: {} distance: {}", toString(gizmoAction.value()), scalingDistance) << std::endl;
+                std::cout << std::format("Scaling gizmo: {} distance: {}", toString(gizmoAction.value()), scalingDistance) << std::endl;
             }
 
         }
