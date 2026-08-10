@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -20,7 +21,7 @@ public:
     virtual bool import(
         const std::string& filePath,
         Asset3dData& rootNode,
-        std::vector<MaterialData>& materials
+        std::vector<std::unique_ptr<MaterialData>>& materials
     ) = 0;
 
     // Check if this mporter can handle the given file extension

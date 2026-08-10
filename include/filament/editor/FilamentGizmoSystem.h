@@ -52,7 +52,7 @@ protected:
     bool initializeOverlay() override;
     std::unique_ptr<MeshAsset3dInstance<FilamentAsset3dTransform>> createRoot() override;
     int  createPart(const Asset3dData& data,
-                    const std::vector<MaterialData>& materials) override;
+                    const std::vector<std::unique_ptr<MaterialData>>& materials) override;
     void updateOverlay(float deltaTime) override;
     void renderOverlay() override;
     void attachPartToRoot(int partId) override;

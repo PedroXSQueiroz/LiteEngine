@@ -82,7 +82,7 @@ void FilamentInstanceFactory::flushDeletedFilament3dAssets()
 std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiateAsset(
     const Asset3dData& rootNode,
     FilamentAsset3dTransform rootTransform,
-    const std::vector<MaterialData>& materials
+    const std::vector<std::unique_ptr<MaterialData>>& materials
 ) {
     if (!m_baseMaterial) {
         std::cerr << "FilamentInstanceFactory: No base material available" << std::endl;
@@ -103,8 +103,9 @@ std::unique_ptr<FilamentAsset3dInstance> FilamentInstanceFactory::instantiateAss
     // Create material instances and build lookup map by name
     std::unordered_map<std::string, filament::MaterialInstance*> materialMap;
     for (const auto& matData : materials) {
-        filament::MaterialInstance* matInstance = createMaterialInstance(matData);
-        materialMap[matData.name] = matInstance;
+        if (!matData) continue;
+        filament::MaterialInstance* matInstance = createMaterialInstance(*matData);
+        materialMap[matData->name] = matInstance;
         instance->materialInstances.push_back(matInstance);
     }
 
@@ -505,6 +506,16 @@ filament::MaterialInstance* FilamentInstanceFactory::createMaterialInstance(cons
 
     filament::MaterialInstance* instance = m_baseMaterial->createInstance();
 
+    // O material base é o lit.filamat (MPBR lit): só um MPBRLitMaterialData tem
+    // parâmetros para preencher aqui. Qualquer outro modelo sai com os defaults
+    // do .filamat, até existir um material próprio para ele.
+    const auto* pbrData = dynamic_cast<const MPBRLitMaterialData*>(&matData);
+    if (!pbrData) {
+        std::cerr << "FilamentInstanceFactory: material '" << matData.name
+                  << "' is not MPBRLit, using base material defaults" << std::endl;
+        return instance;
+    }
+
     filament::TextureSampler sampler(
         filament::TextureSampler::MinFilter::LINEAR_MIPMAP_LINEAR,
         filament::TextureSampler::MagFilter::LINEAR,
@@ -512,44 +523,44 @@ filament::MaterialInstance* FilamentInstanceFactory::createMaterialInstance(cons
     );
 
     // Base color
-    instance->setParameter("baseColorFactor", toFilament(matData.baseColorFactor));
-    if (matData.baseColorTexture.has_value()) {
-        filament::Texture* tex = loadTexture(matData.baseColorTexture.value());
+    instance->setParameter("baseColorFactor", toFilament(pbrData->baseColorFactor));
+    if (pbrData->baseColorTexture.has_value()) {
+        filament::Texture* tex = loadTexture(pbrData->baseColorTexture.value());
         if (tex) {
             instance->setParameter("baseColorMap", tex, sampler);
         }
     }
 
     // Metallic/Roughness
-    instance->setParameter("metallicFactor", matData.metallicFactor);
-    instance->setParameter("roughnessFactor", matData.roughnessFactor);
-    if (matData.metallicRoughnessTexture.has_value()) {
-        filament::Texture* tex = loadTexture(matData.metallicRoughnessTexture.value());
+    instance->setParameter("metallicFactor", pbrData->metallicFactor);
+    instance->setParameter("roughnessFactor", pbrData->roughnessFactor);
+    if (pbrData->metallicRoughnessTexture.has_value()) {
+        filament::Texture* tex = loadTexture(pbrData->metallicRoughnessTexture.value());
         if (tex) {
             instance->setParameter("metallicRoughnessMap", tex, sampler);
         }
     }
 
     // Normal
-    if (matData.normalTexture.has_value()) {
-        filament::Texture* tex = loadTexture(matData.normalTexture.value());
+    if (pbrData->normalTexture.has_value()) {
+        filament::Texture* tex = loadTexture(pbrData->normalTexture.value());
         if (tex) {
             instance->setParameter("normalMap", tex, sampler);
         }
     }
 
     // Occlusion
-    if (matData.occlusionTexture.has_value()) {
-        filament::Texture* tex = loadTexture(matData.occlusionTexture.value());
+    if (pbrData->occlusionTexture.has_value()) {
+        filament::Texture* tex = loadTexture(pbrData->occlusionTexture.value());
         if (tex) {
             instance->setParameter("occlusionMap", tex, sampler);
         }
     }
 
     // Emissive
-    instance->setParameter("emissiveFactor", toFilament(matData.emissiveFactor));
-    if (matData.emissiveTexture.has_value()) {
-        filament::Texture* tex = loadTexture(matData.emissiveTexture.value());
+    instance->setParameter("emissiveFactor", toFilament(pbrData->emissiveFactor));
+    if (pbrData->emissiveTexture.has_value()) {
+        filament::Texture* tex = loadTexture(pbrData->emissiveTexture.value());
         if (tex) {
             instance->setParameter("emissiveMap", tex, sampler);
         }

@@ -111,7 +111,7 @@ std::unique_ptr<MeshAsset3dInstance<FilamentAsset3dTransform>> FilamentGizmoSyst
 }
 
 int FilamentGizmoSystem::createPart(const Asset3dData& data,
-                                    const std::vector<MaterialData>& materials) {
+                                    const std::vector<std::unique_ptr<MaterialData>>& materials) {
     if (!m_gizmoScene) return -1;
 
     return m_gizmoScene->create(

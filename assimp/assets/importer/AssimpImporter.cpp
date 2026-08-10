@@ -18,7 +18,7 @@ static size_t countMeshes(const Asset3dData& node) {
 bool AssimpImporter::import(
     const std::string& filePath,
     Asset3dData& rootNode,
-    std::vector<MaterialData>& materials
+    std::vector<std::unique_ptr<MaterialData>>& materials
 ) {
     const aiScene* scene = m_importer.ReadFile(filePath,
         aiProcess_Triangulate |
@@ -183,11 +183,13 @@ void AssimpImporter::populateMeshData(MeshAsset3dData* meshNode, const aiMesh* m
     meshNode->radius = glm::length(boundsMax - boundsMin) * 0.5f;
 }
 
-MaterialData AssimpImporter::processMaterial(
+std::unique_ptr<MaterialData> AssimpImporter::processMaterial(
     const aiMaterial* material,
     const std::string& baseDirectory
 ) {
-    MaterialData matData;
+    // O Assimp só entrega parâmetros PBR metallic-roughness: todo material
+    // importado é um MPBRLitMaterialData.
+    MPBRLitMaterialData matData;
 
     // Get material name
     aiString matName;
@@ -281,7 +283,7 @@ MaterialData AssimpImporter::processMaterial(
         matData.emissiveTexture = texInfo;
     }
 
-    return matData;
+    return std::make_unique<MPBRLitMaterialData>(std::move(matData));
 }
 
 std::string AssimpImporter::getTexturePath(

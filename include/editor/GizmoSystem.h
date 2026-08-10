@@ -27,7 +27,7 @@ namespace lite {
 // carrega o ponteiro e a posse.
 struct GizmoPart {
     std::unique_ptr<Asset3dData> data;
-    std::vector<MaterialData> materials;
+    std::vector<std::unique_ptr<MaterialData>> materials;
 };
 
 // Os 9 modelos que compõem o gizmo — um por eixo de cada modo. Importados pela
@@ -424,7 +424,7 @@ protected:
 
     // Enfileira a criação de uma peça na cena de overlay; retorna o id.
     virtual int createPart(const Asset3dData& data,
-                           const std::vector<MaterialData>& materials) = 0;
+                           const std::vector<std::unique_ptr<MaterialData>>& materials) = 0;
 
     // Roda o ciclo da cena de overlay (instanciar, systems, flush) FORA do frame.
     virtual void updateOverlay(float deltaTime) = 0;

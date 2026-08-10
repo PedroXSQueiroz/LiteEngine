@@ -39,9 +39,18 @@ namespace lite
         // (mesmo espaço de numeração da raiz), permitindo endereçar subobjetos
         // (picking, seleção). Default false — atribuição profunda tem custo por
         // nó e em gameplay normalmente só a raiz importa.
-        int create(const Asset3dData& data, const std::vector<MaterialData>& materials, TransformType transform, bool deepIds = false) {
+        int create(const Asset3dData& data, const std::vector<std::unique_ptr<MaterialData>>& materials, TransformType transform, bool deepIds = false) {
+            // A entrada da fila leva uma cópia PRÓPRIA dos materiais (mesmo
+            // tratamento que data.clone() dá à árvore): unique_ptr não é
+            // copiável, e a instanciação acontece depois, na render thread.
+            std::vector<std::unique_ptr<MaterialData>> materialsCopy;
+            materialsCopy.reserve(materials.size());
+            for (const auto& material : materials) {
+                materialsCopy.push_back(material ? material->clone() : nullptr);
+            }
+
             std::lock_guard<std::mutex> lock(m_instancesMutex);
-            m_creatingObjects.push_back({ ++m_lastId, data.clone(), materials, transform, deepIds });
+            m_creatingObjects.push_back({ ++m_lastId, data.clone(), std::move(materialsCopy), transform, deepIds });
             return m_lastId;
         }
 
@@ -200,7 +209,7 @@ namespace lite
         struct CreationEntry {
             int id;
             std::unique_ptr<Asset3dData> data;
-            std::vector<MaterialData> materials;
+            std::vector<std::unique_ptr<MaterialData>> materials;
             TransformType transform;
             bool deepIds = false;
         };

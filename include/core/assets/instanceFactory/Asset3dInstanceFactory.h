@@ -25,7 +25,7 @@ using TransformType = Transform;
     virtual std::unique_ptr<Asset> instantiateAsset(
         const Asset3dData& rootNode,
         Transform transform,
-        const std::vector<MaterialData>& materials
+        const std::vector<std::unique_ptr<MaterialData>>& materials
     ) = 0;
 
     // Destroy an instance and release GPU resources

@@ -30,7 +30,7 @@ public:
     std::unique_ptr<FilamentAsset3dInstance> instantiateAsset(
         const Asset3dData& rootNode,
         FilamentAsset3dTransform transform,
-        const std::vector<MaterialData>& materials
+        const std::vector<std::unique_ptr<MaterialData>>& materials
     ) override;
 
     bool destroyAsset(FilamentAsset3dInstance *instance) override;

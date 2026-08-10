@@ -19,7 +19,7 @@ public:
     bool import(
         const std::string& filePath,
         Asset3dData& rootNode,
-        std::vector<MaterialData>& materials
+        std::vector<std::unique_ptr<MaterialData>>& materials
     ) override;
 
     bool canImport(const std::string& extension) const override;
@@ -38,7 +38,7 @@ private:
     void populateMeshData(MeshAsset3dData* meshNode, const aiMesh* mesh);
 
     // Process a material
-    MaterialData processMaterial(
+    std::unique_ptr<MaterialData> processMaterial(
         const aiMaterial* material,
         const std::string& baseDirectory
     );

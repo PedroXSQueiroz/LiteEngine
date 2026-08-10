@@ -140,6 +140,8 @@ static void* getNativeWindowHandle(SDL_Window* window) {
 
 int main(int argc, char** argv){
 
+    const std::string SCENE_PATH = "";
+
     /*----------------------------------------------------------------------------
     CEF SUBPROCESS HANDLING - DEVE SER O PRIMEIRO!
     ----------------------------------------------------------------------------*/
@@ -272,7 +274,7 @@ int main(int argc, char** argv){
     //MOVE X
     //----------------------------------------------------------------------------
     auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartXMoveMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXMoveMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -284,7 +286,7 @@ int main(int argc, char** argv){
     //MOVE Y
     //----------------------------------------------------------------------------
     auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartYMoveMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYMoveMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -296,7 +298,7 @@ int main(int argc, char** argv){
     //MOVE Z
     //----------------------------------------------------------------------------
     auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartZMoveMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZMoveMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -308,7 +310,7 @@ int main(int argc, char** argv){
     //ROTATE X
     //----------------------------------------------------------------------------
     auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartXRotateMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXRotateMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -320,7 +322,7 @@ int main(int argc, char** argv){
     //ROTATE Y
     //----------------------------------------------------------------------------
     auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartYRotateMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYRotateMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -332,7 +334,7 @@ int main(int argc, char** argv){
     //ROTATE Z
     //----------------------------------------------------------------------------
     auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartZRotateMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZRotateMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -344,7 +346,7 @@ int main(int argc, char** argv){
     //SCALE X
     //----------------------------------------------------------------------------
     auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartXScaleMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXScaleMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -356,7 +358,7 @@ int main(int argc, char** argv){
     //SCALE Y
     //----------------------------------------------------------------------------
     auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartYScaleMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYScaleMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -368,7 +370,7 @@ int main(int argc, char** argv){
     //SCALE Z
     //----------------------------------------------------------------------------
     auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<MaterialData> gizmoPartZScaleMaterials;
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZScaleMaterials;
 
     if (!importer->import(
         // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
@@ -464,7 +466,7 @@ int main(int argc, char** argv){
     ----------------------------------------------------------------------------*/
     
     Asset3dData rootNode;
-    std::vector<MaterialData> materials;
+    std::vector<std::unique_ptr<MaterialData>> materials;
     int currentInstanceId = -1;
     FilamentAsset3dInstance* assetPtr = nullptr;
 
