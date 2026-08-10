@@ -1,0 +1,146 @@
+// Schema de persistência de cena da LiteEngine.
+//
+// Este arquivo e tudo que o flatc gera a partir dele vivem ATRÁS do facade
+// (lite::SceneSerializer). Nenhum tipo daqui pode aparecer em include/core/**:
+// a implementação converte estas tables para os DTOs agnósticos e é só isso que
+// atravessa a fronteira.
+//
+// Espelha include/core/data/DTOs/*.h — os dois têm de ser mudados juntos.
+
+namespace lite.serialization;
+
+// ---------------------------------------------------------------------------
+// Tipos de valor
+//
+// São `struct` (FlatBuffers): layout fixo, sem string nem vetor dentro. É o que
+// garante que [Vec3] fique contíguo e alinhado no arquivo — a base do zero-copy
+// quando o padrão de buffer for implementado.
+// ---------------------------------------------------------------------------
+
+struct Vec2 { x:float; y:float; }
+struct Vec3 { x:float; y:float; z:float; }
+struct Vec4 { x:float; y:float; z:float; w:float; }
+
+// Corresponde a glm::mat4 (column-major, 16 floats).
+struct Mat4 { m:[float:16]; }
+
+// ---------------------------------------------------------------------------
+// Material
+//
+// MaterialData é polimórfica no core, então aqui vira union. Como não há
+// herança em FlatBuffers, a parte comum entra por composição no campo `base`.
+// ---------------------------------------------------------------------------
+
+// embeddedData do TextureInfo ficou DE FORA por decisão: textura embutida no
+// arquivo de origem não sobrevive ao round-trip.
+table TextureInfoFB {
+  path:string;
+  srgb:bool = true;
+  width:uint = 0;
+  height:uint = 0;
+  channels:uint = 0;
+}
+
+// Sem atributo (key): ele exige vetor ordenado de uma table concreta e não
+// funciona através de union. A resolução de material_name acontece em C++,
+// depois da conversão para DTO.
+table MaterialFB {
+  name:string;
+}
+
+table MPBRLitMaterialFB {
+  base:MaterialFB;
+
+  base_color_factor:Vec4;
+  metallic_factor:float = 0.0;
+  roughness_factor:float = 1.0;
+  emissive_factor:Vec3;
+
+  base_color_texture:TextureInfoFB;
+  normal_texture:TextureInfoFB;
+  metallic_roughness_texture:TextureInfoFB;
+  occlusion_texture:TextureInfoFB;
+  emissive_texture:TextureInfoFB;
+}
+
+union MaterialKind { MaterialFB, MPBRLitMaterialFB }
+
+// ---------------------------------------------------------------------------
+// Nós de cena
+//
+// A parte comum (inclusive a recursão em children) fica em NodeFB, e cada
+// variante a compõe pelo campo `base`.
+// ---------------------------------------------------------------------------
+
+// Declarada ANTES das tables: NodeFB referencia NodeKind (children) e NodeKind
+// referencia NodeFB, e o flatc exige a union definida antes do uso. Tables
+// podem ser referenciadas para a frente; unions não.
+union NodeKind { NodeFB, MeshNodeFB, CameraNodeFB }
+
+table NodeFB {
+  id:int = -1;
+  name:string;
+
+  // Transformação LOCAL, relativa ao pai.
+  local_transform:Mat4;
+
+  visible:bool = true;
+
+  // Vetor de union: o flatc gera children_type + children.
+  children:[NodeKind];
+}
+
+table MeshNodeFB {
+  base:NodeFB;
+
+  positions:[Vec3];
+  normals:[Vec3];
+
+  // ATENÇÃO: sai VAZIO por enquanto — a instância não guarda UVs CPU-side.
+  uvs:[Vec2];
+
+  indices:[uint];
+
+  bounds_min:Vec3;
+  bounds_max:Vec3;
+
+  // Casa com MaterialFB.name.
+  material_name:string;
+}
+
+table CameraNodeFB {
+  base:NodeFB;
+  eye:Vec3;
+  target:Vec3;
+}
+
+// ---------------------------------------------------------------------------
+// Cena
+// ---------------------------------------------------------------------------
+
+// FIXME: o IBL ainda NÃO é agnóstico. O path carrega implicitamente o formato
+// que a implementação concreta sabe ler, e a posse hoje é do SceneRenderer, não
+// da Scene. Rever quando o IBL for abstraído.
+table IblFB {
+  path:string;
+  intensity:float = 30000.0;
+}
+
+table SceneFB {
+  // Geração do formato. O FlatBuffers evolui campos sozinho, mas não diz de
+  // qual geração o arquivo é.
+  schema_version:uint = 1;
+
+  id:int = -1;
+
+  ibl:IblFB;
+
+  materials:[MaterialKind];
+
+  // Raízes da cena. A câmera entra aqui como CameraNodeFB. Luzes ainda não —
+  // viram filhas de Asset3dInstance em breve e aí cabem neste mesmo vetor.
+  instances:[NodeKind];
+}
+
+root_type SceneFB;
+file_identifier "LSCN";
