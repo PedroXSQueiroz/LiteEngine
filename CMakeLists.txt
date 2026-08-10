@@ -129,6 +129,9 @@ target_include_directories(app PRIVATE
   # nlohmann/json - Header only JSON library
   ${CMAKE_SOURCE_DIR}/3rd_party/nlohmann-json/include
 
+  # FlatBuffers - Header only serialization runtime (flatc em 3rd_party/flatbuffers/bin)
+  ${CMAKE_SOURCE_DIR}/3rd_party/flatbuffers/include
+
   ${Vulkan_INCLUDE_DIRS}
 )
 
@@ -227,6 +230,7 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/filament/assets/instanceFactory/FilamentMeshAsset3dInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentAsset3dTransform.cpp
   ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentCameraAsset3dInstance.cpp
+  ${CMAKE_SOURCE_DIR}/filament/data/assets/FilamentMPBRLitMaterialInstance.cpp
   ${CMAKE_SOURCE_DIR}/filament/lightning/FilamentIBL.cpp
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentWireframeSystem.cpp
   ${CMAKE_SOURCE_DIR}/filament/editor/FilamentGizmoSystem.cpp
