@@ -147,7 +147,7 @@ void FilamentInstanceFactory::destroyFilament3dAsset(lite::FilamentAsset3dInstan
     auto &transformManager = m_engine->getTransformManager();
 
     // Recursively destroy resources in hierarchy
-    std::function<void(Asset3dInstance<FilamentAsset3dTransform> &)> destroyNode = [&](Asset3dInstance<FilamentAsset3dTransform> &node)
+    std::function<void(Node &)> destroyNode = [&](Node &node)
     {
         // First destroyAsset children
         for (auto &child : node.children)
@@ -155,43 +155,36 @@ void FilamentInstanceFactory::destroyFilament3dAsset(lite::FilamentAsset3dInstan
             destroyNode(*child);
         }
 
-        // If this is a mesh, destroy its GPU resources
-        if (node.isMesh())
+        // Os elos da árvore são Node: o cast é o que identifica um mesh (o
+        // isMesh() anterior era redundante com ele).
+        if (auto *meshInstance = dynamic_cast<FilamentMeshAsset3dInstance *>(&node))
         {
-            auto *meshInstance = dynamic_cast<FilamentMeshAsset3dInstance *>(&node);
-            if (meshInstance)
+            utils::Entity entity = meshInstance->getEntity();
+
+            // Remove from scene
+            m_scene->remove(entity);
+
+            // Destroy GPU resources
+            if (meshInstance->vertexBuffer)
             {
-                utils::Entity entity = meshInstance->getEntity();
-
-                // Remove from scene
-                m_scene->remove(entity);
-
-                // Destroy GPU resources
-                if (meshInstance->vertexBuffer)
-                {
-                    m_engine->destroy(meshInstance->vertexBuffer);
-                }
-                if (meshInstance->indexBuffer)
-                {
-                    m_engine->destroy(meshInstance->indexBuffer);
-                }
-                // Note: materialInstance is shared, destroyed below
-
-                // Destroy transform and entity
-                transformManager.destroy(entity);
-                m_engine->destroy(entity);
+                m_engine->destroy(meshInstance->vertexBuffer);
             }
+            if (meshInstance->indexBuffer)
+            {
+                m_engine->destroy(meshInstance->indexBuffer);
+            }
+            // Note: materialInstance is shared, destroyed below
+
+            // Destroy transform and entity
+            transformManager.destroy(entity);
+            m_engine->destroy(entity);
         }
-        else
+        else if (auto *filamentNode = dynamic_cast<FilamentAsset3dInstance *>(&node))
         {
             // Non-mesh node (FilamentAsset3dInstance or intermediate)
-            auto *filamentNode = dynamic_cast<FilamentAsset3dInstance *>(&node);
-            if (filamentNode)
-            {
-                utils::Entity entity = filamentNode->getEntity();
-                transformManager.destroy(entity);
-                m_engine->destroy(entity);
-            }
+            utils::Entity entity = filamentNode->getEntity();
+            transformManager.destroy(entity);
+            m_engine->destroy(entity);
         }
     };
     destroyNode(*filamentInstance);
@@ -214,7 +207,8 @@ void FilamentInstanceFactory::processNode(
 
     // Get root instance for accessing shared materials
     FilamentAsset3dInstance* rootInstance = nullptr;
-    Asset3dInstance<FilamentAsset3dTransform>* current = &parentInstance;
+    // Node: parent é o elo da árvore; o dynamic_cast abaixo já resolve o tipo.
+    Node* current = &parentInstance;
     while (current) {
         if (auto* root = dynamic_cast<FilamentAsset3dInstance*>(current)) {
             rootInstance = root;

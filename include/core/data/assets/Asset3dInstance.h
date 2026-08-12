@@ -6,13 +6,14 @@
 
 #include <glm/glm.hpp>
 #include <core/concepts/TransformConcept.h>
+#include <core/data/assets/Node.h>
 
 namespace lite {
 
 // Base class for instantiated 3D asset nodes (GPU resources)
 // This IS the node - mirrors Asset3dData hierarchy
 template<TransformConcept Transform>
-class Asset3dInstance {
+class Asset3dInstance: public Node {
 public:
 
     using TransformType = Transform;
@@ -48,18 +49,7 @@ public:
         if (m_transform) m_transform->setLocalMatrix(matrix);
     }
 
-    // Hierarchy
-    Asset3dInstance* parent = nullptr;  // Raw pointer (does not own)
-    std::vector<std::unique_ptr<Asset3dInstance>> children;
-
-    // Add child node with automatic parent assignment
-    void addChild(Asset3dInstance* instance3d) {
-        std::unique_ptr<Asset3dInstance> child(instance3d);
-        child->parent = this;
-        children.push_back(std::move(child));
-
-        //TODO: ADICIONAR MÉTODO VIRTUAL AQUI. NO FILHO (FILAMENT) ELE DEVE PARENTEAR OS ENTITTIES DA FILAMENT.
-    };
+    // Hierarquia (parent/children/addChild) vive em Node.
 
     // Type identification
     virtual bool isMesh() const { return false; }

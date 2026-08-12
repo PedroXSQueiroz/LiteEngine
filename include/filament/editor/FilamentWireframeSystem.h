@@ -76,7 +76,7 @@ private:
 
     // Percorre a árvore de um asset aplicando fn a cada mesh
     void forEachMesh(
-        Asset3dInstance<FilamentAsset3dTransform>& node,
+        Node& node,
         const std::function<void(FilamentMeshAsset3dInstance*)>& fn
     );
 

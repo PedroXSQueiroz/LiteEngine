@@ -291,13 +291,13 @@ void FilamentWireframeSystem::ensureGpuResources() {
 }
 
 void FilamentWireframeSystem::forEachMesh(
-    Asset3dInstance<FilamentAsset3dTransform>& node,
+    Node& node,
     const std::function<void(FilamentMeshAsset3dInstance*)>& fn
 ) {
-    if (node.isMesh()) {
-        if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(&node)) {
-            fn(mesh);
-        }
+    // Os elos da árvore são Node: o cast é o que identifica um mesh (o
+    // isMesh() anterior era redundante com ele).
+    if (auto* mesh = dynamic_cast<FilamentMeshAsset3dInstance*>(&node)) {
+        fn(mesh);
     }
     for (auto& child : node.children) {
         forEachMesh(*child, fn);

@@ -216,22 +216,22 @@ protected:
     // `node`. hasGeometry vira true na primeira contribuição — enquanto false,
     // mn/mx não têm valor válido. Broad-phase do filtro por distância no
     // intersect(); getBoundingBox() é lazy (cacheia na 1ª chamada).
-    static void accumulateWorldBounds(NodeType& node, glm::vec3& mn, glm::vec3& mx, bool& hasGeometry) {
-        if (node.isMesh()) {
-            if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
-                const std::vector<glm::vec3> bounds = mesh->getBoundingBox();
-                if (bounds.size() >= 2) {
-                    const glm::mat4 world = mesh->getWorldMatrix();
-                    // 8 cantos da AABB local → mundo (cobre rotação e escala)
-                    for (int i = 0; i < 8; ++i) {
-                        const glm::vec3 corner(
-                            (i & 1) ? bounds[1].x : bounds[0].x,
-                            (i & 2) ? bounds[1].y : bounds[0].y,
-                            (i & 4) ? bounds[1].z : bounds[0].z);
-                        const glm::vec3 wc = glm::vec3(world * glm::vec4(corner, 1.0f));
-                        if (!hasGeometry) { mn = mx = wc; hasGeometry = true; }
-                        else { mn = glm::min(mn, wc); mx = glm::max(mx, wc); }
-                    }
+    static void accumulateWorldBounds(Node& node, glm::vec3& mn, glm::vec3& mx, bool& hasGeometry) {
+        // Os elos da árvore são Node: o cast é o que identifica um mesh (o
+        // isMesh() anterior era redundante com ele).
+        if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
+            const std::vector<glm::vec3> bounds = mesh->getBoundingBox();
+            if (bounds.size() >= 2) {
+                const glm::mat4 world = mesh->getWorldMatrix();
+                // 8 cantos da AABB local → mundo (cobre rotação e escala)
+                for (int i = 0; i < 8; ++i) {
+                    const glm::vec3 corner(
+                        (i & 1) ? bounds[1].x : bounds[0].x,
+                        (i & 2) ? bounds[1].y : bounds[0].y,
+                        (i & 4) ? bounds[1].z : bounds[0].z);
+                    const glm::vec3 wc = glm::vec3(world * glm::vec4(corner, 1.0f));
+                    if (!hasGeometry) { mn = mx = wc; hasGeometry = true; }
+                    else { mn = glm::min(mn, wc); mx = glm::max(mx, wc); }
                 }
             }
         }
@@ -241,14 +241,14 @@ protected:
     }
 
     // Percorre a subárvore; atualiza bestId/bestT com o hit de menor t.
-    void intersectNode(NodeType& node, const glm::vec3& origin, const glm::vec3& ray,
+    void intersectNode(Node& node, const glm::vec3& origin, const glm::vec3& ray,
                        int& bestId, float& bestT) {
-        if (node.isMesh()) {
-            if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
-                if (std::optional<float> t = meshHit(*mesh, origin, ray); t && *t < bestT) {
-                    bestT = *t;
-                    bestId = mesh->getId();
-                }
+        // Os elos da árvore são Node: o cast é o que identifica um mesh (o
+        // isMesh() anterior era redundante com ele).
+        if (auto* mesh = dynamic_cast<MeshNodeType*>(&node)) {
+            if (std::optional<float> t = meshHit(*mesh, origin, ray); t && *t < bestT) {
+                bestT = *t;
+                bestId = mesh->getId();
             }
         }
         for (auto& child : node.children) {

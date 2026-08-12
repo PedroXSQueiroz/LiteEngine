@@ -9,8 +9,11 @@ void FilamentAsset3dInstance::setVisible(bool visible) {
     m_visible = visible;
 
     // Propagate visibility to all children recursively
+    // Os elos da árvore são Node; setVisible só existe no Asset3dInstance.
     for (auto& child : children) {
-        child->setVisible(visible);
+        if (auto* instance = dynamic_cast<Asset3dInstance<FilamentAsset3dTransform>*>(child.get())) {
+            instance->setVisible(visible);
+        }
     }
 }
 

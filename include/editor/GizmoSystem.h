@@ -393,9 +393,10 @@ public:
 protected:
     // Mapeia todos os meshes descendentes de `node` → `action`. Recursivo, então
     // aceita peça com um mesh, vários meshes, ou meshes sob nós intermediários.
-    void mapMeshesToAction(NodeType& node, GizmoAction action) {
-        if (node.isMesh()) {
-            m_meshToAction[node.getId()] = action;
+    void mapMeshesToAction(Node& node, GizmoAction action) {
+        // Os elos da árvore são Node; isMesh/getId só existem no Asset3dInstance.
+        if (auto* instance = dynamic_cast<NodeType*>(&node); instance && instance->isMesh()) {
+            m_meshToAction[instance->getId()] = action;
         }
         for (auto& child : node.children) {
             mapMeshesToAction(*child, action);

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <mutex>
 #include <condition_variable>
+#include <ranges>
 
 #include <core/concepts/EngineConcepts.h>
 #include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
@@ -97,6 +98,12 @@ namespace lite
                 if (criteria(value.get())) result.push_back(value.get());
             }
             return result;
+        }
+
+        std::vector<std::unique_ptr<AssetType>> getAll()
+        {
+            std::vector<std::unique_ptr<AssetType>> instances = std::views::values(m_3dInstances);
+            return instances;
         }
 
         bool destroy(int id) {
@@ -243,9 +250,12 @@ namespace lite
         // Percurso em profundidade atrás de um id. Chamar com m_instancesMutex
         // adquirido (getNode).
         static Asset3dInstance<TransformType>* findNodeById(
-            Asset3dInstance<TransformType>& node, int id
+            Node& node, int id
         ) {
-            if (node.getId() == id) return &node;
+            // Os elos da árvore são Node; id só existe no Asset3dInstance.
+            if (auto* instance = dynamic_cast<Asset3dInstance<TransformType>*>(&node)) {
+                if (instance->getId() == id) return instance;
+            }
             for (auto& child : node.children) {
                 if (auto* found = findNodeById(*child, id)) return found;
             }
@@ -254,9 +264,11 @@ namespace lite
 
         // Atribui ids a toda a subárvore (percurso determinístico, mesmo espaço
         // de m_lastId). Chamar com m_instancesMutex adquirido.
-        void assignChildIds(Asset3dInstance<TransformType>& node) {
+        void assignChildIds(Node& node) {
             for (auto& child : node.children) {
-                child->setId(++m_lastId);
+                if (auto* instance = dynamic_cast<Asset3dInstance<TransformType>*>(child.get())) {
+                    instance->setId(++m_lastId);
+                }
                 assignChildIds(*child);
             }
         }
