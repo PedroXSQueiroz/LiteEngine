@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/data/DTOs/SceneDTO.h>
+#include <core/data/assets/IO/Asset3dDTOMapper.h>
 
 #include <optional>
 #include <string>
@@ -26,6 +27,7 @@ public:
     // que não é do formato esperado, ou schemaVersion que esta build não sabe
     // ler.
     virtual std::optional<SceneDTO> load(const std::string& path) = 0;
+
 };
 
 } // namespace lite

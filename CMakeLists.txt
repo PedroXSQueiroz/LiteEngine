@@ -251,6 +251,25 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/input/InputEnums.cpp
   ${CMAKE_SOURCE_DIR}/core/src/scene/Scene.cpp
 
+  # Serialization
+  # Headers: listados para aparecerem na solução do Visual Studio. NÃO são
+  # compilados por estarem aqui — header só entra no build quando um .cpp o
+  # inclui. Hoje só os concepts e os DTOs que eles arrastam chegam ao
+  # compilador, via EngineConcepts.h -> Scene.h.
+  ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/MaterialDTO.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/Asset3dInstanceDTO.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/MeshAsset3dInstanceDTO.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/CameraAsset3dInstanceDTO.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/SceneDTO.h
+  # ${CMAKE_SOURCE_DIR}/include/core/data/assets/IO/Serializable.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/assets/IO/SceneSerializer.h
+  ${CMAKE_SOURCE_DIR}/include/core/concepts/InstanceDTOConcept.h
+  ${CMAKE_SOURCE_DIR}/include/core/concepts/SceneDTOConcept.h
+
+  # Gerado pelo flatc a partir de flatbuffers/resources/scene.fbs — regerar com:
+  #   3rd_party/flatbuffers/bin/flatc.exe --cpp -o flatbuffers/data/assets/IO flatbuffers/resources/scene.fbs
+  ${CMAKE_SOURCE_DIR}/flatbuffers/data/assets/IO/scene_generated.h
+
 )
 
 # Garante consistência do runtime em todas as targets
