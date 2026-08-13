@@ -271,6 +271,8 @@ target_sources(app PRIVATE
   # Gerado pelo flatc a partir de flatbuffers/resources/scene.fbs — regerar com:
   #   3rd_party/flatbuffers/bin/flatc.exe --cpp -o flatbuffers/data/assets/IO flatbuffers/resources/scene.fbs
   ${CMAKE_SOURCE_DIR}/flatbuffers/data/assets/IO/scene_generated.h
+  ${CMAKE_SOURCE_DIR}/include/flatbuffers/data/assets/IO/FlatBuffersSceneSerializer.h
+  ${CMAKE_SOURCE_DIR}/flatbuffers/data/assets/IO/FlatBuffersSceneSerializer.cpp
 
 )
 
