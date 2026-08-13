@@ -100,9 +100,15 @@ namespace lite
             return result;
         }
 
-        std::vector<std::unique_ptr<AssetType>> getAll()
+        std::vector<AssetType*> getAll()
         {
-            std::vector<std::unique_ptr<AssetType>> instances = std::views::values(m_3dInstances);
+            std::vector<AssetType*> instances;
+
+            for(const auto&[id, instance] : m_3dInstances)
+            {
+                instances.push_back(instance.get());
+            }
+            // std::ranges::copy(m_3dInstances | std::views::values, std::back_inserter(instances));
             return instances;
         }
 

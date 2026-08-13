@@ -28,9 +28,9 @@ public:
         
     //     return currentNodeToDto;
     // }
+    virtual std::unique_ptr<Asset3dInstanceDTO> nodeToDto(Node* entity) = 0;
 
 private:
-    virtual std::unique_ptr<Asset3dInstanceDTO> nodeToDto(Node* entity) = 0;
 
 };
 

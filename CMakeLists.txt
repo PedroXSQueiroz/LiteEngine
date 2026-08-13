@@ -263,6 +263,8 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/include/core/data/DTOs/SceneDTO.h
   # ${CMAKE_SOURCE_DIR}/include/core/data/assets/IO/Serializable.h
   ${CMAKE_SOURCE_DIR}/include/core/data/assets/IO/SceneSerializer.h
+  ${CMAKE_SOURCE_DIR}/include/core/data/assets/IO/DummySceneSerializer.h
+  ${CMAKE_SOURCE_DIR}/core/src/data/assets/IO/DummySceneSerializer.cpp
   ${CMAKE_SOURCE_DIR}/include/core/concepts/InstanceDTOConcept.h
   ${CMAKE_SOURCE_DIR}/include/core/concepts/SceneDTOConcept.h
 

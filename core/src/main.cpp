@@ -25,6 +25,10 @@
 #include <core/data/assets/MaterialData.h>
 #include <core/data/assets/Asset3dInstance.h>
 #include <core/data/assets/MeshAsset3dInstance.h>
+#include <core/data/assets/IO/SceneSerializer.h>
+#include <core/data/assets/IO/SceneDTOMapper.h>
+#include <core/data/assets/IO/Asset3dDTOMapper.h>
+#include <core/data/assets/IO/DummySceneSerializer.h>
 #include <core/UI/UIInstance.h>
 #include <core/scene/Scene.h>
 #include <assimp/assets/importer/AssimpImporter.h>
@@ -138,9 +142,76 @@ static void* getNativeWindowHandle(SDL_Window* window) {
 #endif
 }
 
+class DummySceneDTOMapper : public SceneDTOMapper<
+        FilamentAsset3dInstance,
+        FilamentAsset3dTransform,
+        FilamentInstanceFactory,
+        CEF_Filament_UIRendererThreaded
+>{
+    virtual SceneDTO buildBaseSceneDto(
+        lite::Scene<
+            FilamentAsset3dInstance,
+            FilamentAsset3dTransform,
+            FilamentInstanceFactory,
+            CEF_Filament_UIRendererThreaded>* scene
+    ){
+        SceneDTO sceneDto;
+
+        // Nada aqui sai da `scene`: a Scene não tem id, não conhece o IBL (é do
+        // SceneRenderer, ver FIXME no SceneDTO) e não guarda os MaterialData
+        // depois da instanciação. Enquanto essas fontes não existirem, o dummy
+        // repete os mesmos literais que a main usa no setIBL.
+        sceneDto.ibl.path      = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
+        sceneDto.ibl.intensity = 30000.0f;
+
+        // id fica -1 e materials fica vazio: sem fonte de dados hoje.
+        return sceneDto;
+    }
+};
+
+class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
+
+    // Par (entidade, DTO) que este mapper atende: o nó "puro" da cena Filament
+    // e o DTO base. typeid do TIPO (não de instância) — é o que o registry
+    // compara com typeid(*entity) na hora de escolher o mapper.
+    virtual std::type_index getEntityTypeIndex()
+    {
+        return std::type_index(typeid(FilamentAsset3dInstance));
+    }
+
+    virtual std::type_index getDTOTypeIndex()
+    {
+        return std::type_index(typeid(Asset3dInstanceDTO));
+    }
+
+    // Direção de load: sem factory/engine aqui não há como materializar um nó.
+    virtual Node* fromDto(Asset3dInstanceDTO dto)
+    {
+        return nullptr;
+    }
+
+    virtual std::unique_ptr<Asset3dInstanceDTO> nodeToDto(Node* node)
+    {
+        auto dto = std::make_unique<Asset3dInstanceDTO>();
+
+        // Os elos da árvore são Node; id/name/visible/transform só existem no
+        // Asset3dInstance. Sem o cast não há o que copiar.
+        auto* instance = dynamic_cast<Asset3dInstance<FilamentAsset3dTransform>*>(node);
+        if (!instance) return dto;
+
+        dto->id             = instance->getId();
+        dto->name           = instance->name;
+        dto->localTransform = instance->getLocalMatrix();
+        dto->visible        = instance->isVisible();
+
+        // children fica vazio de propósito: a recursão é do toDto, não daqui.
+        return dto;
+    }
+};
+
 int main(int argc, char** argv){
 
-    const std::string SCENE_PATH = "";
+    const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
 
     /*----------------------------------------------------------------------------
     CEF SUBPROCESS HANDLING - DEVE SER O PRIMEIRO!
@@ -404,7 +475,20 @@ int main(int argc, char** argv){
     gizmoSystem->setCamera(sceneRenderer.getCurrentCamera());
     gizmoSystem->attachTo(currentScene);
     currentScene->addSystem(gizmoSystem.get());
+    
+    /*----------------------------------------------------------------------------
+    SETUP SERIALIZER
+    ----------------------------------------------------------------------------*/
+    SceneSerializer* sceneSerialzer = new DummySceneSerializer();
+    SceneDTOMapper<
+        FilamentAsset3dInstance,
+        FilamentAsset3dTransform,
+        FilamentInstanceFactory,
+        CEF_Filament_UIRendererThreaded>* sceneMapper = new DummySceneDTOMapper();
 
+    sceneMapper->registerMapper( new DummyAsset3dDTOMapper() );
+    
+    
     /*----------------------------------------------------------------------------
     SETUP UI RENDERER (CEF)
     ----------------------------------------------------------------------------*/
@@ -448,8 +532,17 @@ int main(int argc, char** argv){
         // }
     });
 
+    UIButtonElement<CEF_Filament_UIRendererThreaded>* saveSceneButton = new CEF_UIButtonElement(uiRenderer, "Salvar");
+    saveSceneButton->registerEvent("click",  [&](CEF_Filament_UIRendererThreaded*, int, std::string){
+
+        SceneDTO sceneDto = sceneMapper->toDto(currentScene);
+        sceneSerialzer->save(sceneDto, SCENE_PATH);
+
+    });
+
     leftPanel->addChildComponent(loadModelButton, 2, 0);
     leftPanel->addChildComponent(deleteModelButton, 2, 1);
+    leftPanel->addChildComponent(saveSceneButton, 3, 0);
 
     root->draw();
 
