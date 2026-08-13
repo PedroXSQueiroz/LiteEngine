@@ -10,6 +10,7 @@
 #include <functional>
 #include <string>
 #include <format>
+#include <filesystem>
 
 #include <SDL.h>
 #include <SDL_syswm.h>
@@ -19,6 +20,7 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/vector3.h>
+#include <flatbuffers/data/assets/IO/FlatBuffersSceneSerializer.h>
 
 // New agnostic architecture
 #include <core/data/assets/Asset3dData.h>
@@ -209,6 +211,134 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
     }
 };
 
+GizmoParts buildGizmoParts(AssimpImporter* importer){
+    //MOVE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx"
+        , *gizmoPartXMoveMeshData, gizmoPartXMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //MOVE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx"
+        , *gizmoPartYMoveMeshData, gizmoPartYMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //MOVE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZMoveMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx"
+        , *gizmoPartZMoveMeshData, gizmoPartZMoveMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx"
+        , *gizmoPartXRotateMeshData, gizmoPartXRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx"
+        , *gizmoPartYRotateMeshData, gizmoPartYRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //ROTATE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZRotateMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx"
+        , *gizmoPartZRotateMeshData, gizmoPartZRotateMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE X
+    //----------------------------------------------------------------------------
+    auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartXScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx"
+        , *gizmoPartXScaleMeshData, gizmoPartXScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE Y
+    //----------------------------------------------------------------------------
+    auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartYScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx"
+        , *gizmoPartYScaleMeshData, gizmoPartYScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+
+    //SCALE Z
+    //----------------------------------------------------------------------------
+    auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
+    std::vector<std::unique_ptr<MaterialData>> gizmoPartZScaleMaterials;
+
+    if (!importer->import(
+        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
+        , *gizmoPartZScaleMeshData, gizmoPartZScaleMaterials)) {
+        //TODO: ESTOURAR ERRO INFORMATIVO
+    }
+    
+    // GizmoParts é move-only (Asset3dData não é copiável nem movível): a posse
+    // dos dados passa para o sistema.
+    return {
+        //MOVE
+        {std::move(gizmoPartXMoveMeshData), std::move(gizmoPartXMoveMaterials)},
+        {std::move(gizmoPartYMoveMeshData), std::move(gizmoPartYMoveMaterials)},
+        {std::move(gizmoPartZMoveMeshData), std::move(gizmoPartZMoveMaterials)},
+        //ROTATE
+        {std::move(gizmoPartXRotateMeshData), std::move(gizmoPartXRotateMaterials)},
+        {std::move(gizmoPartYRotateMeshData), std::move(gizmoPartYRotateMaterials)},
+        {std::move(gizmoPartZRotateMeshData), std::move(gizmoPartZRotateMaterials)},
+        //SCALE
+        {std::move(gizmoPartXScaleMeshData), std::move(gizmoPartXScaleMaterials)},
+        {std::move(gizmoPartYScaleMeshData), std::move(gizmoPartYScaleMaterials)},
+        {std::move(gizmoPartZScaleMeshData), std::move(gizmoPartZScaleMaterials)}
+    };
+
+}
+
 int main(int argc, char** argv){
 
     const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
@@ -342,144 +472,43 @@ int main(int argc, char** argv){
           Enquanto os slots estiverem vazios o overlay é criado e desenhado vazio.
     ----------------------------------------------------------------------------*/
     
-    //MOVE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx"
-        , *gizmoPartXMoveMeshData, gizmoPartXMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //MOVE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx"
-        , *gizmoPartYMoveMeshData, gizmoPartYMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //MOVE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx"
-        , *gizmoPartZMoveMeshData, gizmoPartZMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx"
-        , *gizmoPartXRotateMeshData, gizmoPartXRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx"
-        , *gizmoPartYRotateMeshData, gizmoPartYRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx"
-        , *gizmoPartZRotateMeshData, gizmoPartZRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx"
-        , *gizmoPartXScaleMeshData, gizmoPartXScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx"
-        , *gizmoPartYScaleMeshData, gizmoPartYScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
-        , *gizmoPartZScaleMeshData, gizmoPartZScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-    
-    // GizmoParts é move-only (Asset3dData não é copiável nem movível): a posse
-    // dos dados passa para o sistema.
-    lite::GizmoParts gizmoParts = {
-        //MOVE
-        {std::move(gizmoPartXMoveMeshData), std::move(gizmoPartXMoveMaterials)},
-        {std::move(gizmoPartYMoveMeshData), std::move(gizmoPartYMoveMaterials)},
-        {std::move(gizmoPartZMoveMeshData), std::move(gizmoPartZMoveMaterials)},
-        //ROTATE
-        {std::move(gizmoPartXRotateMeshData), std::move(gizmoPartXRotateMaterials)},
-        {std::move(gizmoPartYRotateMeshData), std::move(gizmoPartYRotateMaterials)},
-        {std::move(gizmoPartZRotateMeshData), std::move(gizmoPartZRotateMaterials)},
-        //SCALE
-        {std::move(gizmoPartXScaleMeshData), std::move(gizmoPartXScaleMaterials)},
-        {std::move(gizmoPartYScaleMeshData), std::move(gizmoPartYScaleMaterials)},
-        {std::move(gizmoPartZScaleMeshData), std::move(gizmoPartZScaleMaterials)}
-    };
-
+    GizmoParts gizmo = buildGizmoParts(importer.get());
     std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
         std::make_unique<lite::FilamentGizmoSystem>(
             FilamentUtils::getEngine(),
-            std::move(gizmoParts)
+            std::move(gizmo)
         );
     gizmoSystem->setCamera(sceneRenderer.getCurrentCamera());
     gizmoSystem->attachTo(currentScene);
     currentScene->addSystem(gizmoSystem.get());
+
+    /*---------------------------------------------------------------------------*/
+    //GIZMO VALUES
+    /*---------------------------------------------------------------------------*/
+
+    std::optional<GizmoAction> gizmoAction = std::nullopt;
+    
+    glm::vec3 startingGizmoLocation = glm::vec3(0, 0, 0);
+    
+    float startingDraggingDistance = 0;
+    glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
+
+    float startingTurningAngle = 0;
+    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
+
+    float startingScaleFactorDistance = 0;
+    glm::vec3 startingSizeObjectScale = glm::vec3(1, 1, 1);
+    
+    glm::vec2 lastMousePosition = glm::vec2(0, 0);
+
+    /*---------------------------------------------------------------------------*/
+    //END || GIZMO VALUES
+    /*---------------------------------------------------------------------------*/
     
     /*----------------------------------------------------------------------------
     SETUP SERIALIZER
     ----------------------------------------------------------------------------*/
-    SceneSerializer* sceneSerialzer = new DummySceneSerializer();
+    SceneSerializer* sceneSerialzer = new FlatBuffersSceneSerializer();
     SceneDTOMapper<
         FilamentAsset3dInstance,
         FilamentAsset3dTransform,
@@ -620,29 +649,6 @@ int main(int argc, char** argv){
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
     
-    /*---------------------------------------------------------------------------*/
-    //GIZMO VALUES
-    /*---------------------------------------------------------------------------*/
-
-    std::optional<GizmoAction> gizmoAction = std::nullopt;
-    
-    glm::vec3 startingGizmoLocation = glm::vec3(0, 0, 0);
-    
-    float startingDraggingDistance = 0;
-    glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
-
-    float startingTurningAngle = 0;
-    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
-
-    float startingScaleFactorDistance = 0;
-    glm::vec3 startingSizeObjectScale = glm::vec3(1, 1, 1);
-    
-    glm::vec2 lastMousePosition = glm::vec2(0, 0);
-
-    /*---------------------------------------------------------------------------*/
-    //END || GIZMO VALUES
-    /*---------------------------------------------------------------------------*/
-
     while (running) {
         SDL_Event ev;
         lite::InputEvent inputEvent;
