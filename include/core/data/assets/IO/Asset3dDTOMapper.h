@@ -11,11 +11,17 @@ namespace lite {
 class Asset3dDTOMapper{
 
 public:
+    // Apagado por ponteiro da base (o registry guarda Asset3dDTOMapper*).
+    virtual ~Asset3dDTOMapper() = default;
+
     virtual std::type_index getEntityTypeIndex() = 0;
 
     virtual std::type_index getDTOTypeIndex() = 0;
-    
-    virtual Node* fromDto(Asset3dInstanceDTO dto) = 0;
+
+    // Por referência const: Asset3dInstanceDTO não é copiável nem movível
+    // (tem vector<unique_ptr> children e destrutor declarado), então nenhuma
+    // chamada compilaria com o parâmetro por valor.
+    virtual Node* fromDto(const Asset3dInstanceDTO& dto) = 0;
     
     // std::unique_ptr<Asset3dInstanceDTO> toDto(Node* entity){
     //     std::unique_ptr<Asset3dInstanceDTO> currentNodeToDto = nodeToDto(entity);

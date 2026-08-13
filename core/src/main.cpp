@@ -185,7 +185,7 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
     }
 
     // Direção de load: sem factory/engine aqui não há como materializar um nó.
-    virtual Node* fromDto(Asset3dInstanceDTO dto)
+    virtual Node* fromDto(const Asset3dInstanceDTO& dto)
     {
         return nullptr;
     }

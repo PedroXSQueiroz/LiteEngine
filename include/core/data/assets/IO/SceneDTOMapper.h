@@ -7,6 +7,8 @@
 #include <typeinfo>
 #include <typeindex>
 #include <vector>
+#include <memory>
+#include <iterator>
 
 namespace lite {
 
@@ -19,6 +21,9 @@ template<
 class SceneDTOMapper{
 
 public:
+
+    // Apagado por ponteiro da base (a main guarda um SceneDTOMapper<...>*).
+    virtual ~SceneDTOMapper() = default;
 
     bool registerMapper(Asset3dDTOMapper* mapper)
     {
@@ -49,71 +54,56 @@ public:
 
         std::vector<std::unique_ptr<Asset3dInstanceDTO>> instancesDto = buildInstace3dDtos(instances);
 
-        sceneDto.instances.insert(sceneDto.instances.end(), instancesDto.begin(), instancesDto.end());
+        // Iteradores de MOVE: o intervalo é de unique_ptr, copiar é deletado.
+        sceneDto.instances.insert(
+            sceneDto.instances.end(),
+            std::make_move_iterator(instancesDto.begin()),
+            std::make_move_iterator(instancesDto.end())
+        );
+
+        return sceneDto;
     }
 
-    std::vector<std::unique_ptr<Asset3dInstanceDTO>> buildInstace3dDtos(std::vector<AssetType*> instances)
+    std::vector<std::unique_ptr<Asset3dInstanceDTO>> buildInstace3dDtos(const std::vector<AssetType*>& instances)
     {
         std::vector<std::unique_ptr<Asset3dInstanceDTO>> dtos;
 
         for (AssetType* currentInstance : instances)
         {
-
-
-            // std::type_index assetTypeIndex = std::type_index(typeid(*currentInstance.get()));
-
-            // std::optional<Asset3dDTOMapper*> mapperToAsset = getMapperByInstanceToDto(assetTypeIndex);
-
-            // if (mapperToAsset.has_value())
-            // {
-            //     Node* nodeOfInstance = dynamic_cast<Node*>(currentInstance.get());
-            //     std::unique_ptr<Asset3dInstanceDTO> instance3dDto = mapperToAsset.value()->nodeToDto(nodeOfInstance);
-            //     dtos.push_back(instance3dDto);
-
-            //     for(std::unique_ptr<Node> child : currentInstance->children)
-            //     {
-            //         AssetType* childNode = dynamic_cast<AssetType*>(child.get());
-            //         buildInstace3dDtos(std::vector<std::unique_ptr<AssetType>>{childNode});
-            //     }
-
-            // }
-
-            std::optional<std::unique_ptr<Asset3dInstanceDTO>> dto = instanceToDto(currentInstance);
-            if(dto.has_value())
+            std::unique_ptr<Asset3dInstanceDTO> dto = instanceToDto(currentInstance);
+            if(dto)
             {
-                dtos.push_back(std::move(dto.value()));
+                dtos.push_back(std::move(dto));
             }
         }
 
         return dtos;
     }
 
-    std::optional<std::unique_ptr<Asset3dInstanceDTO>> instanceToDto(Node* currentInstance)
+    // nullptr = nenhum mapper registrado para o tipo desta instância.
+    std::unique_ptr<Asset3dInstanceDTO> instanceToDto(Node* currentInstance)
     {
         std::type_index assetTypeIndex = std::type_index(typeid(*currentInstance));
 
-        std::optional<Asset3dDTOMapper*> mapperToAsset = getMapperByInstanceToDto(assetTypeIndex);
+        Asset3dDTOMapper* mapperToAsset = getMapperByInstanceToDto(assetTypeIndex);
 
-        if (mapperToAsset.has_value())
+        if (mapperToAsset)
         {
-            Node* nodeOfInstance = dynamic_cast<Node*>(currentInstance);
-            std::unique_ptr<Asset3dInstanceDTO> instance3dDto = mapperToAsset.value()->nodeToDto(nodeOfInstance);
-            // dtos.push_back(instance3dDto);
-            
+            std::unique_ptr<Asset3dInstanceDTO> instance3dDto = mapperToAsset->nodeToDto(currentInstance);
+
             for(const std::unique_ptr<Node>& child : currentInstance->children)
             {
-                // AssetType* childNode = dynamic_cast<AssetType*>(child.get());
-                std::optional<std::unique_ptr<Asset3dInstanceDTO>> childDto = instanceToDto(child.get());
-                if(childDto.has_value())
+                std::unique_ptr<Asset3dInstanceDTO> childDto = instanceToDto(child.get());
+                if(childDto)
                 {
-                    instance3dDto.get()->children.push_back(std::move(childDto.value()));
+                    instance3dDto->children.push_back(std::move(childDto));
                 }
             }
 
-            return std::optional<std::unique_ptr<Asset3dInstanceDTO>>( std::move(instance3dDto) );
+            return instance3dDto;
         }
 
-        return std::nullopt;
+        return nullptr;
     }
 
     virtual SceneDTO buildBaseSceneDto(Scene<
@@ -125,17 +115,18 @@ public:
 
 private:
 
-    std::optional<Asset3dDTOMapper*> getMapperByInstanceToDto(std::type_index assetTypeIndex)
+    // nullptr = nenhum mapper registrado para esse tipo de entidade.
+    Asset3dDTOMapper* getMapperByInstanceToDto(std::type_index assetTypeIndex)
     {
         for(Asset3dDTOMapper* current: m_mappers)
         {
             if( current->getEntityTypeIndex() == assetTypeIndex )
             {
-                return std::optional<Asset3dDTOMapper*>(current);
+                return current;
             }
         }
 
-        return std::optional<Asset3dDTOMapper*>();
+        return nullptr;
     }
 
     std::vector<Asset3dDTOMapper*> m_mappers;
