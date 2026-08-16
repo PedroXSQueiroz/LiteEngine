@@ -4,6 +4,7 @@
 #include <core/data/assets/Asset3dData.h>
 #include <core/data/assets/CameraAsset3dInstance.h>
 #include <core/data/assets/MaterialData.h>
+#include <core/assets/importer/Asset3dImporter.h>
 #include <editor/ObjectSelectorSystem.h>
 
 #include <glm/glm.hpp>
@@ -112,6 +113,9 @@ inline glm::vec3 axisOf(GizmoAction action) noexcept {
 template <typename SceneType, TransformConcept TransformType>
 class GizmoSystem : public SceneScopeSystem {
 public:
+    
+    using GizmoSceneType = SceneType;
+    using GizmoTransformType = TransformType;
     using NodeType = Asset3dInstance<TransformType>;
     using SelectorType = ObjectSelectorSystem<SceneType, TransformType>;
 
@@ -459,5 +463,140 @@ protected:
     glm::vec3 m_initialGizmoScale;
     glm::vec3 m_initialBoundingBoxExtension;
 };
+
+namespace gizmo {
+    
+    static GizmoParts buildGizmoParts(
+            Asset3dImporter* importer, 
+            std::string gizmoPartPathMovX,
+            std::string gizmoPartPathMovY,
+            std::string gizmoPartPathMovZ,
+            std::string gizmoPartPathRotX,
+            std::string gizmoPartPathRotY,
+            std::string gizmoPartPathRotZ,
+            std::string gizmoPartPathScaleX,
+            std::string gizmoPartPathScaleY,
+            std::string gizmoPartPathScaleZ
+        ){
+        //MOVE X
+        //----------------------------------------------------------------------------
+        auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartXMoveMaterials;
+
+        if (!importer->import(
+            gizmoPartPathMovX
+            , *gizmoPartXMoveMeshData, gizmoPartXMoveMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //MOVE Y
+        //----------------------------------------------------------------------------
+        auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartYMoveMaterials;
+
+        if (!importer->import(
+            gizmoPartPathMovY
+            , *gizmoPartYMoveMeshData, gizmoPartYMoveMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //MOVE Z
+        //----------------------------------------------------------------------------
+        auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartZMoveMaterials;
+
+        if (!importer->import(
+            gizmoPartPathMovZ
+            , *gizmoPartZMoveMeshData, gizmoPartZMoveMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //ROTATE X
+        //----------------------------------------------------------------------------
+        auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartXRotateMaterials;
+
+        if (!importer->import(
+            gizmoPartPathRotX
+            , *gizmoPartXRotateMeshData, gizmoPartXRotateMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //ROTATE Y
+        //----------------------------------------------------------------------------
+        auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartYRotateMaterials;
+
+        if (!importer->import(
+            gizmoPartPathRotY
+            , *gizmoPartYRotateMeshData, gizmoPartYRotateMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //ROTATE Z
+        //----------------------------------------------------------------------------
+        auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartZRotateMaterials;
+
+        if (!importer->import(
+            gizmoPartPathRotZ
+            , *gizmoPartZRotateMeshData, gizmoPartZRotateMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //SCALE X
+        //----------------------------------------------------------------------------
+        auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartXScaleMaterials;
+
+        if (!importer->import(
+            gizmoPartPathScaleX
+            , *gizmoPartXScaleMeshData, gizmoPartXScaleMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //SCALE Y
+        //----------------------------------------------------------------------------
+        auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartYScaleMaterials;
+
+        if (!importer->import(
+            gizmoPartPathScaleY
+            , *gizmoPartYScaleMeshData, gizmoPartYScaleMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+
+        //SCALE Z
+        //----------------------------------------------------------------------------
+        auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
+        std::vector<std::unique_ptr<MaterialData>> gizmoPartZScaleMaterials;
+
+        if (!importer->import(
+            // "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
+            gizmoPartPathScaleZ
+            , *gizmoPartZScaleMeshData, gizmoPartZScaleMaterials)) {
+            //TODO: ESTOURAR ERRO INFORMATIVO
+        }
+        
+        // GizmoParts é move-only (Asset3dData não é copiável nem movível): a posse
+        // dos dados passa para o sistema.
+        return {
+            //MOVE
+            {std::move(gizmoPartXMoveMeshData), std::move(gizmoPartXMoveMaterials)},
+            {std::move(gizmoPartYMoveMeshData), std::move(gizmoPartYMoveMaterials)},
+            {std::move(gizmoPartZMoveMeshData), std::move(gizmoPartZMoveMaterials)},
+            //ROTATE
+            {std::move(gizmoPartXRotateMeshData), std::move(gizmoPartXRotateMaterials)},
+            {std::move(gizmoPartYRotateMeshData), std::move(gizmoPartYRotateMaterials)},
+            {std::move(gizmoPartZRotateMeshData), std::move(gizmoPartZRotateMaterials)},
+            //SCALE
+            {std::move(gizmoPartXScaleMeshData), std::move(gizmoPartXScaleMaterials)},
+            {std::move(gizmoPartYScaleMeshData), std::move(gizmoPartYScaleMaterials)},
+            {std::move(gizmoPartZScaleMeshData), std::move(gizmoPartZScaleMaterials)}
+        };
+
+    }
+
+}// namespoace lite::gizmo
 
 } // namespace lite

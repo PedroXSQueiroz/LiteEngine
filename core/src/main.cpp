@@ -33,6 +33,7 @@
 #include <core/data/assets/IO/DummySceneSerializer.h>
 #include <core/UI/UIInstance.h>
 #include <core/scene/Scene.h>
+#include <editor/systems/EditorNavigationSystem.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 #include <filament/editor/FilamentWireframeSystem.h>
@@ -211,134 +212,6 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
     }
 };
 
-GizmoParts buildGizmoParts(AssimpImporter* importer){
-    //MOVE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx"
-        , *gizmoPartXMoveMeshData, gizmoPartXMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //MOVE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx"
-        , *gizmoPartYMoveMeshData, gizmoPartYMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //MOVE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZMoveMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZMoveMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx"
-        , *gizmoPartZMoveMeshData, gizmoPartZMoveMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx"
-        , *gizmoPartXRotateMeshData, gizmoPartXRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx"
-        , *gizmoPartYRotateMeshData, gizmoPartYRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //ROTATE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZRotateMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZRotateMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx"
-        , *gizmoPartZRotateMeshData, gizmoPartZRotateMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE X
-    //----------------------------------------------------------------------------
-    auto gizmoPartXScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartXScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx"
-        , *gizmoPartXScaleMeshData, gizmoPartXScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE Y
-    //----------------------------------------------------------------------------
-    auto gizmoPartYScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartYScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx"
-        , *gizmoPartYScaleMeshData, gizmoPartYScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-
-    //SCALE Z
-    //----------------------------------------------------------------------------
-    auto gizmoPartZScaleMeshData = std::make_unique<Asset3dData>();
-    std::vector<std::unique_ptr<MaterialData>> gizmoPartZScaleMaterials;
-
-    if (!importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
-        , *gizmoPartZScaleMeshData, gizmoPartZScaleMaterials)) {
-        //TODO: ESTOURAR ERRO INFORMATIVO
-    }
-    
-    // GizmoParts é move-only (Asset3dData não é copiável nem movível): a posse
-    // dos dados passa para o sistema.
-    return {
-        //MOVE
-        {std::move(gizmoPartXMoveMeshData), std::move(gizmoPartXMoveMaterials)},
-        {std::move(gizmoPartYMoveMeshData), std::move(gizmoPartYMoveMaterials)},
-        {std::move(gizmoPartZMoveMeshData), std::move(gizmoPartZMoveMaterials)},
-        //ROTATE
-        {std::move(gizmoPartXRotateMeshData), std::move(gizmoPartXRotateMaterials)},
-        {std::move(gizmoPartYRotateMeshData), std::move(gizmoPartYRotateMaterials)},
-        {std::move(gizmoPartZRotateMeshData), std::move(gizmoPartZRotateMaterials)},
-        //SCALE
-        {std::move(gizmoPartXScaleMeshData), std::move(gizmoPartXScaleMaterials)},
-        {std::move(gizmoPartYScaleMeshData), std::move(gizmoPartYScaleMaterials)},
-        {std::move(gizmoPartZScaleMeshData), std::move(gizmoPartZScaleMaterials)}
-    };
-
-}
-
 int main(int argc, char** argv){
 
     const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
@@ -472,7 +345,18 @@ int main(int argc, char** argv){
           Enquanto os slots estiverem vazios o overlay é criado e desenhado vazio.
     ----------------------------------------------------------------------------*/
     
-    GizmoParts gizmo = buildGizmoParts(importer.get());
+    GizmoParts gizmo = lite::gizmo::buildGizmoParts(
+        importer.get(),
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx",
+        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
+    );
     std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
         std::make_unique<lite::FilamentGizmoSystem>(
             FilamentUtils::getEngine(),
@@ -605,28 +489,6 @@ int main(int argc, char** argv){
         assetPtr = currentScene->get(currentInstanceId);
     }
 
-    // Asset3dData rootGizmoNode;
-    // std::vector<MaterialData> gizmoMaterials;
-    // int gizmoInstanceId = -1;
-    // FilamentAsset3dInstance* gizmoAssetPtr = nullptr;
-
-
-    // if (importer->import(
-    //     // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-    //     "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo.fbx"
-    //     , rootGizmoNode, gizmoMaterials)) {
-    //     gizmoInstanceId = currentScene->create(
-    //         rootGizmoNode,
-    //         gizmoMaterials,
-    //         TransformUtils<FilamentAsset3dTransform>::build(),
-    //         true
-    //     );
-    //     gizmoAssetPtr = currentScene->get(gizmoInstanceId);
-    // }
-
-    // assetPtr é EMPRÉSTIMO (dono é a Scene) — nunca envolver em unique_ptr.
-    // Os meshes ganham wireframe automaticamente (auto-track do sistema).
-
     std::cout << "Starting main loop..." << std::endl;
 
     /*----------------------------------------------------------------------------
@@ -648,107 +510,71 @@ int main(int argc, char** argv){
     const float VELOCITY_MOVEMENT = radius * 50.f;
     const float VELOCITY_LOOK = 0.003f;
     float horizontal_direction = 0, vertical_direction = 0;
+
+    
+    //FIXME: ESSE SISTEMA ESTÁ DEPENDENDO DO SCENERENDERER. COMO SCENERENEDERER TEM MUITOS TEMPLATES, É MELHOR NÃO PUXAR ESSA DEPENDÊMCIA PARA O NAVIGATIONSYSTEM
+    // TAMBÉM O MÉTODO SETCAMERASTATE É UMA COISA ESPECÍFICA DA FIALMENT. O MELHOR SERIA NÃO CHAMAR ESSE MÉTODO EXPLICITAMENTE E ISSO SER IMPLEMENTADO DE FORMA 
+    // TRANSPARENTE POR UMA HERANÇA DO TRANSFORM
+    EditorNavigationSystem* navigation = new EditorNavigationSystem(
+        [&](glm::vec3 center, glm::vec3 offsetCenter, glm::vec3 offsetEye){
+            sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
+
+            return  sceneRenderer   
+                    .getCurrentCamera()
+                    ->getTransform()
+                    ->getPosition();
+    });
+    sceneRenderer.getScene()->addSystem(navigation);
+    //TODO: CHAMAR SCENE CONFIGURER AQUI DEPOIS DE INSTANCIADO TODOS OS SISTEMAS
     
     while (running) {
         SDL_Event ev;
         lite::InputEvent inputEvent;
 
         while (SDL_PollEvent(&ev)) {
-            switch (ev.type)
+            navigation->digestInputEvent(ev);
+
+            switch(ev.type)
             {
-            case SDL_QUIT:
-                running = false;
-                break;
+                case SDL_MOUSEMOTION: {
+                    lastMousePosition = inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
+                        glm::vec2(ev.motion.x, ev.motion.y);
 
-            case SDL_MOUSEMOTION: {
-                if(mov_active)
-                {
-                    horizontal_direction += ev.motion.xrel * VELOCITY_LOOK;
-                    vertical_direction   -= ev.motion.yrel * VELOCITY_LOOK;
-    
-                    const float MAX_PITCH = 1.5f;
-                    if (vertical_direction >  MAX_PITCH) vertical_direction =  MAX_PITCH;
-                    if (vertical_direction < -MAX_PITCH) vertical_direction = -MAX_PITCH;
-    
-                    float yaw   = horizontal_direction;
-                    float pitch = vertical_direction;
-    
-                    offsetCenter.x = cos(pitch) * sin(yaw);
-                    offsetCenter.y = sin(pitch);
-                    offsetCenter.z = -cos(pitch) * cos(yaw);
-    
+                    break;
                 }
+                case SDL_MOUSEBUTTONDOWN: {
+                    lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
+                    if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
+                    if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
+                    inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] = glm::vec2(ev.button.x, ev.button.y);
+                    inputEvent.keys[btn] = lite::INPUT_KEY_STATES::DOWN;
 
-                lastMousePosition = inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
-                    glm::vec2(ev.motion.x, ev.motion.y);
-                
-                break;
-            }
-            case SDL_MOUSEBUTTONDOWN: {
-                lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
-                if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
-                if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
-                inputEvent.keys[btn] = lite::INPUT_KEY_STATES::DOWN;
-                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
-                    glm::vec2(ev.button.x, ev.button.y);
-                break;
-            }
-            case SDL_MOUSEBUTTONUP: {
-                lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
-                if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
-                if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
-                inputEvent.keys[btn] = lite::INPUT_KEY_STATES::UP;
-                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] =
-                    glm::vec2(ev.button.x, ev.button.y);
-                break;
-            }
-            case SDL_MOUSEWHEEL:
-                inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE_WHEEL] =
-                    glm::vec2(ev.wheel.x * 120, ev.wheel.y * 120);
-                break;
-
-            case SDL_KEYDOWN: {
-                if (ev.key.keysym.sym == SDLK_ESCAPE) {
-                    SDL_bool mode = SDL_GetRelativeMouseMode();
-                    SDL_SetRelativeMouseMode(mode == SDL_TRUE ? SDL_FALSE : SDL_TRUE);
+                    break;
                 }
-                
-                if (ev.key.keysym.sym == SDLK_w)      mov_front         = true;
-                if (ev.key.keysym.sym == SDLK_s)      mov_back          = true;
-                if (ev.key.keysym.sym == SDLK_d)      mov_right         = true;
-                if (ev.key.keysym.sym == SDLK_a)      mov_left          = true;
-                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = true;
-                if (ev.key.keysym.sym == SDLK_LCTRL)  mov_down           = true;
-
-                if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active           = true;
-                
-                INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
-                if (key != INPUT_KEYS::KEY_UNKNOWN)
-                    inputEvent.keys[key] = lite::INPUT_KEY_STATES::DOWN;
-                break;
-            }
-            case SDL_KEYUP: {
-
-                if (ev.key.keysym.sym == SDLK_w)      mov_front         = false;
-                if (ev.key.keysym.sym == SDLK_s)      mov_back          = false;
-                if (ev.key.keysym.sym == SDLK_d)      mov_right         = false;
-                if (ev.key.keysym.sym == SDLK_a)      mov_left          = false;
-                if (ev.key.keysym.sym == SDLK_SPACE)  mov_up            = false;
-                if (ev.key.keysym.sym == SDLK_LCTRL)  mov_down           = false;
-
-                if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active           = false;
-
-                INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
-                if (key != INPUT_KEYS::KEY_UNKNOWN)
-                    inputEvent.keys[key] = lite::INPUT_KEY_STATES::UP;
-                break;
-            }
-            case SDL_WINDOWEVENT:
-                if (ev.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    sceneRenderer.resize(ev.window.data1, ev.window.data2);
+                case SDL_MOUSEBUTTONUP: {
+                    lite::INPUT_KEYS btn = lite::INPUT_KEYS::MOUSE_LEFT;
+                    if (ev.button.button == SDL_BUTTON_RIGHT)  btn = lite::INPUT_KEYS::MOUSE_RIGHT;
+                    if (ev.button.button == SDL_BUTTON_MIDDLE) btn = lite::INPUT_KEYS::MOUSE_MIDDLE;
+                    inputEvent.analogs[lite::INPUT_ANALOGS::MOUSE] = glm::vec2(ev.button.x, ev.button.y);
+                    inputEvent.keys[btn] = lite::INPUT_KEY_STATES::UP;
+                    
+                    break;
                 }
-                break;
-            }
+                case SDL_KEYDOWN:{
+                    INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
+                    if (key != INPUT_KEYS::KEY_UNKNOWN)
+                        inputEvent.keys[key] = lite::INPUT_KEY_STATES::DOWN;
+                    if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active = true;
+                    break;
+                }
+                case SDL_KEYUP:{
+                    INPUT_KEYS key = sdlKeyToInputKey(ev.key.keysym.sym);
+                    if (key != INPUT_KEYS::KEY_UNKNOWN)
+                        inputEvent.keys[key] = lite::INPUT_KEY_STATES::UP;
+                    if (ev.key.keysym.sym == SDLK_LSHIFT)  multiple_selection_active = false;
+                    break;
+                }
+            }    
         }
 
         if (uiRenderer) {
@@ -758,32 +584,6 @@ int main(int argc, char** argv){
         if(inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_RIGHT))
         {
             mov_active = inputEvent.keys[lite::INPUT_KEYS::MOUSE_RIGHT] == lite::INPUT_KEY_STATES::DOWN;
-        }
-
-        if(mov_active)
-        {
-            glm::vec3 front = glm::normalize(offsetCenter);
-            glm::vec3 upAbsolute(0, 1, 0);
-            glm::vec3 right = glm::normalize(glm::cross(front, upAbsolute));
-    
-            glm::vec3 movement(0, 0, 0);
-            if (mov_front) movement += front;
-            if (mov_back)  movement -= front;
-            if (mov_right) movement += right;
-            if (mov_left)  movement -= right;
-            if (mov_up)    movement += upAbsolute;
-            if (mov_down)  movement -= upAbsolute;
-    
-            Uint64 now   = SDL_GetPerformanceCounter();
-            static Uint64 prevTicks = SDL_GetPerformanceCounter();
-            float deltaTime = (float)((now - prevTicks) / (double)SDL_GetPerformanceFrequency());
-            prevTicks = now;
-    
-            if (glm::length(movement) > 0.001f) {
-                offsetEye += glm::normalize(movement) * deltaTime * VELOCITY_MOVEMENT;
-            }
-    
-            sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
         }
 
         glm::vec3 currentCamLocation = sceneRenderer   

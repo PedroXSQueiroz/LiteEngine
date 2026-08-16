@@ -146,7 +146,7 @@ namespace lite
         virtual bool prepareRender() { return true; }
         virtual bool finishRender() { return true; }
 
-        bool update(float deltaTime = 0.0f)
+        virtual bool update(float deltaTime = 0.0f)
         {
             /*TODO: MAIN LOOP VAI SER AQUI?
                     CASO SIM, TALVEZ O CICLO SEJA
