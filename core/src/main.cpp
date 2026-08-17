@@ -526,13 +526,34 @@ int main(int argc, char** argv){
     });
     sceneRenderer.getScene()->addSystem(navigation);
     //TODO: CHAMAR SCENE CONFIGURER AQUI DEPOIS DE INSTANCIADO TODOS OS SISTEMAS
+
+    std::vector<Asset3dInstance<FilamentAsset3dTransform>*>operatingAssets{assetPtr};
+    gizmoSystem->setOperatingAssets(operatingAssets);
     
     while (running) {
         SDL_Event ev;
         lite::InputEvent inputEvent;
+        
+        glm::vec3 currentCamLocation = sceneRenderer   
+                                .getCurrentCamera()
+                                ->getTransform()
+                                ->getPosition();
+        
+        // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
+        // // Posição do clique capturada no evento (ev já pode ser outro evento
+        // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
+        // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
+        int winW = 0, winH = 0;
+        SDL_GetWindowSize(window, &winW, &winH);
+        glm::vec3 cameraRayDirection = objectSelector->getCameraRay(
+                    lastMousePosition,
+                    glm::vec2(winW, winH),
+                    10000.0f
+                );
 
         while (SDL_PollEvent(&ev)) {
             navigation->digestInputEvent(ev);
+            gizmoSystem->digestInput(ev, currentCamLocation, cameraRayDirection);
 
             switch(ev.type)
             {
@@ -581,28 +602,8 @@ int main(int argc, char** argv){
             uiRenderer->sendInputEvent(inputEvent);
         }
 
-        if(inputEvent.keys.contains(lite::INPUT_KEYS::MOUSE_RIGHT))
-        {
-            mov_active = inputEvent.keys[lite::INPUT_KEYS::MOUSE_RIGHT] == lite::INPUT_KEY_STATES::DOWN;
-        }
-
-        glm::vec3 currentCamLocation = sceneRenderer   
-                                    .getCurrentCamera()
-                                    ->getTransform()
-                                    ->getPosition();
+        gizmoSystem->applyGizmoTransforms(currentCamLocation, cameraRayDirection);
         
-        // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
-        // // Posição do clique capturada no evento (ev já pode ser outro evento
-        // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
-        // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
-        int winW = 0, winH = 0;
-        SDL_GetWindowSize(window, &winW, &winH);
-        glm::vec3 cameraRayDirection = objectSelector->getCameraRay(
-                    lastMousePosition,
-                    glm::vec2(winW, winH),
-                    10000.0f
-                );
-
         //------------------------------------------------------------------------------------------------
         //CLICK TOGGLE
         //------------------------------------------------------------------------------------------------
@@ -614,62 +615,12 @@ int main(int argc, char** argv){
             //------------------------------------------------------------------------------------------------
             if(inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
             {
-                
-                // Meio-ângulo do cone de broad-phase = metade da abertura de lente
-                // (FOV vertical) da câmera.
-                float coneHalfAngle = sceneRenderer.getCurrentCamera()->getFieldOfViewInRadians() * 0.5f;
-    
-                //------------------------------------------------------------------------------------------------
-                //ENCONTRA PARTE DO GIZMO
-                //------------------------------------------------------------------------------------------------
-                
-                if(!gizmoAction.has_value())
-                {
-                    gizmoAction = gizmoSystem->intersectGizmo(
-                        currentCamLocation,
-                        cameraRayDirection,
-                        coneHalfAngle
-                    );
-    
-                    if(gizmoAction.has_value())
-                    {
-                        GizmoAction currentGizmoAction = gizmoAction.value();
-                        
-                        startingGizmoLocation = gizmoSystem->getGizmoTransform()->getPosition();
-                        
-                        
-                        startingDraggingDistance = gizmoSystem->getDistanceOnAxis(
-                                axisOf(gizmoAction.value())
-                            ,   currentCamLocation
-                            ,   cameraRayDirection
-                            ,   startingGizmoLocation
-                        );
-                        startingDragginObjectLocation = assetPtr->getTransform()->getPosition();
-                        
-                        startingTurningAngle = gizmoSystem->getAngleOnAxisOnDegrees(
-                                axisOf(gizmoAction.value())
-                            ,   currentCamLocation
-                            ,   cameraRayDirection
-                            ,   startingGizmoLocation
-                        );
-                        startingTurningObjectRotation = assetPtr->getTransform()->getRotation();
-
-                        startingScaleFactorDistance = startingDraggingDistance; 
-                        startingSizeObjectScale = assetPtr->getTransform()->getScale();
-                
-                    }
-                }
-    
-                //------------------------------------------------------------------------------------------------
-                //END || ENCONTRA PARTE DO GIZMO
-                //------------------------------------------------------------------------------------------------
-    
                 if(!gizmoAction.has_value())
                 {
                     //------------------------------------------------------------------------------------------------
                     //ENCONTRA OBJETO NA CENA
                     //------------------------------------------------------------------------------------------------
-        
+                    float coneHalfAngle = sceneRenderer.getCurrentCamera()->getFieldOfViewInRadians() * 0.5f;
                     int objectFoundId = objectSelector->intersect(
                         currentCamLocation,
                         cameraRayDirection,
@@ -729,116 +680,6 @@ int main(int argc, char** argv){
         //------------------------------------------------------------------------------------------------
         //END || CLICK TOGGLE
         //------------------------------------------------------------------------------------------------
-
-        if(gizmoAction.has_value())
-        {
-            
-            if( gizmoAction == GizmoAction::MOVE_X || 
-                gizmoAction == GizmoAction::MOVE_Y || 
-                gizmoAction == GizmoAction::MOVE_Z)
-            {
-                float draggingDistance =
-                gizmoSystem->getDistanceOnAxis(
-                    axisOf(gizmoAction.value())
-                    ,   currentCamLocation
-                    ,   cameraRayDirection
-                    ,   startingGizmoLocation
-                ) - startingDraggingDistance;
-                
-                glm::vec3 dealocated = glm::vec3(
-                    startingDragginObjectLocation.x,
-                    startingDragginObjectLocation.y,
-                    startingDragginObjectLocation.z
-                );
-    
-                switch(gizmoAction.value()){
-                    case GizmoAction::MOVE_X:{
-                        dealocated.x += draggingDistance;
-                    }break;
-                    case GizmoAction::MOVE_Y:{
-                        dealocated.y += draggingDistance;
-                    }break;
-                    case GizmoAction::MOVE_Z:{
-                        dealocated.z += draggingDistance;
-                    }break;
-                }
-                
-                assetPtr->getTransform()->setPosition(dealocated);
-                
-                std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
-            }
-            else if(
-                gizmoAction == GizmoAction::ROTATE_X || 
-                gizmoAction == GizmoAction::ROTATE_Y || 
-                gizmoAction == GizmoAction::ROTATE_Z
-            )
-            {
-                float turningAngle =
-                gizmoSystem->getAngleOnAxisOnDegrees(
-                        axisOf(gizmoAction.value())
-                    ,   currentCamLocation
-                    ,   cameraRayDirection
-                    ,   startingGizmoLocation
-                ) - startingTurningAngle;
-
-                // NaN = ângulo inválido (raio paralelo ao plano / cursor no
-                // centro) — pula o frame para não propagar NaN à rotação.
-                if (!std::isnan(turningAngle))
-                {
-                    // NÃO somar o ângulo a componentes do quatérnion: quatérnion
-                    // não é (θx, θy, θz). Monta-se o DELTA de rotação com
-                    // angleAxis (quatérnion unitário) e compõe-se com a rotação
-                    // inicial. Somar graus a q.x/y/z produz um quatérnion NÃO
-                    // unitário → mat4_cast o interpreta como rotação * |q|² →
-                    // vira escala (estica e some). Ver memória do projeto.
-                    glm::quat delta = glm::angleAxis(
-                        glm::radians(turningAngle), 
-                        axisOf(gizmoAction.value()));
-                    glm::quat rotated = delta * startingTurningObjectRotation;
-
-                    assetPtr->getTransform()->setRotation(rotated, true); // world-space
-
-                    std::cout << std::format("Rotating gizmo: {} angle: {}", toString(gizmoAction.value()), turningAngle) << std::endl;
-                }
-            }
-            else if(
-                gizmoAction == GizmoAction::SCALE_X || 
-                gizmoAction == GizmoAction::SCALE_Y || 
-                gizmoAction == GizmoAction::SCALE_Z
-            )
-            {
-                float scalingDistance =
-                gizmoSystem->getDistanceOnAxis(
-                    axisOf(gizmoAction.value())
-                    ,   currentCamLocation
-                    ,   cameraRayDirection
-                    ,   startingGizmoLocation
-                ) - startingScaleFactorDistance;
-
-                glm::vec3 scaled = glm::vec3(
-                    startingSizeObjectScale.x,
-                    startingSizeObjectScale.y,
-                    startingSizeObjectScale.z
-                );
-
-                switch(gizmoAction.value()){
-                    case GizmoAction::SCALE_X:{
-                        scaled.x += scalingDistance / startingScaleFactorDistance;
-                    }break;
-                    case GizmoAction::SCALE_Y:{
-                        scaled.y += scalingDistance / startingScaleFactorDistance;
-                    }break;
-                    case GizmoAction::SCALE_Z:{
-                        scaled.z += scalingDistance / startingScaleFactorDistance;
-                    }break;
-                }
-
-                assetPtr->getTransform()->setScale(scaled);
-
-                std::cout << std::format("Scaling gizmo: {} distance: {}", toString(gizmoAction.value()), scalingDistance) << std::endl;
-            }
-
-        }
     }
 
     std::cout << "Shutting down..." << std::endl;
