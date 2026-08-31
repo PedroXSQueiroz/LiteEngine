@@ -5,6 +5,7 @@
 #include <core/data/assets/CameraAsset3dInstance.h>
 #include <core/data/assets/MaterialData.h>
 #include <core/assets/importer/Asset3dImporter.h>
+#include <core/utils/MathUtils.h>
 #include <editor/ObjectSelectorSystem.h>
 
 #include <glm/glm.hpp>
@@ -123,9 +124,12 @@ public:
     using NodeType = Asset3dInstance<TransformType>;
     using SelectorType = ObjectSelectorSystem<SceneType, TransformType>;
 
-    std::optional<GizmoAction> gizmoAction = std::nullopt;
+    std::optional<GizmoAction> m_gizmoAction = std::nullopt;
 
-    explicit GizmoSystem(GizmoParts parts) {
+    explicit GizmoSystem(GizmoParts parts, int viewHeight, int viewWidth)
+    :   m_viewHeight(viewHeight),
+        m_viewWidth(viewWidth) 
+    {
         m_parts[MOVE_X]   = std::move(parts.moveX);
         m_parts[MOVE_Y]   = std::move(parts.moveY);
         m_parts[MOVE_Z]   = std::move(parts.moveZ);
@@ -214,10 +218,32 @@ public:
 
             m_pendingWiring = false;
         }
+
+        // //INVOKE APPLY GIZMO TRANSFORM HERE
+        // m_currentCamPosition = this->m_camera->getTransform()->getPosition();
+
+        // m_currentCamRay = MathUtils::calcScreenPixelRay(
+        //     this->m_camera,
+        //     camPosition,
+        //     glm::vec2(m_viewWidth, m_viewHeight),
+        //     10000.0f
+        // );
+
+        // applyGizmoTransforms(m_currentCamPosition, m_currentCamRay);
+        applyGizmoTransforms(m_currentCamPosition, m_currentCamRay);
     }
 
-    void digestInput(SDL_Event ev, glm::vec3 currentCamLocation, glm::vec3 cameraRayDirection)
+    void digestInput(SDL_Event ev, glm::vec2 pixel)
     {
+        m_currentCamPosition = this->m_camera->getTransform()->getPosition();
+
+        m_currentCamRay = MathUtils::calcScreenPixelRay(
+            this->m_camera,
+            pixel,
+            glm::vec2(m_viewWidth, m_viewHeight),
+            10000.0f
+        );
+        
         //------------------------------------------------------------------------------------------------
         //CLICK PRESSED
         //------------------------------------------------------------------------------------------------
@@ -231,25 +257,27 @@ public:
             //------------------------------------------------------------------------------------------------
             //ENCONTRA PARTE DO GIZMO
             //------------------------------------------------------------------------------------------------
-            
-            if(!gizmoAction.has_value())
+            if(!m_gizmoAction.has_value())
             {
-                gizmoAction = intersectGizmo(
-                    currentCamLocation,
-                    cameraRayDirection,
+                
+                m_gizmoAction = intersectGizmo(
+                    m_currentCamPosition,
+                    m_currentCamRay,
                     coneHalfAngle
                 );
 
-                if(gizmoAction.has_value())
+                if(m_gizmoAction.has_value())
                 {
-                    GizmoAction currentGizmoAction = gizmoAction.value();
+                    
+                    
+                    GizmoAction currentGizmoAction = m_gizmoAction.value();
                     
                     startingGizmoLocation = getGizmoTransform()->getPosition();
                     
                     startingDraggingDistance = getDistanceOnAxis(
-                            axisOf(gizmoAction.value())
-                        ,   currentCamLocation
-                        ,   cameraRayDirection
+                            axisOf(m_gizmoAction.value())
+                        ,   m_currentCamPosition
+                        ,   m_currentCamRay
                         ,   startingGizmoLocation
                     );
 
@@ -268,9 +296,9 @@ public:
                     // startingDragginObjectLocation = medianPoint;
                     
                     startingTurningAngle = getAngleOnAxisOnDegrees(
-                            axisOf(gizmoAction.value())
-                        ,   currentCamLocation
-                        ,   cameraRayDirection
+                            axisOf(m_gizmoAction.value())
+                        ,   m_currentCamPosition
+                        ,   m_currentCamRay
                         ,   startingGizmoLocation
                     );
 
@@ -285,28 +313,28 @@ public:
                         startingScaleFactorDistance = startingDraggingDistance; 
                     }
 
-                    gizmoAction = currentGizmoAction;
-                    
+                    m_gizmoAction = currentGizmoAction;
                 }
             }
+
         }
         else if(ev.type == SDL_MOUSEBUTTONUP && ev.button.button == SDL_BUTTON_LEFT)
         {
-            gizmoAction = std::nullopt;
+            m_gizmoAction = std::nullopt;
         }
     }
 
     void applyGizmoTransforms(glm::vec3 currentCamLocation, glm::vec3 cameraRayDirection)
     {
-        if(gizmoAction.has_value() && m_operatingAssets.size() > 0)
+        if(m_gizmoAction.has_value() && m_operatingAssets.size() > 0)
         {
             
-            if( gizmoAction == GizmoAction::MOVE_X || 
-                gizmoAction == GizmoAction::MOVE_Y || 
-                gizmoAction == GizmoAction::MOVE_Z)
+            if( m_gizmoAction == GizmoAction::MOVE_X || 
+                m_gizmoAction == GizmoAction::MOVE_Y || 
+                m_gizmoAction == GizmoAction::MOVE_Z)
             {
                 float draggingDistance = getDistanceOnAxis(
-                    axisOf(gizmoAction.value())
+                    axisOf(m_gizmoAction.value())
                     ,   currentCamLocation
                     ,   cameraRayDirection
                     ,   startingGizmoLocation
@@ -320,7 +348,7 @@ public:
                         initialPostion.z
                     );
 
-                    switch(gizmoAction.value()){
+                    switch(m_gizmoAction.value()){
                         case GizmoAction::MOVE_X:{
                             dealocated.x += draggingDistance;
                         }break;
@@ -340,17 +368,17 @@ public:
                 
                 }
 
-                std::cout << std::format("Dragging gizmo: {} distance: {}", toString(gizmoAction.value()), draggingDistance) << std::endl;
+                std::cout << std::format("Dragging gizmo: {} distance: {}", toString(m_gizmoAction.value()), draggingDistance) << std::endl;
             }
             else if(
-                gizmoAction == GizmoAction::ROTATE_X || 
-                gizmoAction == GizmoAction::ROTATE_Y || 
-                gizmoAction == GizmoAction::ROTATE_Z
+                m_gizmoAction == GizmoAction::ROTATE_X || 
+                m_gizmoAction == GizmoAction::ROTATE_Y || 
+                m_gizmoAction == GizmoAction::ROTATE_Z
             )
             {
                 float turningAngle =
                 getAngleOnAxisOnDegrees(
-                        axisOf(gizmoAction.value())
+                        axisOf(m_gizmoAction.value())
                     ,   currentCamLocation
                     ,   cameraRayDirection
                     ,   startingGizmoLocation
@@ -368,7 +396,7 @@ public:
                     // vira escala (estica e some). Ver memória do projeto.
                     glm::quat delta = glm::angleAxis(
                         glm::radians(turningAngle), 
-                        axisOf(gizmoAction.value()));
+                        axisOf(m_gizmoAction.value()));
                     glm::quat rotated = delta * startingTurningObjectRotation;
                     
                     //FIXME: IMPLEMENTAR ROTAÇÃO POR ORIGEM E EM CONJUNTO, TALVEZ SENDO ATIVADA POR ALGUM ATALHO
@@ -379,18 +407,18 @@ public:
                         it->second->getTransform()->setRotation(rotated, true); // world-space
                     }
 
-                    std::cout << std::format("Rotating gizmo: {} angle: {}", toString(gizmoAction.value()), turningAngle) << std::endl;
+                    std::cout << std::format("Rotating gizmo: {} angle: {}", toString(m_gizmoAction.value()), turningAngle) << std::endl;
                 }
             }
             else if(
-                gizmoAction == GizmoAction::SCALE_X || 
-                gizmoAction == GizmoAction::SCALE_Y || 
-                gizmoAction == GizmoAction::SCALE_Z
+                m_gizmoAction == GizmoAction::SCALE_X || 
+                m_gizmoAction == GizmoAction::SCALE_Y || 
+                m_gizmoAction == GizmoAction::SCALE_Z
             )
             {
                 float scalingDistance =
                 getDistanceOnAxis(
-                    axisOf(gizmoAction.value())
+                    axisOf(m_gizmoAction.value())
                     ,   currentCamLocation
                     ,   cameraRayDirection
                     ,   startingGizmoLocation
@@ -402,7 +430,7 @@ public:
                     startingSizeObjectScale.z
                 );
 
-                switch(gizmoAction.value()){
+                switch(m_gizmoAction.value()){
                     case GizmoAction::SCALE_X:{
                         scaled.x += scalingDistance / startingScaleFactorDistance;
                     }break;
@@ -421,7 +449,7 @@ public:
                     it->second->getTransform()->setScale(scaled);
                 }
 
-                std::cout << std::format("Scaling gizmo: {} distance: {}", toString(gizmoAction.value()), scalingDistance) << std::endl;
+                std::cout << std::format("Scaling gizmo: {} distance: {}", toString(m_gizmoAction.value()), scalingDistance) << std::endl;
             }
 
         }
@@ -627,6 +655,10 @@ public:
         }
     }
 
+    std::optional<GizmoAction> getCurrentGizmoAction(){
+        return m_gizmoAction;
+    }
+
 protected:
     // Mapeia todos os meshes descendentes de `node` → `action`. Recursivo, então
     // aceita peça com um mesh, vários meshes, ou meshes sob nós intermediários.
@@ -693,6 +725,9 @@ protected:
     // Câmera da cena 3D (emprestada — dono é o SceneRenderer). Agnóstica.
     CameraAsset3dInstance<TransformType>* m_camera = nullptr;
 
+    glm::vec3 m_currentCamPosition { glm::vec3(0, 0, 0) }; 
+    glm::vec3 m_currentCamRay { glm::vec3(0, 0, 0) } ;
+
     glm::vec3 m_initialGizmoScale;
     glm::vec3 m_initialBoundingBoxExtension;
 
@@ -707,6 +742,10 @@ protected:
     float startingDraggingDistance;
     float startingTurningAngle;
     float startingScaleFactorDistance;
+
+    int m_viewHeight;
+    int m_viewWidth;
+    glm::vec2 m_currentPixel { glm::vec2(0, 0) };
 };
 
 namespace gizmo {

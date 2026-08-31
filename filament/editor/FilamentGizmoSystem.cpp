@@ -15,8 +15,8 @@
 
 namespace lite {
 
-FilamentGizmoSystem::FilamentGizmoSystem(filament::Engine* engine, GizmoParts parts)
-    : GizmoSystem(std::move(parts))
+FilamentGizmoSystem::FilamentGizmoSystem(filament::Engine* engine, GizmoParts parts, int viewHeight, int viewWidth)
+    : GizmoSystem(std::move(parts), viewHeight, viewWidth)
     , m_engine(engine)
 {
     // Só guarda dependências — nada de GPU aqui (construído na main thread).

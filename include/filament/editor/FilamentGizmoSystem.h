@@ -33,7 +33,7 @@ namespace lite {
 class FilamentGizmoSystem
     : public GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform> {
 public:
-    FilamentGizmoSystem(filament::Engine* engine, GizmoParts parts);
+    FilamentGizmoSystem(filament::Engine* engine, GizmoParts parts, int viewHeight, int viewWidth);
     ~FilamentGizmoSystem() override;
 
     // Cena principal: de onde vêm o filament::Renderer (o pass do overlay entra

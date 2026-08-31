@@ -67,45 +67,6 @@ public:
         return glm::vec3(m_camera->getWorldMatrix()[3]);
     }
 
-    // Vetor saindo da câmera em direção ao pixel clicado, com o comprimento
-    // pedido. Inverte o pipeline de transformação: viewport → NDC → clip →
-    // view → mundo. pixel em coordenadas de janela (origem no canto superior
-    // esquerdo, como o SDL entrega o mouse).
-    glm::vec3 getCameraRay(const glm::vec2& pixel, const glm::vec2& viewportSize, float length) const {
-        if (!m_camera || viewportSize.x <= 0.0f || viewportSize.y <= 0.0f) {
-            return glm::vec3(0.0f);
-        }
-
-        // viewport → NDC: y da tela cresce para baixo, NDC cresce para cima
-        const float x = (2.0f * pixel.x) / viewportSize.x - 1.0f;
-        const float y = 1.0f - (2.0f * pixel.y) / viewportSize.y;
-
-        const glm::mat4 world = m_camera->getWorldMatrix();
-        const glm::mat4 view = glm::inverse(world); // localização do nó, não a view do renderer
-        const glm::mat4 invVP = glm::inverse(m_camera->getProjectionMatrix() * view);
-
-        // clip → mundo: dois depths distintos do mesmo pixel caem sobre a
-        // mesma reta no mundo, independente da convenção de z da projeção
-        // (NO [-1,1] ou ZO [0,1]) — dispensa acertar o valor do near plane
-        glm::vec4 p0 = invVP * glm::vec4(x, y, 0.0f, 1.0f);
-        glm::vec4 p1 = invVP * glm::vec4(x, y, 0.5f, 1.0f);
-        constexpr float eps = 1e-8f;
-        if (std::abs(p0.w) < eps || std::abs(p1.w) < eps) return glm::vec3(0.0f);
-
-        const glm::vec3 a = glm::vec3(p0) / p0.w;
-        const glm::vec3 b = glm::vec3(p1) / p1.w;
-        glm::vec3 dir = b - a;
-        if (glm::dot(dir, dir) < eps) return glm::vec3(0.0f);
-        dir = glm::normalize(dir);
-
-        // orienta para frente da câmera (o par de depths pode sair invertido
-        // conforme a convenção de projeção)
-        const glm::vec3 forward = -glm::normalize(glm::vec3(world[2]));
-        if (glm::dot(dir, forward) < 0.0f) dir = -dir;
-
-        return dir * length;
-    }
-
     // origin: início do segmento (mundo); ray: direção JÁ escalada pelo
     // alcance (mundo) — o teste cobre apenas o segmento [origin, origin+ray].
     // coneHalfAngle: meio-ângulo (radianos) do cone que envolve a direção do

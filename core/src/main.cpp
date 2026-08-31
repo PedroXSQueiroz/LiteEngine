@@ -55,6 +55,8 @@
 #include <filament/editor/FilamentObjectSelectorSystem.h>
 #include <filament/editor/FilamentGizmoSystem.h>
 
+#include <core/utils/MathUtils.h>
+
 using namespace std;
 using namespace lite;
 
@@ -357,10 +359,18 @@ int main(int argc, char** argv){
         "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx",
         "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
     );
+
+    // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
+    // // Posição do clique capturada no evento (ev já pode ser outro evento
+    // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
+    // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
+    int winW = 0, winH = 0;
+    SDL_GetWindowSize(window, &winW, &winH);
     std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
         std::make_unique<lite::FilamentGizmoSystem>(
             FilamentUtils::getEngine(),
-            std::move(gizmo)
+            std::move(gizmo),
+            winH, winW
         );
     gizmoSystem->setCamera(sceneRenderer.getCurrentCamera());
     gizmoSystem->attachTo(currentScene);
@@ -512,21 +522,16 @@ int main(int argc, char** argv){
                                 ->getTransform()
                                 ->getPosition();
         
-        // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
-        // // Posição do clique capturada no evento (ev já pode ser outro evento
-        // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
-        // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
-        int winW = 0, winH = 0;
-        SDL_GetWindowSize(window, &winW, &winH);
-        glm::vec3 cameraRayDirection = objectSelector->getCameraRay(
-                    lastMousePosition,
-                    glm::vec2(winW, winH),
-                    10000.0f
-                );
+        glm::vec3 cameraRayDirection = MathUtils::calcScreenPixelRay(
+            sceneRenderer.getCurrentCamera(),
+            lastMousePosition,
+            glm::vec2(winW, winH),
+            10000.0f
+        );
 
         while (SDL_PollEvent(&ev)) {
             navigation->digestInputEvent(ev);
-            gizmoSystem->digestInput(ev, currentCamLocation, cameraRayDirection);
+            gizmoSystem->digestInput(ev, lastMousePosition);
 
             switch(ev.type)
             {
@@ -575,7 +580,7 @@ int main(int argc, char** argv){
             uiRenderer->sendInputEvent(inputEvent);
         }
 
-        gizmoSystem->applyGizmoTransforms(currentCamLocation, cameraRayDirection);
+        // gizmoSystem->applyGizmoTransforms(currentCamLocation, cameraRayDirection);
         
         //------------------------------------------------------------------------------------------------
         //CLICK TOGGLE
