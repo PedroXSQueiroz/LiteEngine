@@ -8,6 +8,9 @@
 #include <filament/Viewport.h>
 #include <utils/EntityManager.h>
 
+#include <SDL.h>
+#include <SDL_syswm.h>
+
 #include <iostream>
 
 namespace lite {
@@ -43,6 +46,7 @@ FilamentGizmoSystem::~FilamentGizmoSystem() {
 }
 
 bool FilamentGizmoSystem::initializeOverlay() {
+
     if (!m_engine || !m_liteScene || !m_camera) return false;
 
     filament::Renderer* renderer = m_liteScene->getFilamentRenderer();

@@ -4,6 +4,7 @@
 #include <filament/data/assets/FilamentAsset3dInstance.h>
 #include <filament/data/assets/FilamentCameraAsset3dInstance.h>
 #include <filament/scene/FilamentOverlayScene.h>
+#include <core/concepts/EngineConcepts.h>
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>

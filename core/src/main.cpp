@@ -366,28 +366,9 @@ int main(int argc, char** argv){
     gizmoSystem->attachTo(currentScene);
     currentScene->addSystem(gizmoSystem.get());
 
-    /*---------------------------------------------------------------------------*/
-    //GIZMO VALUES
-    /*---------------------------------------------------------------------------*/
-
-    std::optional<GizmoAction> gizmoAction = std::nullopt;
-    
-    glm::vec3 startingGizmoLocation = glm::vec3(0, 0, 0);
-    
-    float startingDraggingDistance = 0;
-    glm::vec3 startingDragginObjectLocation = glm::vec3(0, 0, 0);
-
-    float startingTurningAngle = 0;
-    glm::quat startingTurningObjectRotation = glm::quat(0, 0, 0, 0);
-
-    float startingScaleFactorDistance = 0;
-    glm::vec3 startingSizeObjectScale = glm::vec3(1, 1, 1);
     
     glm::vec2 lastMousePosition = glm::vec2(0, 0);
 
-    /*---------------------------------------------------------------------------*/
-    //END || GIZMO VALUES
-    /*---------------------------------------------------------------------------*/
     
     /*----------------------------------------------------------------------------
     SETUP SERIALIZER
@@ -496,15 +477,7 @@ int main(int argc, char** argv){
     ----------------------------------------------------------------------------*/
     bool running = true;
 
-    bool    mov_front = false
-        ,   mov_back = false
-        ,   mov_right = false
-        ,   mov_left = false
-        ,   mov_up = false
-        ,   mov_down = false
-        ,   mov_active = false
-        
-        ,   multiple_selection_active = false;
+    bool multiple_selection_active = false;
 
     bool start_object_query_select = false;
     const float VELOCITY_MOVEMENT = radius * 50.f;
@@ -528,7 +501,7 @@ int main(int argc, char** argv){
     //TODO: CHAMAR SCENE CONFIGURER AQUI DEPOIS DE INSTANCIADO TODOS OS SISTEMAS
 
     std::vector<Asset3dInstance<FilamentAsset3dTransform>*>operatingAssets{assetPtr};
-    gizmoSystem->setOperatingAssets(operatingAssets);
+    gizmoSystem->setOperatingAssets(operatingAssets);    
     
     while (running) {
         SDL_Event ev;
@@ -615,7 +588,7 @@ int main(int argc, char** argv){
             //------------------------------------------------------------------------------------------------
             if(inputEvent.keys[lite::INPUT_KEYS::MOUSE_LEFT] == lite::INPUT_KEY_STATES::DOWN)
             {
-                if(!gizmoAction.has_value())
+                if(!gizmoSystem->getCurrentGizmoAction().has_value())
                 {
                     //------------------------------------------------------------------------------------------------
                     //ENCONTRA OBJETO NA CENA
@@ -665,16 +638,6 @@ int main(int argc, char** argv){
             }
             //------------------------------------------------------------------------------------------------
             //END || CLICK PRESSED
-            //------------------------------------------------------------------------------------------------
-            //------------------------------------------------------------------------------------------------
-            // CLICK RELEASED
-            //------------------------------------------------------------------------------------------------
-            else
-            {
-                gizmoAction = std::nullopt;
-            }
-            //------------------------------------------------------------------------------------------------
-            // END || CLICK RELEASED
             //------------------------------------------------------------------------------------------------
         }
         //------------------------------------------------------------------------------------------------
