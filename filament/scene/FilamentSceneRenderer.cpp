@@ -9,14 +9,15 @@
 
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
 #include <filament/utils/FilamentUtils.h>
+#include <filament/view/SDL/SDLFilamentView.h>
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 
 #include <iostream>
 
 namespace lite {
 
-FilamentSceneRenderer::FilamentSceneRenderer(void* nativeWindowHandle, int width, int height)
-    : SceneRenderer<FilamentScene>(nativeWindowHandle, width, height)
+FilamentSceneRenderer::FilamentSceneRenderer(View* view, int width, int height)
+    : SceneRenderer<FilamentScene>(view, width, height)
 {
     // THREADING: última instrução do construtor — o objeto já está completo,
     // então a render thread pode despachar as fases virtuais com segurança.
@@ -84,8 +85,16 @@ bool FilamentSceneRenderer::setup() {
 
     FilamentUtils::setEngine(m_engine);
 
+    SDLFilamentView* currentView = dynamic_cast<SDLFilamentView*>(m_view);
+    
+    if(!currentView)
+    {
+        std::cerr << "FilamentSceneRenderer: View is not compatible" << std::endl;
+        return false;  // cleanup() destrói o engine
+    }
+
     // --- SwapChain ---
-    m_swapChain = m_engine->createSwapChain(m_nativeWindowHandle);
+    m_swapChain = m_engine->createSwapChain(currentView->getNativeWindow());
     if (!m_swapChain) {
         std::cerr << "FilamentSceneRenderer: failed to create swap chain" << std::endl;
         return false;  // cleanup() destrói o engine

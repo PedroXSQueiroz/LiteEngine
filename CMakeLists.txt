@@ -251,6 +251,14 @@ target_sources(app PRIVATE
   ${CMAKE_SOURCE_DIR}/core/src/input/InputEnums.cpp
   ${CMAKE_SOURCE_DIR}/core/src/scene/Scene.cpp
 
+  # View (janela + swapchain) e configurers — header-only por enquanto,
+  # listados pelo mesmo motivo dos headers de serialização abaixo.
+  ${CMAKE_SOURCE_DIR}/include/core/concepts/SceneConcept.h
+  ${CMAKE_SOURCE_DIR}/include/core/scene/SceneConfigurer.h
+  ${CMAKE_SOURCE_DIR}/include/core/view/View.h
+  ${CMAKE_SOURCE_DIR}/include/editor/EditorSceneConfigurer.h
+  ${CMAKE_SOURCE_DIR}/include/filament/view/SDL/SDLFilamentView.h
+
   # Serialization
   # Headers: listados para aparecerem na solução do Visual Studio. NÃO são
   # compilados por estarem aqui — header só entra no build quando um .cpp o

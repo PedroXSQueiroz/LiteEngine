@@ -7,6 +7,7 @@
 #include <utils/Entity.h>
 
 #include <core/scene/SceneRenderer.h>
+#include <core/view/View.h>
 #include <filament/scene/FilamentScene.h>
 #include <filament/data/assets/FilamentCameraAsset3dInstance.h>
 #include <filament/lightning/FilamentIBL.h>
@@ -24,7 +25,7 @@ namespace lite {
 // (todas executando na render thread — thread affinity do filament::Engine).
 class FilamentSceneRenderer : public SceneRenderer<FilamentScene> {
 public:
-    FilamentSceneRenderer(void* nativeWindowHandle, int width, int height);
+    FilamentSceneRenderer(View* view, int width, int height);
     ~FilamentSceneRenderer() override;
 
     // Comandos de conteúdo (postados à fila da render thread)
@@ -50,6 +51,7 @@ private:
     std::unique_ptr<FilamentCameraAsset3dInstance> m_camera;
     std::unique_ptr<FilamentIBL> m_ibl;
     utils::Entity m_lightEntity;
+    // void* m_nativeWindowHandle;
 };
 
 } // namespace lite

@@ -28,6 +28,10 @@ namespace lite
 
         public:
         using Asset3DReference = std::unique_ptr<AssetType>;
+        using SceneAsset3d = AssetType;
+        using SceneTransform = TransformType;
+        using SceneAsset3dFactory = InstanceFactory;
+        using SceneUIRenderer = UIRenderer; 
 
         Scene(
             std::unique_ptr<InstanceFactory> asset3dFactory,

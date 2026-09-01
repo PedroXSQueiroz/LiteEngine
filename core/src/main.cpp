@@ -33,6 +33,7 @@
 #include <core/data/assets/IO/DummySceneSerializer.h>
 #include <core/UI/UIInstance.h>
 #include <core/scene/Scene.h>
+#include <core/view/View.h>
 #include <editor/systems/EditorNavigationSystem.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
@@ -41,6 +42,7 @@
 #include <filament/utils/FilamentUtils.h>
 #include <filament/scene/FilamentScene.h>
 #include <filament/scene/FilamentSceneRenderer.h>
+#include <filament/view/SDL/SDLFilamentView.h>
 
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 #include <CEF/ui/elements/CEF_UIElements.h>
@@ -132,20 +134,7 @@ static INPUT_KEYS sdlKeyToInputKey(SDL_Keycode sym) {
     }
 }
 
-static void* getNativeWindowHandle(SDL_Window* window) {
-    SDL_SysWMinfo wmi;
-    SDL_VERSION(&wmi.version);
-    if (!SDL_GetWindowWMInfo(window, &wmi)) {
-        return nullptr;
-    }
-#if defined(_WIN32)
-    return (void*) wmi.info.win.window;
-#elif defined(__APPLE__)
-    return wmi.info.cocoa.window;
-#else
-    return (void*) (uintptr_t) wmi.info.x11.window;
-#endif
-}
+
 
 class DummySceneDTOMapper : public SceneDTOMapper<
         FilamentAsset3dInstance,
@@ -243,40 +232,23 @@ int main(int argc, char** argv){
     SetEnvironmentVariableA("OPENGL_DRIVER", "opengl32");
 #endif
 
-    SDL_Window* window = SDL_CreateWindow(
-        "Lite",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        SCREEN_WIDTH,
-        SCREEN_HEIGHT,
-        SDL_WINDOW_ALLOW_HIGHDPI |
-        SDL_WINDOW_SHOWN |
-        SDL_WINDOW_RESIZABLE |
-        SDL_WINDOW_FULLSCREEN_DESKTOP
-    );
-
-    if (!window) {
-        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << std::endl;
-        return -1;
-    }
-
-    std::cout << "Window created successfully" << std::endl;
-
-    void* nativeWindow = getNativeWindowHandle(window);
-    if (!nativeWindow) {
-        std::cerr << "Failed to get native window handle" << std::endl;
-        return -1;
-    }
-
-    int fbW = SCREEN_WIDTH, fbH = SCREEN_HEIGHT;
-    SDL_GetWindowSize(window, &fbW, &fbH);
-
     /*----------------------------------------------------------------------------
     SETUP SCENE RENDERER
     Spawns render thread: engine, swapchain, scene and camera are created there.
     ----------------------------------------------------------------------------*/
-    FilamentSceneRenderer sceneRenderer(nativeWindow, fbW, fbH);
+    lite::View* view = new SDLFilamentView(SCREEN_WIDTH, SCREEN_HEIGHT);
+    view->Init();
+
+    // Tamanho REAL da janela, não os literais: FULLSCREEN_DESKTOP ignora o
+    // tamanho pedido e assume a resolução do desktop. O renderer usa estes
+    // valores para o viewport E para a aspect da projeção — se divergirem do
+    // tamanho usado no pixel→ray do picking, o clique erra o alvo no eixo X.
+    glm::vec2 viewDim = view->getDimensions();
+    int fbW = viewDim[0], fbH = viewDim[1];
+
+    FilamentSceneRenderer sceneRenderer(view, fbW, fbH);
     sceneRenderer.waitReady();
+
 
     auto* currentScene = sceneRenderer.getScene();
     auto* uiRenderer   = currentScene->getCurrentUI();
@@ -364,8 +336,8 @@ int main(int argc, char** argv){
     // // Posição do clique capturada no evento (ev já pode ser outro evento
     // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
     // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
-    int winW = 0, winH = 0;
-    SDL_GetWindowSize(window, &winW, &winH);
+    int winW = fbW, winH = fbH;
+    // SDL_GetWindowSize(window, &winW, &winH);
     std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
         std::make_unique<lite::FilamentGizmoSystem>(
             FilamentUtils::getEngine(),
@@ -674,7 +646,7 @@ int main(int argc, char** argv){
 
     importer.reset();
 
-    SDL_DestroyWindow(window);
+    // SDL_DestroyWindow(window);
     SDL_Quit();
 
     std::cout << "Cleanup complete" << std::endl;

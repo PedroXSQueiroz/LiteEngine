@@ -12,6 +12,8 @@
 
 #include <glm/glm.hpp>
 
+#include <core/view/View.h>
+
 namespace lite {
 
 // Facade abstrato do renderer de cena: possui a render thread e orquestra o
@@ -80,11 +82,16 @@ public:
     virtual void resize(int width, int height) = 0;
 
 protected:
-    SceneRenderer(void* nativeWindowHandle, int width, int height)
-        : m_nativeWindowHandle(nativeWindowHandle)
-        , m_width(width)
-        , m_height(height)
-        , m_readyFuture(m_readyPromise.get_future()) {}
+    SceneRenderer(
+            lite::View* view
+            // void* nativeWindowHandle
+        ,   int width
+        ,   int height)
+        :   m_view(view)
+            // m_nativeWindowHandle(nativeWindowHandle)
+        ,   m_width(width)
+        ,   m_height(height)
+        ,   m_readyFuture(m_readyPromise.get_future()) {}
 
     // THREADING: chamar como ÚLTIMA instrução do construtor da classe filha
     void launchRenderThread() {
@@ -107,12 +114,15 @@ protected:
         return true;
     }
 
-    void* m_nativeWindowHandle;
+    // void* m_nativeWindowHandle;
     int m_width;
     int m_height;
 
     // Populada pela filha em setup(); destruída pela filha em cleanup()/reset
     std::unique_ptr<SceneType> m_scene;
+
+    //TODO: MAYBE SHOULD BE UNITQUE PTR
+    lite::View* m_view;
 
 private:
     void renderThreadMain() {
