@@ -223,11 +223,6 @@ int main(int argc, char** argv){
     const int SCREEN_WIDTH = 1980;
     const int SCREEN_HEIGHT = 1080;
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
-        return -1;
-    }
-
 #ifdef _WIN32
     SetEnvironmentVariableA("OPENGL_DRIVER", "opengl32");
 #endif

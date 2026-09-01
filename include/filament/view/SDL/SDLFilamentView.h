@@ -25,6 +25,11 @@ namespace lite {
         };
 
         virtual bool Init() override{
+            if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+                std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
+                return -1;
+            }
+            
             m_window = SDL_CreateWindow(
                 "Lite",
                 SDL_WINDOWPOS_CENTERED,
