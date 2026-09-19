@@ -34,6 +34,9 @@
 #include <core/UI/UIInstance.h>
 #include <core/scene/Scene.h>
 #include <core/view/View.h>
+#include <core/scene/SceneConfigurer.h>
+#include <core/scene/SceneFactory.h>
+#include <editor/EditorSceneConfigurer.h>
 #include <editor/systems/EditorNavigationSystem.h>
 #include <assimp/assets/importer/AssimpImporter.h>
 #include <filament/assets/instanceFactory/FilamentInstanceFactory.h>
@@ -42,6 +45,8 @@
 #include <filament/utils/FilamentUtils.h>
 #include <filament/scene/FilamentScene.h>
 #include <filament/scene/FilamentSceneRenderer.h>
+#include <filament/scene/FilamentOverlayScene.h>
+#include <filament/editor/FilamentEditorSceneConfigurer.h>
 #include <filament/view/SDL/SDLFilamentView.h>
 
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
@@ -205,6 +210,8 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
 
 int main(int argc, char** argv){
 
+    auto importer = std::make_unique<AssimpImporter>();
+    
     const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
 
     /*----------------------------------------------------------------------------
@@ -250,39 +257,6 @@ int main(int argc, char** argv){
 
     std::cout << "Scene renderer ready" << std::endl;
 
-    /*----------------------------------------------------------------------------
-    SETUP LIGHTING (posted to render thread command queue)
-    ----------------------------------------------------------------------------*/
-    std::string iblPath = "D:/Workspace/LiteEngine/3rd_party/filament/out/samples/assets/ibl/lightroom_14b";
-    sceneRenderer.setIBL(iblPath, 30000.0f);
-
-    sceneRenderer.addDirectionalLight(
-        {1.0f, 1.0f, 0.95f},
-        100000.0f,
-        {0.6f, -1.0f, -0.8f},
-        false
-    );
-
-    /*----------------------------------------------------------------------------
-    SETUP WIREFRAME SYSTEM
-    Configuração é 100% CPU (main thread); os recursos GPU são criados de forma
-    preguiçosa pelo próprio sistema no primeiro hook, já na render thread.
-    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
-    ----------------------------------------------------------------------------*/
-    std::unique_ptr<FilamentWireframeSystem> wireframeSystem =
-        std::make_unique<FilamentWireframeSystem>(
-            FilamentUtils::getEngine(),
-            currentScene->getFilamentScene()
-        );
-    wireframeSystem->initialize(fbW, fbH);
-    wireframeSystem->setMaterialPath("D:/Workspace/LiteEngine/core/resources/filament/editor/materials/wireframe.filamat");
-    wireframeSystem->setWireframeColor(glm::vec4(1.0f, 1.0f, 1.0f, 0.6f));
-    wireframeSystem->attachTo(currentScene);
-    currentScene->addSystem(wireframeSystem.get());
-
-    /*----------------------------------------------------------------------------
-    SETUP CAMERA INITIAL POSITION
-    ----------------------------------------------------------------------------*/
     glm::vec3 center(0, 0, 0);
     float radius = 5.0f;
     glm::vec3 offsetEye    = center + glm::vec3(0, radius * 0.3f, radius);
@@ -290,59 +264,7 @@ int main(int argc, char** argv){
 
     sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
 
-    auto importer = std::make_unique<AssimpImporter>();
-
-    /*----------------------------------------------------------------------------
-    SETUP SELECT OBJECT SYSTEM
-    ----------------------------------------------------------------------------*/
-
-    std::unique_ptr<FilamentObjectSelectorSystem> objectSelector = std::make_unique<FilamentObjectSelectorSystem>();
-    objectSelector->setCamera(sceneRenderer.getCurrentCamera());
-    objectSelector->attachTo(sceneRenderer.getScene());
-    currentScene->addSystem(objectSelector.get());
-
-    /*----------------------------------------------------------------------------
-    SETUP GIZMO SYSTEM
-    O gizmo é desenhado num overlay próprio (cena + view separadas), composto por
-    cima da cena 3D dentro do mesmo frame — por isso não é ocluído pela geometria
-    nem aparece no picking da cena principal.
-    Os recursos GPU (cena/view/factory/root) são criados de forma preguiçosa no
-    primeiro hook, já na render thread; aqui só se injetam dependências.
-    Registro via addSystem ANTES de sceneRenderer.start() — regra dos systems.
-
-    TODO: preencher os 9 modelos em `gizmoParts` (move/rotate/scale × X/Y/Z).
-          Enquanto os slots estiverem vazios o overlay é criado e desenhado vazio.
-    ----------------------------------------------------------------------------*/
-    
-    GizmoParts gizmo = lite::gizmo::buildGizmoParts(
-        importer.get(),
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_x.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_y.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_move_z.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_x.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_y.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_rotate_z.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_x.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_y.fbx",
-        "C:/Users/pixqu/Downloads/transform_gizmo (1)/gizmo_scale_z.fbx"
-    );
-
-    // TODO: CALCULAR ISSO FORA DO CLIQUE PODE SER "CARO", REVER ISSO
-    // // Posição do clique capturada no evento (ev já pode ser outro evento
-    // // do mesmo frame); viewport real da janela (FULLSCREEN_DESKTOP =
-    // // resolução do desktop, não SCREEN_WIDTH/HEIGHT)
     int winW = fbW, winH = fbH;
-    // SDL_GetWindowSize(window, &winW, &winH);
-    std::unique_ptr<lite::FilamentGizmoSystem> gizmoSystem =
-        std::make_unique<lite::FilamentGizmoSystem>(
-            FilamentUtils::getEngine(),
-            std::move(gizmo),
-            winH, winW
-        );
-    gizmoSystem->setCamera(sceneRenderer.getCurrentCamera());
-    gizmoSystem->attachTo(currentScene);
-    currentScene->addSystem(gizmoSystem.get());
-
     
     glm::vec2 lastMousePosition = glm::vec2(0, 0);
 
@@ -365,89 +287,28 @@ int main(int argc, char** argv){
     ----------------------------------------------------------------------------*/
     lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
 
-    UIPanelElement<CEF_Filament_UIRendererThreaded>* root = nullptr;
-    if (!(root = uiInstance->start())) {
-        std::cerr << "Failed to start UIRenderer" << std::endl;
-        return -1;
-    }
-
-    CEF_UIPanelElement* leftPanel = new CEF_UIPanelElement(uiRenderer);
-    root->addChildComponent(leftPanel, 0, 0);
-
-    UITextElement<CEF_Filament_UIRendererThreaded>* uiText = new CEF_UITextElement(uiRenderer);
-    leftPanel->addChildComponent(uiText, 0, 0, 1, 2);
-
-    UITextInputElement<CEF_Filament_UIRendererThreaded>* uiInput = new CEF_UITextInputElement(uiRenderer, "Modelo");
-    leftPanel->addChildComponent(uiInput, 1, 0, 1, 2);
-
-
-    UIButtonElement<CEF_Filament_UIRendererThreaded>* loadModelButton = new CEF_UIButtonElement(uiRenderer, "Carregar");
-    loadModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded*, int, std::string) {
-        std::cout << "load model invoked" << std::endl;
-        // if (importer->import(uiInput->getText(), rootNode, materials)) {
-        //     currentInstanceId = currentScene->create(
-        //         rootNode,
-        //         materials,
-        //         TransformUtils<FilamentAsset3dTransform>::build()
-        //     );
-        //     assetPtr = currentScene->get(currentInstanceId);
-        // }
-    });
-
-    UIButtonElement<CEF_Filament_UIRendererThreaded>* deleteModelButton = new CEF_UIButtonElement(uiRenderer, "Deletar");
-    deleteModelButton->registerEvent("click", [&](CEF_Filament_UIRendererThreaded*, int, std::string) {
-        // if (currentScene->destroy(currentInstanceId)) {
-        //     std::cout << "current model deleted" << std::endl;
-        // } else {
-        //     std::cout << "something went wrong on deletion" << std::endl;
-        // }
-    });
-
-    UIButtonElement<CEF_Filament_UIRendererThreaded>* saveSceneButton = new CEF_UIButtonElement(uiRenderer, "Salvar");
-    saveSceneButton->registerEvent("click",  [&](CEF_Filament_UIRendererThreaded*, int, std::string){
-
-        SceneDTO sceneDto = sceneMapper->toDto(currentScene);
-        sceneSerialzer->save(sceneDto, SCENE_PATH);
-
-    });
-
-    leftPanel->addChildComponent(loadModelButton, 2, 0);
-    leftPanel->addChildComponent(deleteModelButton, 2, 1);
-    leftPanel->addChildComponent(saveSceneButton, 3, 0);
-
-    root->draw();
-
-    /*----------------------------------------------------------------------------
-    START RENDER LOOP
-    UI (update/render) é responsabilidade interna da Scene; a limpeza de
-    wireframes de assets deletados é do FilamentWireframeSystem (onFrameEnd).
-    Commands (IBL, lights) são processados antes do primeiro frame.
-    ----------------------------------------------------------------------------*/
     sceneRenderer.start();
 
-    /*----------------------------------------------------------------------------
-    LOAD INITIAL ASSET (after start — render thread will instantiate via update)
-    ----------------------------------------------------------------------------*/
-    
-    Asset3dData rootNode;
-    std::vector<std::unique_ptr<MaterialData>> materials;
-    int currentInstanceId = -1;
-    FilamentAsset3dInstance* assetPtr = nullptr;
-
-    if (importer->import(
-        // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-        "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
-        , rootNode, materials)) {
-        currentInstanceId = currentScene->create(
-            rootNode,
-            materials,
-            TransformUtils<FilamentAsset3dTransform>::build(),
-            true
-        );
-        assetPtr = currentScene->get(currentInstanceId);
-    }
 
     std::cout << "Starting main loop..." << std::endl;
+
+    lite::EditorSceneConfigurer<
+            FilamentScene, 
+            FilamentOverlayScene, 
+            FilamentAsset3dTransform,
+            FilamentAsset3dInstance,
+            FilamentMeshAsset3dInstance,
+            FilamentCameraAsset3dInstance,
+            CEF_Filament_UIRendererThreaded>* 
+        configurer = new lite::FilamentEditorSceneConfigurer(
+            importer.get(), 
+            &sceneRenderer,
+            fbW, fbH,
+            uiInstance
+        );
+
+    currentScene = configurer->configure(currentScene);
+
 
     /*----------------------------------------------------------------------------
     MAIN LOOP
@@ -462,24 +323,11 @@ int main(int argc, char** argv){
     float horizontal_direction = 0, vertical_direction = 0;
 
     
-    //FIXME: ESSE SISTEMA ESTÁ DEPENDENDO DO SCENERENDERER. COMO SCENERENEDERER TEM MUITOS TEMPLATES, É MELHOR NÃO PUXAR ESSA DEPENDÊMCIA PARA O NAVIGATIONSYSTEM
-    // TAMBÉM O MÉTODO SETCAMERASTATE É UMA COISA ESPECÍFICA DA FIALMENT. O MELHOR SERIA NÃO CHAMAR ESSE MÉTODO EXPLICITAMENTE E ISSO SER IMPLEMENTADO DE FORMA 
-    // TRANSPARENTE POR UMA HERANÇA DO TRANSFORM
-    EditorNavigationSystem* navigation = new EditorNavigationSystem(
-        [&](glm::vec3 center, glm::vec3 offsetCenter, glm::vec3 offsetEye){
-            sceneRenderer.setCameraState(offsetEye, offsetEye + offsetCenter);
+    EditorNavigationSystem* navigation                                              = dynamic_cast<EditorNavigationSystem*>(currentScene->getSystemOfType<EditorNavigationSystem>());
+    GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform>* gizmoSystem        = dynamic_cast<lite::FilamentGizmoSystem*>(currentScene->getSystemOfType<lite::FilamentGizmoSystem>());
+    ObjectSelectorSystem<FilamentScene, FilamentAsset3dTransform>* objectSelector   = dynamic_cast<FilamentObjectSelectorSystem*>(currentScene->getSystemOfType<FilamentObjectSelectorSystem>());
+    WireframeSystem<FilamentMeshAsset3dInstance>* wireframeSystem                   = dynamic_cast<FilamentWireframeSystem*>(currentScene->getSystemOfType<FilamentWireframeSystem>());
 
-            return  sceneRenderer   
-                    .getCurrentCamera()
-                    ->getTransform()
-                    ->getPosition();
-    });
-    sceneRenderer.getScene()->addSystem(navigation);
-    //TODO: CHAMAR SCENE CONFIGURER AQUI DEPOIS DE INSTANCIADO TODOS OS SISTEMAS
-
-    std::vector<Asset3dInstance<FilamentAsset3dTransform>*>operatingAssets{assetPtr};
-    gizmoSystem->setOperatingAssets(operatingAssets);    
-    
     while (running) {
         SDL_Event ev;
         lite::InputEvent inputEvent;
@@ -587,7 +435,7 @@ int main(int argc, char** argv){
             
                         // clear/addWireframeMesh criam/destroem recursos GPU (CommandStream
                         // do Filament exige a render thread) — postar como comando
-                        sceneRenderer.postCommand([wireframe = wireframeSystem.get(), objectFound, multiple_selection_active]() {
+                        sceneRenderer.postCommand([wireframe = wireframeSystem, objectFound, multiple_selection_active]() {
                             
                             if(!multiple_selection_active)
                             {
@@ -624,19 +472,19 @@ int main(int argc, char** argv){
     explícito garante que o comando é drenado antes dos locais da main morrerem;
     o stop() do destrutor do sceneRenderer vira no-op (idempotente).
     ----------------------------------------------------------------------------*/
-    if (currentInstanceId >= 0) {
-        currentScene->destroy(currentInstanceId);   // por id — a Scene é a dona
-    }
+    // if (currentInstanceId >= 0) {
+    //     currentScene->destroy(currentInstanceId);   // por id — a Scene é a dona
+    // }
 
-    sceneRenderer.postCommand([&]() {
-        currentScene->removeSystem(wireframeSystem.get());
-        wireframeSystem.reset();
+    // sceneRenderer.postCommand([&]() {
+    //     currentScene->removeSystem(wireframeSystem.get());
+    //     wireframeSystem.reset();
 
-        // Mesmo motivo: o destrutor do gizmo destrói view/scene/factory do
-        // overlay (recursos do Engine) — tem de rodar na render thread.
-        currentScene->removeSystem(gizmoSystem.get());
-        gizmoSystem.reset();
-    });
+    //     // Mesmo motivo: o destrutor do gizmo destrói view/scene/factory do
+    //     // overlay (recursos do Engine) — tem de rodar na render thread.
+    //     currentScene->removeSystem(gizmoSystem.get());
+    //     gizmoSystem.reset();
+    // });
     sceneRenderer.stop();
 
     importer.reset();

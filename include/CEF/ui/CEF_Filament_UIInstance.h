@@ -2,6 +2,7 @@
 
 // #include <core/ui/UIRenderer.h>
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
+#include <CEF/ui/elements/CEF_UIElements.h>
 #include <core/ui/UIInstance.h>
 
 #include <filament/Renderer.h>

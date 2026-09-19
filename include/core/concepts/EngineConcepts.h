@@ -6,4 +6,5 @@
 #include <core/concepts/MeshAsset3dConcept.h>
 #include <core/concepts/UIRendererConcept.h>
 #include <core/concepts/Asset3dInstanceFactoryConcept.h>
-// #include <core/concepts/SceneConcept.h>
+#include <core/concepts/SceneConcept.h>
+#include <core/concepts/CameraConcept.h>

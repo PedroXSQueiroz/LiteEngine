@@ -23,7 +23,7 @@ namespace lite {
 // A base fornece a render thread, a fila de comandos, o handshake waitReady/start
 // e o esqueleto do loop; esta classe fornece as fases setup/renderFrame/cleanup
 // (todas executando na render thread — thread affinity do filament::Engine).
-class FilamentSceneRenderer : public SceneRenderer<FilamentScene> {
+class FilamentSceneRenderer : public SceneRenderer<FilamentScene, FilamentCameraAsset3dInstance> {
 public:
     FilamentSceneRenderer(View* view, int width, int height);
     ~FilamentSceneRenderer() override;
@@ -34,7 +34,7 @@ public:
                              const glm::vec3& direction, bool castShadows) override;
     void resize(int width, int height) override;
 
-    FilamentCameraAsset3dInstance* getCurrentCamera(){
+    virtual FilamentCameraAsset3dInstance* getCurrentCamera() override{
         return this->m_camera.get();
     }
 

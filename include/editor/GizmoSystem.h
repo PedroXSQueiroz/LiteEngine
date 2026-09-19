@@ -115,7 +115,7 @@ inline glm::vec3 axisOf(GizmoAction action) noexcept {
 // beginFrame não passa por esse commit, e o descriptor set dela chega ao render
 // pass sem handle → assert 'mDescriptorSetHandle' no Filament. Por isso nada
 // que crie recurso pode rodar no postRenderScene.
-template <typename SceneType, TransformConcept TransformType>
+template <SceneConcept SceneType, TransformConcept TransformType>
 class GizmoSystem : public SceneScopeSystem {
 public:
     

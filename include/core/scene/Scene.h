@@ -8,6 +8,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <ranges>
+#include <concepts>
+#include <type_traits>
 
 #include <core/concepts/EngineConcepts.h>
 #include <core/assets/instanceFactory/Asset3dInstanceFactory.h>
@@ -19,6 +21,14 @@ using namespace std;
 
 namespace lite
 {
+    template<typename S>
+    concept SystemConcept = std::derived_from<S, SceneScopeSystem>;
+
+    // template<SystemConcept SystemType>
+    // struct SystemDescriptor{
+    //     using SystemClass  = SystemType;
+    // };
+    
     template<
         Asset3dConcept AssetType,
         TransformConcept TransformType,
@@ -38,7 +48,8 @@ namespace lite
             std::unique_ptr<UIRenderer> uiRenderer
         )
         : m_asset3dFactory(std::move(asset3dFactory))
-        , m_uiRenderer(std::move(uiRenderer)){}
+        , m_uiRenderer(std::move(uiRenderer))
+        , m_systems(std::vector<std::unique_ptr<SceneScopeSystem>>()){}
 
         // deepIds: quando true, TODOS os nós da árvore instanciada recebem ids
         // (mesmo espaço de numeração da raiz), permitindo endereçar subobjetos
@@ -163,41 +174,68 @@ namespace lite
 
             instantiate();
 
-            for(SceneScopeSystem* system : m_systems) system->onFrameBegin(deltaTime);
+            for(auto& system : m_systems) system->onFrameBegin(deltaTime);
 
             if(this->m_uiRenderer) this->m_uiRenderer->update();
 
             if(this->prepareRender())
             {
-                for(SceneScopeSystem* system : m_systems) system->onRenderPrepared(deltaTime);
+                for(auto& system : m_systems) system->onRenderPrepared(deltaTime);
 
-                for(SceneScopeSystem* system : m_systems) system->preRenderScene(deltaTime);
+                for(auto& system : m_systems) system->preRenderScene(deltaTime);
 
                 renderScene();
 
-                for(SceneScopeSystem* system : m_systems) system->postRenderScene(deltaTime);
+                for(auto& system : m_systems) system->postRenderScene(deltaTime);
 
                 this->renderUI();
 
-                for(SceneScopeSystem* system : m_systems) system->onSceneRendered(deltaTime);
+                for(auto& system : m_systems) system->onSceneRendered(deltaTime);
 
                 this->finishRender();
             }
 
-            for(SceneScopeSystem* system : m_systems) system->onFrameEnd(deltaTime);
+            for(auto& system : m_systems) system->onFrameEnd(deltaTime);
 
             return true;
         }
 
         // THREADING: registrar/remover antes de SceneRenderer::start() (main
         // thread) ou via postCommand (render thread) — o vetor não tem lock.
-        void addSystem(SceneScopeSystem* system) { m_systems.push_back(system); }
+        void addSystem(std::unique_ptr<SceneScopeSystem> system) { m_systems.push_back(std::move(system)); }
 
+        // A Scene é dona dos systems: remover DESTRÓI o system, na thread de
+        // quem chamar.
         void removeSystem(SceneScopeSystem* system) {
             m_systems.erase(
-                std::remove(m_systems.begin(), m_systems.end(), system),
+                std::remove_if(
+                    m_systems.begin(),
+                    m_systems.end(),
+                    [system](const std::unique_ptr<SceneScopeSystem>& current){
+                        return current.get() == system;
+                    }
+                ),
                 m_systems.end()
             );
+        }
+
+        template<SystemConcept SystemType>
+        SceneScopeSystem* getSystemOfType(){
+            
+            for(auto& system : m_systems)
+            {
+                // Teste de tipo DINÂMICO: o tipo estático dos elementos é sempre
+                // SceneScopeSystem, então traits não distinguem um system do
+                // outro. Ao contrário do typeid, aceita perguntar pela interface
+                // (ex.: GizmoSystem<...>), não só pela classe concreta.
+                if( dynamic_cast<SystemType*>(system.get()) )
+                {
+                    return system.get();
+                }
+            }
+
+
+            return nullptr;
         }
 
         UIRenderer* getCurrentUI()
@@ -284,7 +322,7 @@ namespace lite
         }
 
         int m_lastId = 0;
-        std::vector<SceneScopeSystem*> m_systems;
+        std::vector<std::unique_ptr<SceneScopeSystem>> m_systems;
         std::vector<CreationEntry> m_creatingObjects;
         std::mutex m_instancesMutex;
         std::condition_variable m_instantiatedCV;

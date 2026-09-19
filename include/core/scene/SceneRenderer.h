@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 
 #include <core/view/View.h>
+#include <core/concepts/EngineConcepts.h>
 
 namespace lite {
 
@@ -37,7 +38,7 @@ namespace lite {
 // - A classe FILHA deve chamar stop() no próprio destrutor: o join precisa
 //   completar antes da parte derivada do objeto ser destruída. O stop() do
 //   destrutor desta base é apenas cinto de segurança.
-template<typename SceneType>
+template<SceneConcept SceneType, CameraConcept CameraType>
 class SceneRenderer {
 public:
     virtual ~SceneRenderer() { stop(); }
@@ -59,6 +60,8 @@ public:
 
     // Cena concreta (nula se setup() falhou)
     SceneType* getScene() { return m_scene.get(); }
+
+    virtual CameraType* getCurrentCamera() = 0;
 
     // Thread-safe camera state update (consumida pela render thread via takePendingCamera)
     void setCameraState(const glm::vec3& eye, const glm::vec3& target) {

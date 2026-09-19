@@ -17,7 +17,7 @@
 namespace lite {
 
 FilamentSceneRenderer::FilamentSceneRenderer(View* view, int width, int height)
-    : SceneRenderer<FilamentScene>(view, width, height)
+    : SceneRenderer<FilamentScene, FilamentCameraAsset3dInstance>(view, width, height)
 {
     // THREADING: última instrução do construtor — o objeto já está completo,
     // então a render thread pode despachar as fases virtuais com segurança.

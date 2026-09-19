@@ -1,9 +1,15 @@
 #include <core/concepts/EngineConcepts.h>
 
-template<>
-class SceneFactory
-{
-    public:
+namespace lite{
+    
+    //A IDEIA É RETORNAR A CENA BÁSICA COM A IMPLEMENTAÇÃO CONCRETA
+    //
+    template<SceneConcept SceneType>
+    class SceneFactory
+    {
+        public:
+        virtual SceneType* build() = 0;
+    
+    };
 
-
-}
+} 
