@@ -16,6 +16,8 @@
 #include <editor/ObjectSelectorSystem.h>
 #include <editor/systems/EditorNavigationSystem.h>
 
+#include <filament/data/assets/FilamentAsset3dTransform.h>
+
 #include <memory>
 #include <vector>
 
@@ -28,6 +30,7 @@ namespace lite{
         Asset3dConcept AssetType,
         MeshAsset3dConcept MeshType,
         CameraConcept CameraType,
+        Asset3dInstanceFactoryConcept InstanceFactory,
         typename UIRendererType //TODO: CRIAR UM CONCEPT PARA OBRIGAR ESSE TEMPLATE A HERADR DE UIRENDERER?
     >
     class EditorSceneConfigurer : public SceneConfigurer<SceneType>
@@ -37,13 +40,34 @@ namespace lite{
         EditorSceneConfigurer(
                 Asset3dImporter* importer
             ,   SceneRenderer<SceneType, CameraType>* renderer
-        ): m_assets3dImporter(importer), m_renderer(renderer) {};
+            ,   SceneSerializer* serializer
+            ,   SceneDTOMapper<
+                    AssetType
+                ,   TransformType
+                ,   InstanceFactory
+                ,   SceneType
+                >* sceneMapper
+        ): 
+            m_assets3dImporter(importer)
+        ,   m_renderer(renderer)
+        ,   m_serializer(serializer)
+        ,   m_sceneMapper(sceneMapper) {};
 
         virtual SceneType* configure(SceneType* scene) override {
             
-            scene->addSystem(getGizmoSystem(scene));
+            std::unique_ptr<ObjectSelectorSystem<SceneType, TransformType>> selector = getObjectSelectorSystem();
+            std::unique_ptr<GizmoSystem<SceneOverlayGizmoType, TransformType>> gizmoSystem = getGizmoSystem(scene);
+            selector->m_onSelectedObjectsChange.push_back([scene](std::set<Asset3dInstance<TransformType>*> selectedObjects){
+                GizmoSystem<SceneOverlayGizmoType, TransformType>* currentGizmoSystem = scene->getSystemOfType<GizmoSystem<SceneOverlayGizmoType, TransformType>>();
+                currentGizmoSystem->setOperatingAssets(
+                    vector<Asset3dInstance<TransformType>*>(selectedObjects.begin(), selectedObjects.end())
+                );
+            });
+            
+            
+            scene->addSystem(std::move( gizmoSystem ));
+            scene->addSystem(std::move( selector ));
             scene->addSystem(getWireframeSystem(scene));
-            scene->addSystem(getObjectSelectorSystem());
             scene->addSystem(getNavigationSystem());
 
             scene = configureUI(scene);
@@ -83,6 +107,9 @@ namespace lite{
         //UI
         //--------------------------------------------------------------------------------------------------------
         protected:
+
+        const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
+
         virtual UIRendererType* getUIRenderer() = 0;
         
         virtual UIInstance<UIRendererType>* getUIInstance(SceneType* scene) = 0;
@@ -118,30 +145,33 @@ namespace lite{
             UIButtonElement<UIRendererType>* loadModelButton = createButton(uiRenderer, "Carregar");
             loadModelButton->registerEvent("click", [&](UIRendererType*, int, std::string) {
                 std::cout << "load model invoked" << std::endl;
-                // if (importer->import(uiInput->getText(), rootNode, materials)) {
-                //     currentInstanceId = currentScene->create(
-                //         rootNode,
-                //         materials,
-                //         TransformUtils<FilamentAsset3dTransform>::build()
-                //     );
-                //     assetPtr = currentScene->get(currentInstanceId);
-                // }
+                Asset3dData rootNode;
+                std::vector<std::unique_ptr<MaterialData>> materials;
+                
+                if (m_assets3dImporter->import(uiInput->getText(), rootNode, materials)) {
+                    scene->create(
+                        rootNode,
+                        materials,
+                        TransformUtils<FilamentAsset3dTransform>::build()
+                    );
+                }
             });
 
             UIButtonElement<UIRendererType>* deleteModelButton = createButton(uiRenderer, "Deletar");
             deleteModelButton->registerEvent("click", [&](UIRendererType*, int, std::string) {
-                // if (currentScene->destroy(currentInstanceId)) {
-                //     std::cout << "current model deleted" << std::endl;
-                // } else {
-                //     std::cout << "something went wrong on deletion" << std::endl;
-                // }
+                ObjectSelectorSystem<SceneType, TransformType>* selector = scene->getSystemOfType<ObjectSelectorSystem<SceneType, TransformType>>();
+                //TODO: OBTER INSTANCIAS SELECIONADAS, RETORNAR m_selectedObjects DE DENTRO DO SELECTOR
+                // REMOVER DA CENA. LIMPAR MEMÓRIA
+                
             });
 
             UIButtonElement<UIRendererType>* saveSceneButton = createButton(uiRenderer, "Salvar");
             saveSceneButton->registerEvent("click",  [&](UIRendererType*, int, std::string){
 
-                // SceneDTO sceneDto = sceneMapper->toDto(currentScene);
-                // sceneSerialzer->save(sceneDto, SCENE_PATH);
+                // m_serializer->sa;
+                
+                SceneDTO sceneDto = m_sceneMapper->toDto(scene);
+                m_serializer->save(sceneDto, SCENE_PATH);
 
             });
 
@@ -158,24 +188,31 @@ namespace lite{
         //OBJECTS
         //--------------------------------------------------------------------------------------------------------
         Asset3dImporter* m_assets3dImporter;
-        
+
+        SceneSerializer* m_serializer;
+
+        SceneDTOMapper<
+                    AssetType
+                ,   TransformType
+                ,   InstanceFactory
+                ,   SceneType
+                >* m_sceneMapper;
+
         SceneType* loadScene3dInstances(SceneType* scene){
             Asset3dData rootNode;
             std::vector<std::unique_ptr<MaterialData>> materials;
-            int currentInstanceId = -1;
-            AssetType* assetPtr = nullptr;
-
+            
             if (m_assets3dImporter->import(
                 // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
                 "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
                 , rootNode, materials)) {
-                currentInstanceId = scene->create(
+                scene->create(
                     rootNode,
                     materials,
                     TransformUtils<TransformType>::build(),
                     true
                 );
-                assetPtr = scene->get(currentInstanceId);
+                
             }
 
             return scene;

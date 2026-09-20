@@ -1,5 +1,7 @@
 #pragma once
 
+#include <core/concepts/EngineConcepts.h>
+
 #include <core/scene/Scene.h>
 #include <core/data/assets/IO/Asset3dDTOMapper.h>
 #include <core/data/DTOs/SceneDTO.h>
@@ -16,7 +18,7 @@ template<
     Asset3dConcept AssetType,
     TransformConcept TransformType,
     Asset3dInstanceFactoryConcept InstanceFactory,
-    UIRendererConcept UIRenderer>
+    SceneConcept SceneType>
 
 class SceneDTOMapper{
 
@@ -41,12 +43,7 @@ public:
         return true;
     };
 
-    SceneDTO toDto(Scene<
-            AssetType,
-            TransformType,
-            InstanceFactory,
-            UIRenderer
-        >* scene)
+    SceneDTO toDto(SceneType* scene)
     {
         SceneDTO sceneDto = buildBaseSceneDto(scene);
 
@@ -106,12 +103,7 @@ public:
         return nullptr;
     }
 
-    virtual SceneDTO buildBaseSceneDto(Scene<
-            AssetType,
-            TransformType,
-            InstanceFactory,
-            UIRenderer
-        >* scene) = 0;
+    virtual SceneDTO buildBaseSceneDto(SceneType* scene) = 0;
 
 private:
 

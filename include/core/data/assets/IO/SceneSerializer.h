@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/data/DTOs/SceneDTO.h>
+#include <core/scene/Scene.h>
 #include <core/data/assets/IO/Asset3dDTOMapper.h>
 
 #include <optional>

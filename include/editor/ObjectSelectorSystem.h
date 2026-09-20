@@ -15,6 +15,7 @@
 #include <set>
 #include <iostream>
 #include <format>
+#include <functional>
 
 namespace lite {
 
@@ -148,12 +149,14 @@ public:
     {
         if( !m_selectedObjects.contains(newSelected) ) {
             m_selectedObjects.insert(newSelected);
+            broadcastSelectionChange();
         }
     }
 
     void clearSelected()
     {
-        m_selectedObjects.empty();
+        m_selectedObjects.clear();
+        broadcastSelectionChange();
     }
 
     glm::vec3 getSelectionMedianPoint()
@@ -172,7 +175,15 @@ public:
         return medianPoint;
     }
 
+    std::vector<std::function<void(std::set<Asset3dInstance<TransformType>*>)>> m_onSelectedObjectsChange;
+    
 protected:
+    
+    void broadcastSelectionChange(){
+        for(std::function<void(std::set<Asset3dInstance<TransformType>*>)> callback : m_onSelectedObjectsChange)
+                callback(m_selectedObjects);
+    }
+
     // Expande [mn, mx] com a AABB (em mundo) de todos os meshes descendentes de
     // `node`. hasGeometry vira true na primeira contribuição — enquanto false,
     // mn/mx não têm valor válido. Broad-phase do filtro por distância no

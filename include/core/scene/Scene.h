@@ -220,20 +220,16 @@ namespace lite
         }
 
         template<SystemConcept SystemType>
-        SceneScopeSystem* getSystemOfType(){
+        SystemType* getSystemOfType(){
             
             for(auto& system : m_systems)
             {
-                // Teste de tipo DINÂMICO: o tipo estático dos elementos é sempre
-                // SceneScopeSystem, então traits não distinguem um system do
-                // outro. Ao contrário do typeid, aceita perguntar pela interface
-                // (ex.: GizmoSystem<...>), não só pela classe concreta.
-                if( dynamic_cast<SystemType*>(system.get()) )
+                SystemType* systemRequested = nullptr;
+                if( systemRequested = dynamic_cast<SystemType*>(system.get()) )
                 {
-                    return system.get();
+                    return systemRequested;
                 }
             }
-
 
             return nullptr;
         }

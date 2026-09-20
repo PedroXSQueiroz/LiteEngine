@@ -145,14 +145,10 @@ class DummySceneDTOMapper : public SceneDTOMapper<
         FilamentAsset3dInstance,
         FilamentAsset3dTransform,
         FilamentInstanceFactory,
-        CEF_Filament_UIRendererThreaded
+        FilamentScene
 >{
     virtual SceneDTO buildBaseSceneDto(
-        lite::Scene<
-            FilamentAsset3dInstance,
-            FilamentAsset3dTransform,
-            FilamentInstanceFactory,
-            CEF_Filament_UIRendererThreaded>* scene
+        FilamentScene* scene
     ){
         SceneDTO sceneDto;
 
@@ -213,7 +209,7 @@ int main(int argc, char** argv){
     auto importer = std::make_unique<AssimpImporter>();
     
     const std::string SCENE_PATH = "D:/lite_resources/default_scene.le";
-
+    
     /*----------------------------------------------------------------------------
     CEF SUBPROCESS HANDLING - DEVE SER O PRIMEIRO!
     ----------------------------------------------------------------------------*/
@@ -277,7 +273,7 @@ int main(int argc, char** argv){
         FilamentAsset3dInstance,
         FilamentAsset3dTransform,
         FilamentInstanceFactory,
-        CEF_Filament_UIRendererThreaded>* sceneMapper = new DummySceneDTOMapper();
+        FilamentScene>* sceneMapper = new DummySceneDTOMapper();
 
     sceneMapper->registerMapper( new DummyAsset3dDTOMapper() );
     
@@ -299,12 +295,15 @@ int main(int argc, char** argv){
             FilamentAsset3dInstance,
             FilamentMeshAsset3dInstance,
             FilamentCameraAsset3dInstance,
+            FilamentInstanceFactory,
             CEF_Filament_UIRendererThreaded>* 
         configurer = new lite::FilamentEditorSceneConfigurer(
             importer.get(), 
             &sceneRenderer,
             fbW, fbH,
-            uiInstance
+            uiInstance,
+            sceneSerialzer,
+            sceneMapper
         );
 
     currentScene = configurer->configure(currentScene);
@@ -323,10 +322,10 @@ int main(int argc, char** argv){
     float horizontal_direction = 0, vertical_direction = 0;
 
     
-    EditorNavigationSystem* navigation                                              = dynamic_cast<EditorNavigationSystem*>(currentScene->getSystemOfType<EditorNavigationSystem>());
-    GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform>* gizmoSystem        = dynamic_cast<lite::FilamentGizmoSystem*>(currentScene->getSystemOfType<lite::FilamentGizmoSystem>());
-    ObjectSelectorSystem<FilamentScene, FilamentAsset3dTransform>* objectSelector   = dynamic_cast<FilamentObjectSelectorSystem*>(currentScene->getSystemOfType<FilamentObjectSelectorSystem>());
-    WireframeSystem<FilamentMeshAsset3dInstance>* wireframeSystem                   = dynamic_cast<FilamentWireframeSystem*>(currentScene->getSystemOfType<FilamentWireframeSystem>());
+    EditorNavigationSystem* navigation                                              = currentScene->getSystemOfType<EditorNavigationSystem>();
+    GizmoSystem<FilamentOverlayScene, FilamentAsset3dTransform>* gizmoSystem        = currentScene->getSystemOfType<lite::FilamentGizmoSystem>();
+    ObjectSelectorSystem<FilamentScene, FilamentAsset3dTransform>* objectSelector   = currentScene->getSystemOfType<FilamentObjectSelectorSystem>();
+    WireframeSystem<FilamentMeshAsset3dInstance>* wireframeSystem                   = currentScene->getSystemOfType<FilamentWireframeSystem>();
 
     while (running) {
         SDL_Event ev;

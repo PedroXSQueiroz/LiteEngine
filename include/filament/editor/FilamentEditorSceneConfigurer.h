@@ -29,6 +29,7 @@ namespace lite{
         FilamentAsset3dInstance,
         FilamentMeshAsset3dInstance,
         FilamentCameraAsset3dInstance,
+        FilamentInstanceFactory,
         CEF_Filament_UIRendererThreaded
     >
     {
@@ -40,8 +41,15 @@ namespace lite{
             ,   int width
             ,   int height
             ,   UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance
+            ,   SceneSerializer* serializer
+            ,   SceneDTOMapper<
+                    FilamentAsset3dInstance
+                ,   FilamentAsset3dTransform
+                ,   FilamentInstanceFactory
+                ,   FilamentScene
+                >* sceneMapper
             ):
-        EditorSceneConfigurer(importer, renderer),
+        EditorSceneConfigurer(importer, renderer, serializer, sceneMapper),
         m_width(width),
         m_height(height),
         m_uiInstance(uiInstance)
