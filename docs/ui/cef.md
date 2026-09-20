@@ -134,14 +134,21 @@ main: CefExecuteProcess(CEF_UIApp)                      // subprocessos saem aqu
 render thread (setup): new CEF_Filament_UIRendererThreaded(engine, w, h)
 render thread (setup): uiRenderer->createFilamentResources()  // GPU, na thread do Engine,
                                                               // ANTES do waitReady() destravar
-main: uiInstance = new CEF_Filament_UIInstance(uiRenderer)
-main: root = uiInstance->start()
-        └─ uiRenderer->start()                          // SÓ CEF: thread CEF + espera ui_ready
-        └─ createRoot() → new CEF_UIPanelElement        // factory method implementado aqui
-        └─ root->draw()                                 // painel raiz vai ao DOM
-main: monta widgets (addChildComponent) e root->draw()  // redesenha a árvore completa
+main: uiInstance = new CEF_Filament_UIInstance(uiRenderer)   // só constrói
+main: sceneRenderer.start()
+main: configurer->configure(scene)                      // desde 2026-09-19 a UI é montada AQUI
+        └─ configureUI():
+            └─ getUIRenderer() → scene->getCurrentUI()  // o renderer já existe (setup)
+            └─ root = uiInstance->start()
+                  └─ uiRenderer->start()                // SÓ CEF: thread CEF + espera ui_ready
+                  └─ createRoot() → new CEF_UIPanelElement
+                  └─ root->draw()                       // painel raiz vai ao DOM
+            └─ createPanel/createText/createTextInput/createButton  (factory methods)
+            └─ addChildComponent(...) e root->draw()    // redesenha a árvore completa
 // update/render da UI: integrados pela própria Scene — nada a registrar na main
 ```
+
+**Mudança de 2026-09-19**: a montagem da UI saiu da `main` para o `SceneConfigurer` ([core.md §10](../core.md)). Os widgets concretos não são mais instanciados com `new CEF_...` no código de aplicação: o `EditorSceneConfigurer` chama **factory methods** puros (`createPanel`, `createText`, `createTextInput`, `createButton`) que só o `FilamentEditorSceneConfigurer` implementa — é o ponto onde `CEF_UIPanelElement` e companhia aparecem. ⚠️ Esse `configureUI()` **não compila hoje** (identificadores herdados do recorte da `main`) — ver [ARCHITECTURE.md §5](../ARCHITECTURE.md), item 12.
 
 ## 9. Dívidas específicas do módulo
 

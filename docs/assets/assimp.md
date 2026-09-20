@@ -34,9 +34,9 @@ Flags de pós-processamento do Assimp: `aiProcess_Triangulate | aiProcess_GenSmo
 
 ## 3. Mapeamento de materiais (Assimp → `MaterialData`)
 
-O importer traduz materiais legados e PBR para o modelo PBR do core:
+O importer traduz materiais legados e PBR para o modelo PBR do core. **Desde 2026-08-10** `processMaterial` devolve `std::unique_ptr<MaterialData>` apontando sempre para um **`MPBRLitMaterialData`** — a base `MaterialData` passou a carregar só o `name` e os fatores desceram para a filha ([core.md §3.1](../core.md)). Todo asset importado assume esse modelo de shading.
 
-| Campo `MaterialData` | Fonte Assimp (em ordem de preferência) |
+| Campo (`MaterialData` / `MPBRLitMaterialData`) | Fonte Assimp (em ordem de preferência) |
 |---|---|
 | `name` | `AI_MATKEY_NAME` — **é a chave** que o `MeshAsset3dData::materialName` referencia |
 | `baseColorFactor` | `AI_MATKEY_COLOR_DIFFUSE` (alpha fixo 1.0) |
@@ -66,13 +66,16 @@ Paths de textura (`getTexturePath`): relativos são resolvidos contra o diretór
 ```cpp
 auto importer = std::make_unique<AssimpImporter>();
 Asset3dData rootNode;                       // reutilizável entre imports
-std::vector<MaterialData> materials;
+std::vector<std::unique_ptr<MaterialData>> materials;   // ponteiros desde 2026-08-10
 if (importer->import(path, rootNode, materials)) {
-    int id = currentScene->create(rootNode, materials,
-                 TransformUtils<FilamentAsset3dTransform>::build());
-    // create() CLONA rootNode → rootNode/materials podem ser reusados no próximo import
+    int id = scene->create(rootNode, materials,
+                 TransformUtils<TransformType>::build(), /*deepIds=*/true);
+    // create() CLONA rootNode E os materiais (clone() polimórfico por elemento)
+    // → rootNode/materials podem ser reusados no próximo import
 }
 ```
+
+Desde 2026-09-19 quem faz isso não é mais a `main` e sim o `EditorSceneConfigurer::loadScene3dInstances()` ([core.md §10](../core.md)) — com o path do modelo ainda hardcoded.
 
 O `import` pode rodar em **qualquer thread** (só CPU); é o `Scene::create` que faz o handoff seguro para a render thread.
 

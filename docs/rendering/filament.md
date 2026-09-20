@@ -22,14 +22,18 @@ Esta tabela é o contrato do módulo. Toda classe daqui ou **implementa uma inte
 | `lite::ObjectSelectorSystem<S,T>` (→ `SceneScopeSystem`) | `lite::FilamentObjectSelectorSystem` (só fixa `<FilamentScene, FilamentAsset3dTransform>`) | — | `include/filament/editor/FilamentObjectSelectorSystem.h` (header-only) |
 | `lite::GizmoSystem<S,T>` (→ `SceneScopeSystem`) | `lite::FilamentGizmoSystem` (fixa `<FilamentOverlayScene, FilamentAsset3dTransform>`) | — | `include/filament/editor/FilamentGizmoSystem.h` + `filament/editor/FilamentGizmoSystem.cpp` |
 | `lite::TransformUtils<T>::build()` (especialização) | `TransformUtils<FilamentAsset3dTransform>::build()` | — | `filament/utils/FilamentTransformUtils.cpp` |
-| `lite::SceneRenderer<SceneType>` | `lite::FilamentSceneRenderer` (= `SceneRenderer<FilamentScene>`) | — | `include/filament/scene/FilamentSceneRenderer.h` + `filament/scene/FilamentSceneRenderer.cpp` |
+| `lite::SceneRenderer<S, C>` | `lite::FilamentSceneRenderer` (= `SceneRenderer<FilamentScene, FilamentCameraAsset3dInstance>`) | consome `SceneConcept` + `CameraConcept` | `include/filament/scene/FilamentSceneRenderer.h` + `filament/scene/FilamentSceneRenderer.cpp` |
+| `lite::MPBRLitMaterialInstance` (→ `MaterialInstance`) | `lite::FilamentMPBRLitMaterialInstance` | — | `include/filament/data/assets/FilamentMPBRLitMaterialInstance.h` + `filament/data/assets/FilamentMPBRLitMaterialInstance.cpp` |
+| `lite::View` | `lite::SDLFilamentView` | — | `include/filament/view/SDL/SDLFilamentView.h` (header-only) |
+| `lite::EditorSceneConfigurer<7>` (→ `SceneConfigurer<S>`) | `lite::FilamentEditorSceneConfigurer` | — | `include/filament/editor/FilamentEditorSceneConfigurer.h` (header-only) |
+| `lite::SceneDTOMapper<A,T,F,U>` | `FilamentSceneDTOMapper` — **stub quebrado, fora do build** | — | `filament/data/assets/IO/FilamentSceneDTOMapper.cpp` |
 | — (utilitário global) | `FilamentUtils` | — | `include/filament/utils/FilamentUtils.h` + `filament/utils/FilamentUtils.cpp` |
 
 Em todo o módulo, a fronteira de tipos é: **GLM na assinatura (lado core), tipos `filament::math` só internamente** — conversões `toFilament()` privadas no factory.
 
-## 2. `FilamentSceneRenderer` — implementa `lite::SceneRenderer<FilamentScene>`
+## 2. `FilamentSceneRenderer` — implementa `lite::SceneRenderer<FilamentScene, FilamentCameraAsset3dInstance>`
 
-É a implementação Filament do facade abstrato **`lite::SceneRenderer<SceneType>`** ([core.md §4.9](../core.md)), que esconde da `main` tudo do Filament: engine, swapchain, render thread, câmera e o ciclo de vida da `FilamentScene`. Motivação e alternativas descartadas documentadas em `create_sceneRenderer.txt` (opção **B2** implementada: render loop independente, sem sync por frame).
+É a implementação Filament do facade abstrato **`lite::SceneRenderer<SceneType, CameraType>`** ([core.md §4.9](../core.md)), que esconde da `main` tudo do Filament: engine, swapchain, render thread, câmera e o ciclo de vida da `FilamentScene`. Desde 2026-09 a base tem **dois** parâmetros (constrainados por `SceneConcept` e `CameraConcept`), e `getCurrentCamera()` subiu para o contrato do core — aqui ele é só um `override` inline que devolve `m_camera.get()`. Motivação e alternativas descartadas documentadas em `create_sceneRenderer.txt` (opção **B2** implementada: render loop independente, sem sync por frame).
 
 **Divisão de responsabilidades com a base**: a base (core) fornece a render thread, a fila de comandos, o handshake `waitReady/start/stop`, o estado pendente de câmera e o **esqueleto do loop**; esta classe fornece apenas as fases virtuais — todas executando na render thread:
 
@@ -46,7 +50,11 @@ Em todo o módulo, a fronteira de tipos é: **GLM na assinatura (lado core), tip
 ### Ciclo de vida
 
 ```cpp
-FilamentSceneRenderer renderer(nativeWindowHandle, w, h); // spawna a render thread
+lite::View* view = new SDLFilamentView(w, h);   // SDL_Init + janela ficam AQUI (2026-08-31)
+view->Init();
+glm::vec2 dim = view->getDimensions();           // tamanho REAL, não os literais
+
+FilamentSceneRenderer renderer(view, dim.x, dim.y); // spawna a render thread
 renderer.waitReady();      // bloqueia até engine/scene/camera existirem (promise/future)
 // ... setup via postCommand/setIBL/addDirectionalLight; addSystem na Scene ...
 renderer.start();          // libera o loop de frames (atomic m_started)
@@ -64,7 +72,7 @@ Nota: é em `setup()` que o módulo de UI é instanciado (a `FilamentScene` rece
 | `getScene() → FilamentScene*` | herdado da base | ponteiro estável após `waitReady()` (nulo se setup falhou) |
 | `setCameraState(eye, target)` | herdado da base | struct pendente + mutex; consumida 1×/frame via `takePendingCamera` (última escrita vence) |
 | `postCommand(std::function<void()>)` | herdado da base | fila + mutex; drenada em batch a cada frame — **é o jeito canônico de rodar qualquer coisa que toque GPU** |
-| `getCurrentCamera() → FilamentCameraAsset3dInstance*` | daqui | ponteiro estável após `waitReady()` (câmera criada no `setup()`). **Caveat**: os dados por trás (TransformManager/`filament::Camera`) são escritos pela render thread a cada frame — leituras de outra thread (ex.: picking na main) são race conhecido; o refino planejado é rotear o uso via `postCommand` |
+| `getCurrentCamera() → FilamentCameraAsset3dInstance*` | **override do contrato da base** (desde 2026-09) | ponteiro estável após `waitReady()` (câmera criada no `setup()`). **Caveat**: os dados por trás (TransformManager/`filament::Camera`) são escritos pela render thread a cada frame — leituras de outra thread (ex.: picking na main) são race conhecido; o refino planejado é rotear o uso via `postCommand` |
 | `setIBL(path, intensity)` | override daqui | vira comando: cria `FilamentIBL` e ajusta intensidade |
 | `addDirectionalLight(color, intensity, dir, shadows)` | override daqui | vira comando: `LightManager::Builder(SUN)` |
 | `resize(w, h)` | override daqui | vira comando: viewport + reprojeção da câmera |
@@ -154,7 +162,7 @@ Quem precisa preservar a matriz exata (ou evitar o decompose de vez) deve usar `
 Historicamente todos os setters eram **locais** (relativos ao pai): `getPosition()` devolve `m[3]` da **matriz local** e o único acesso a world era `getWorldMatrix()`. Isso incomoda em **sub-nós** (o que o picking devolve com `deepIds=true`), onde local ≠ world:
 
 - **Raiz de asset** (criada com `transformManager.create(rootEntity)`, sem pai): local == world. Escrever `setPosition(p)` põe o nó em `p` no mundo.
-- **Sub-nó** (mesh ou intermediário): local ≠ world. O caso concreto que expôs a lacuna é o **posicionamento do gizmo**: `ObjectSelectorSystem::getSelectionMedianPoint()` soma `getPosition()` (local) dos selecionados, então o gizmo fica preso em 0,0,0 mesmo com o objeto já deslocado.
+- **Sub-nó** (mesh ou intermediário): local ≠ world. O caso concreto que expôs a lacuna é o **posicionamento do gizmo**: `ObjectSelectorSystem::getSelectionMedianPoint()` somava `getPosition()` (local) dos selecionados, então o gizmo ficava preso em 0,0,0 mesmo com o objeto já deslocado. Hoje ele lê em world (`getPosition(true)`) e delega a média a `MathUtils::centroid` ([core.md §4.17](../core.md)); o gizmo usa o mesmo cálculo para congelar o pivô do drag, e escreve o resultado por `setWorldMatrix` — que desde 2026-09-20 é parte do contrato base e, aqui, cai na conversão world→local descrita abaixo.
 
 **A Filament não tem setter em world.** `TransformManager::setTransform` grava **sempre** a matriz local (relativa ao pai); o world (`getWorldTransform`) é derivado/somente-leitura. Logo, escrever em world **obriga a converter para local** e gravar via `setTransform`:
 
@@ -198,12 +206,14 @@ glm::quat rotated = delta * transform->getRotation(true);   // delta * inicial =
 transform->setRotation(rotated, true);
 ```
 
-Ordem da multiplicação: `delta * inicial` aplica o giro no **espaço de mundo**; `inicial * delta`, no espaço **local** do objeto. `FilamentAsset3dInstance` / `FilamentMeshAsset3dInstance` / `FilamentCameraAsset3dInstance`
+Ordem da multiplicação: `delta * inicial` aplica o giro no **espaço de mundo**; `inicial * delta`, no espaço **local** do objeto.
+
+## 5. Instâncias — `FilamentAsset3dInstance` / `FilamentMeshAsset3dInstance` / `FilamentCameraAsset3dInstance`
 
 ### `FilamentAsset3dInstance` — implementa `Asset3dInstance<FilamentAsset3dTransform>`
 Nó raiz ou intermediário. Além do contrato do core:
 - `getEntity()` — a `utils::Entity` do nó (base da hierarquia de transform no TransformManager);
-- `materialInstances : vector<MaterialInstance*>` — instâncias de material **compartilhadas pela árvore**; a raiz é dona (destruídas pelo factory no flush). *TODO no código: mover para um serviço de Materiais*;
+- `materialInstances : vector<filament::MaterialInstance*>` — instâncias de material **compartilhadas pela árvore**; a raiz é dona (destruídas pelo factory no flush). ⚠️ São as do **Filament**, não as `lite::MaterialInstance` criadas em 2026-08-10 (§11): o wrapper agnóstico existe, mas o nó ainda guarda o tipo concreto. *TODO no código: mover para um serviço de Materiais*;
 - `textures : vector<Texture*>` — referências ao cache do factory (**não-dono**). *TODO: serviço de Assets*;
 - `markAsDeleted()` / `isDeleted()` — flag do fluxo de deleção adiada (consultada por `Scene::find` para limpezas pós-deleção, ex.: wireframes);
 - `setVisible(bool)` override — mostra/esconde os renderables da subárvore.
@@ -219,10 +229,10 @@ Envolve `filament::Camera` + entity própria. Implementa o contrato puro do core
 O coração da instanciação GPU. Tipos associados exigidos pelo concept: `AssetType = FilamentAsset3dInstance`, `TransformType = FilamentAsset3dTransform`.
 
 ### `instantiateAsset(rootNode, transform, materials)` — contrato do core
-Executa **na render thread** (chamado por `Scene::instantiate()` dentro de `update`):
+Executa **na render thread** (chamado por `Scene::instantiate()` dentro de `update`). Desde 2026-08-10 `materials` é `const vector<unique_ptr<MaterialData>>&` (base polimórfica — [core.md §3.1](../core.md)):
 1. Cria entity raiz + transform no TransformManager; `transform.of(rootEntity)`.
-2. Cria `MaterialInstance` para cada `MaterialData` (mapa **nome → instância**; a raiz guarda todos em `materialInstances`).
-3. `processNode` recursivo sobre a árvore de `Asset3dData`:
+2. Cria `filament::MaterialInstance` para cada `MaterialData` (mapa **nome → instância**; a raiz guarda todos em `materialInstances`). `createMaterialInstance` faz **`dynamic_cast` para `MPBRLitMaterialData`**, porque o material base é o `lit.filamat` (modelo MPBR lit) e só essa filha carrega os fatores PBR; material de outro modelo cai nos defaults do material base, com aviso em `cerr`.
+3. `processNode` recursivo sobre a árvore de `Asset3dData` — a travessia do lado **instância** usa `dynamic_cast` sobre `Node*`, já que a hierarquia passou a ser de `lite::Node` (2026-08-12):
    - **Nó mesh** (`isMesh()`): cria `FilamentMeshAsset3dInstance` filho; copia dados CPU; cria `VertexBuffer` (atributos POSITION/TANGENTS/UV0, dados copiados para vetores heap liberados no callback do BufferDescriptor) e `IndexBuffer` (UINT32); resolve material **por nome** com fallback (primeiro material da raiz → instância nova do material base); constrói o renderable (`culling(false)`, `castShadows(false)`, `receiveShadows(true)`); cria transform **com parent** no TransformManager; adiciona a entity à `filament::Scene`.
    - **Nó vazio com filhos/transform**: cria `FilamentAsset3dInstance` intermediário (entity + transform hierárquico).
    - **Nó vazio sem transform**: é **achatado** — filhos processados direto no pai (a árvore de instâncias pode ser mais rasa que a de dados).
@@ -259,7 +269,7 @@ Sistema de editor (overlay wireframe). Cadeia de herança completa: `SceneScopeS
 
 **Técnica**: para cada mesh rastreado cria uma **entidade duplicada** (`WireframeEntity`) com vértices expandidos por triângulo — cada triângulo ganha 3 vértices únicos com coordenadas baricêntricas `(1,0,0),(0,1,0),(0,0,1)` no atributo COLOR — e o material desenha só as arestas (distância baricêntrica). Usa a geometria CPU mantida pelo `FilamentMeshAsset3dInstance` (`cpuPositions/cpuIndices`).
 
-**Teardown**: o destrutor destrói recursos GPU ⇒ o `reset()` deve rodar na render thread. Padrão usado pela main no shutdown: `postCommand([&]{ scene->removeSystem(ws.get()); ws.reset(); })` seguido de `sceneRenderer.stop()` — a base drena a fila de comandos após o loop, antes do `cleanup()`, garantindo a execução.
+**Teardown** — ⚠️ **mudou e hoje está sem solução** (2026-09-19). O destrutor destrói recursos GPU, logo precisa rodar **na render thread**. O padrão antigo era `postCommand([&]{ scene->removeSystem(ws.get()); ws.reset(); })` seguido de `sceneRenderer.stop()`, apoiado no fato de a `main` ser dona do `unique_ptr`. Com a `Scene` virando **dona dos systems** ([core.md §4.8](../core.md)), esse bloco foi **comentado na `main`** e nada o substituiu: o destrutor passou a rodar quando a `Scene` morre, sem garantia de thread. Vale igual para o `FilamentGizmoSystem` (§9).
 
 ## 9. Gizmo — `FilamentGizmoSystem` + `FilamentOverlayScene`
 
@@ -276,14 +286,30 @@ Implementação Filament do gizmo de transformação ([core.md §4.15](../core.m
 
 **Escala em tela** (`calcGizmoScaleFactor`) escreve a escala do root via `setLocalMatrix(glm::scale(...))` direto, **sem passar pelo `modifyComponent`/decompose** (ver §4.2).
 
-**Teardown**: o destrutor destrói recursos GPU (view, scene, factory do overlay) ⇒ mesmo padrão do wireframe (`postCommand([&]{ removeSystem; reset; })` antes do `stop()`).
+**Teardown**: o destrutor destrói recursos GPU (view, scene, factory do overlay) ⇒ mesma situação do wireframe (§8) — o padrão `postCommand([&]{ removeSystem; reset; })` foi comentado quando a `Scene` virou dona dos systems, e não há substituto.
 
-## 10. Utilitários
+## 10. `SDLFilamentView` — implementa `lite::View`
+
+`include/filament/view/SDL/SDLFilamentView.h` (header-only, 2026-08-31). É quem tirou o SDL da `main` no que diz respeito à **janela**:
+
+| Método | O que faz |
+|---|---|
+| `Init()` | `SDL_Init(SDL_INIT_VIDEO)` + `SDL_CreateWindow` (`ALLOW_HIGHDPI \| SHOWN \| RESIZABLE \| FULLSCREEN_DESKTOP`) |
+| `getDimensions()` | `SDL_GetWindowSize` — o tamanho **real**, que com `FULLSCREEN_DESKTOP` não é o pedido no construtor |
+| `getNativeWindow()` | handle nativo por `SDL_GetWindowWMInfo`, com os três ramos de plataforma (Win32 / Cocoa / X11) — é o que o `setup()` do renderer passa ao `createSwapChain` |
+
+Duas observações de estado: o `Init()` devolve **`-1`** (convertido para `true`) quando o `SDL_Init` falha — o único caminho de falha que funciona é o da janela nula; e **ninguém destrói a janela** (`SDL_DestroyWindow` está comentado na `main`; a classe não tem destrutor). O header inclui `FilamentScene.h` sem precisar.
+
+## 11. `FilamentMPBRLitMaterialInstance` — implementa `MPBRLitMaterialInstance`
+
+Lado instância do material (2026-08-10), par do `MPBRLitMaterialData`. É um **wrapper sem estado e não-dono** da `filament::MaterialInstance`: os getters/setters dos quatro fatores PBR (`baseColorFactor`, `metallic`, `roughness`, `emissive`) escrevem direto nos parâmetros do material do backend. **Não tem set de textura** (decisão registrada no contrato) e **exige a render thread do chamador** — nada é enfileirado. Quem continua possuindo as `filament::MaterialInstance` é a raiz do asset (`FilamentAsset3dInstance::materialInstances`), não um serviço de materiais.
+
+## 12. Utilitários
 
 - **`FilamentUtils`** (namespace global) — singleton estático do `filament::Engine*`. Setado pela render thread na criação do engine; usado onde ainda não há injeção de dependência (ex.: setup do wireframe na main). Candidato a remoção quando as facades cobrirem esses casos.
 - **`TransformUtils<FilamentAsset3dTransform>::build()`** (`filament/utils/FilamentTransformUtils.cpp`) — especialização exigida pelo core: constrói um `FilamentAsset3dTransform` a partir do TransformManager do engine global (via `FilamentUtils::getEngine()`), **sem entity** (o factory liga depois com `of()`). É o que permite à main escrever `TransformUtils<FilamentAsset3dTransform>::build()` sem tocar no engine.
 
-## 11. Recursos (materiais)
+## 13. Recursos (materiais)
 
 Materiais fonte `.mat` são compilados para `.filamat` com o `matc` do Filament. Local: `core/resources/filament/`:
 
@@ -293,10 +319,12 @@ Materiais fonte `.mat` são compilados para `.filamat` com o `matc` do Filament.
 | `materials/ui_overlay.filamat` | quad de composição da UI (usado pelo módulo CEF) |
 | `editor/materials/wireframe.filamat` | overlay de wireframe (baricêntrico) |
 
-## 12. Dívidas específicas do módulo
+## 14. Dívidas específicas do módulo
 
-- Paths hardcoded: `lit.filamat` (ctor do factory), IBL e wireframe (main).
-- A `main` ainda instancia `FilamentSceneRenderer` pelo tipo concreto (inevitável em algum ponto de composição), mas poderia programar contra `lite::SceneRenderer<FilamentScene>` no restante.
+- Paths hardcoded: `lit.filamat` (ctor do factory); IBL, material do wireframe e os **9 FBX do gizmo** migraram da `main` para o `FilamentEditorSceneConfigurer` — continuam hardcoded, agora inclusive apontando para `C:/Users/pixqu/Downloads/`.
+- A `main` ainda instancia `FilamentSceneRenderer` pelo tipo concreto (inevitável em algum ponto de composição), mas poderia programar contra `lite::SceneRenderer<FilamentScene, FilamentCameraAsset3dInstance>` no restante. **Progresso parcial**: a `main` já declara o configurer pelo tipo abstrato (`EditorSceneConfigurer<...>*`) e recupera os systems por `getSystemOfType<T>()`.
+- Teardown de systems com GPU sem dono definido (§8) — a dívida mais concreta do módulo hoje.
+- `FilamentSceneDTOMapper.cpp` é stub quebrado: o único mapper que existe de verdade é o `DummySceneDTOMapper` **dentro da `main.cpp`**.
 - `FilamentScene` expõe getters crus do Filament usados pela main/UI — pontos de vazamento da abstração a fechar.
 - `instantiateAsset` tem FIXME ("should receive the transform") e código morto comentado (contagem de meshes).
 - `FilamentAsset3dTransform` lança `const char*` em vez de exceção tipada.
