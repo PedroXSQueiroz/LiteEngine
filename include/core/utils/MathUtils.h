@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include <vector>
+
 #include <core/concepts/EngineConcepts.h>
 #include <core/data/assets/CameraAsset3dInstance.h>
 
@@ -51,6 +53,21 @@ namespace lite{
         return dir * length;
     }
 
-    }; 
+    // Média aritmética dos pontos — o "median point" do vocabulário de editores.
+    // Usado como pivô de um conjunto (seleção, assets operados pelo gizmo).
+    // Conjunto vazio devolve a origem, sem dividir por zero.
+    static glm::vec3 centroid(const std::vector<glm::vec3>& points){
+        if(points.empty()) return glm::vec3(0.0f);
+
+        glm::vec3 sum(0.0f);
+        for(const glm::vec3& point : points)
+        {
+            sum += point;
+        }
+
+        return sum / static_cast<float>(points.size());
+    }
+
+    };
 
 }

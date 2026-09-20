@@ -4,6 +4,7 @@
 #include <core/data/assets/Asset3dInstance.h>
 #include <core/data/assets/MeshAsset3dInstance.h>
 #include <core/data/assets/CameraAsset3dInstance.h>
+#include <core/utils/MathUtils.h>
 
 #include <glm/glm.hpp>
 
@@ -161,18 +162,17 @@ public:
 
     glm::vec3 getSelectionMedianPoint()
     {
-        glm::vec3 medianPoint = glm::vec3(0, 0, 0);
-        
-        for(Asset3dInstance<TransformType>* selected : m_selectedObjects) 
-        { 
+        std::vector<glm::vec3> positions;
+        positions.reserve(m_selectedObjects.size());
+
+        for(Asset3dInstance<TransformType>* selected : m_selectedObjects)
+        {
             glm::vec3 position = selected->getTransform()->getPosition(true);
             std::cout << std::format("Calculating median point => x:{}, y:{}, z:{}", position.x, position.y, position.z) << std::endl;
-            medianPoint += position;
-        } 
+            positions.push_back(position);
+        }
 
-        medianPoint /= m_selectedObjects.size();
-
-        return medianPoint;
+        return MathUtils::centroid(positions);
     }
 
     std::vector<std::function<void(std::set<Asset3dInstance<TransformType>*>)>> m_onSelectedObjectsChange;

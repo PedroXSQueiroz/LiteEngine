@@ -31,8 +31,7 @@ public:
 
     // Matrix
     void setLocalMatrix(const glm::mat4& matrix) override;
-    //TODO: FAZER VIRTUAL NO PAI?
-    void setWorldMatrix(const glm::mat4& matrix);
+    void setWorldMatrix(const glm::mat4& matrix) override;
 
     glm::mat4 getLocalMatrix() override;
     glm::mat4 getWorldMatrix() override;

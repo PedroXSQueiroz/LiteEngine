@@ -9,6 +9,8 @@
 #include <editor/ObjectSelectorSystem.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <array>
 #include <cmath>
@@ -287,11 +289,20 @@ public:
                     //     medianPoint += currentOperatingAsset->getTransform()->getPosition(true);
                     // }
                     // medianPoint /= m_operatingAssets.size();
-                    m_initialLocationsOperatingAssets.clear();
+                    // Snapshot do estado inicial + pivô do conjunto. Ambos ficam
+                    // CONGELADOS até o mouse-up: recalcular o pivô a cada frame
+                    // realimentaria o drag (o grupo "fugiria" do cursor).
+                    m_initialWorldMatricesOperatingAssets.clear();
+                    std::vector<glm::vec3> operatingPositions;
+                    operatingPositions.reserve(m_operatingAssets.size());
+
                     for(const auto& [id, instance] : m_operatingAssets)
                     {
-                        m_initialLocationsOperatingAssets.emplace(id, instance->getTransform()->getPosition(true));
+                        m_initialWorldMatricesOperatingAssets.emplace(id, instance->getTransform()->getWorldMatrix());
+                        operatingPositions.push_back(instance->getTransform()->getPosition(true));
                     }
+
+                    m_groupPivot = MathUtils::centroid(operatingPositions);
 
                     // startingDragginObjectLocation = medianPoint;
                     
@@ -324,13 +335,23 @@ public:
         }
     }
 
+    // O delta do drag vira UMA matriz, aplicada sobre a world matrix que cada
+    // asset tinha no mouse-down:
+    //
+    //     Mi      = T(pi) · Δ · T(-pi)
+    //     world'i = Mi · world0i
+    //
+    // O modo (conjunto × individual) não muda a fórmula, só a origem de `pi`:
+    // o centroid da seleção ou o centro do próprio objeto. Para translação os
+    // dois se equivalem — T(p)·T(d)·T(-p) = T(d), o pivô se cancela.
     void applyGizmoTransforms(glm::vec3 currentCamLocation, glm::vec3 cameraRayDirection)
     {
         if(m_gizmoAction.has_value() && m_operatingAssets.size() > 0)
         {
-            
-            if( m_gizmoAction == GizmoAction::MOVE_X || 
-                m_gizmoAction == GizmoAction::MOVE_Y || 
+            glm::mat4 delta = glm::mat4(1.0f);
+
+            if( m_gizmoAction == GizmoAction::MOVE_X ||
+                m_gizmoAction == GizmoAction::MOVE_Y ||
                 m_gizmoAction == GizmoAction::MOVE_Z)
             {
                 float draggingDistance = getDistanceOnAxis(
@@ -339,40 +360,17 @@ public:
                     ,   cameraRayDirection
                     ,   startingGizmoLocation
                 ) - startingDraggingDistance;
-                
-                for(const auto& [id, initialPostion] : m_initialLocationsOperatingAssets)
-                {
-                    glm::vec3 dealocated = glm::vec3(
-                        initialPostion.x, 
-                        initialPostion.y, 
-                        initialPostion.z
-                    );
 
-                    switch(m_gizmoAction.value()){
-                        case GizmoAction::MOVE_X:{
-                            dealocated.x += draggingDistance;
-                        }break;
-                        case GizmoAction::MOVE_Y:{
-                            dealocated.y += draggingDistance;
-                        }break;
-                        case GizmoAction::MOVE_Z:{
-                            dealocated.z += draggingDistance;
-                        }break;
-                    }
-
-                    auto it = m_operatingAssets.begin();
-                    if(m_operatingAssets.size() > 0)
-                    {
-                        it->second->getTransform()->setPosition(dealocated, true);
-                    }
-                
-                }
+                delta = glm::translate(
+                    glm::mat4(1.0f),
+                    axisOf(m_gizmoAction.value()) * draggingDistance
+                );
 
                 std::cout << std::format("Dragging gizmo: {} distance: {}", toString(m_gizmoAction.value()), draggingDistance) << std::endl;
             }
             else if(
-                m_gizmoAction == GizmoAction::ROTATE_X || 
-                m_gizmoAction == GizmoAction::ROTATE_Y || 
+                m_gizmoAction == GizmoAction::ROTATE_X ||
+                m_gizmoAction == GizmoAction::ROTATE_Y ||
                 m_gizmoAction == GizmoAction::ROTATE_Z
             )
             {
@@ -386,33 +384,22 @@ public:
 
                 // NaN = ângulo inválido (raio paralelo ao plano / cursor no
                 // centro) — pula o frame para não propagar NaN à rotação.
-                if (!std::isnan(turningAngle))
-                {
-                    // NÃO somar o ângulo a componentes do quatérnion: quatérnion
-                    // não é (θx, θy, θz). Monta-se o DELTA de rotação com
-                    // angleAxis (quatérnion unitário) e compõe-se com a rotação
-                    // inicial. Somar graus a q.x/y/z produz um quatérnion NÃO
-                    // unitário → mat4_cast o interpreta como rotação * |q|² →
-                    // vira escala (estica e some). Ver memória do projeto.
-                    glm::quat delta = glm::angleAxis(
-                        glm::radians(turningAngle), 
-                        axisOf(m_gizmoAction.value()));
-                    glm::quat rotated = delta * startingTurningObjectRotation;
-                    
-                    //FIXME: IMPLEMENTAR ROTAÇÃO POR ORIGEM E EM CONJUNTO, TALVEZ SENDO ATIVADA POR ALGUM ATALHO
-                    // NO MOMENTO SIMPLESMENTE PEGA O PRIMEIRO
-                    auto it = m_operatingAssets.begin();
-                    if(m_operatingAssets.size() > 0)
-                    {
-                        it->second->getTransform()->setRotation(rotated, true); // world-space
-                    }
+                if (std::isnan(turningAngle)) return;
 
-                    std::cout << std::format("Rotating gizmo: {} angle: {}", toString(m_gizmoAction.value()), turningAngle) << std::endl;
-                }
+                // NÃO somar o ângulo a componentes do quatérnion: quatérnion
+                // não é (θx, θy, θz). Monta-se o DELTA de rotação com
+                // angleAxis (quatérnion unitário). Somar graus a q.x/y/z produz
+                // um quatérnion NÃO unitário → mat4_cast o interpreta como
+                // rotação * |q|² → vira escala (estica e some).
+                delta = glm::mat4_cast(glm::angleAxis(
+                    glm::radians(turningAngle),
+                    axisOf(m_gizmoAction.value())));
+
+                std::cout << std::format("Rotating gizmo: {} angle: {}", toString(m_gizmoAction.value()), turningAngle) << std::endl;
             }
             else if(
-                m_gizmoAction == GizmoAction::SCALE_X || 
-                m_gizmoAction == GizmoAction::SCALE_Y || 
+                m_gizmoAction == GizmoAction::SCALE_X ||
+                m_gizmoAction == GizmoAction::SCALE_Y ||
                 m_gizmoAction == GizmoAction::SCALE_Z
             )
             {
@@ -424,34 +411,50 @@ public:
                     ,   startingGizmoLocation
                 ) - startingScaleFactorDistance;
 
-                glm::vec3 scaled = glm::vec3(
-                    startingSizeObjectScale.x,
-                    startingSizeObjectScale.y,
-                    startingSizeObjectScale.z
-                );
+                // Fator MULTIPLICATIVO (1 = tamanho do mouse-down): a matriz
+                // compõe com a escala que o objeto já tinha, em vez de somar a
+                // um valor absoluto.
+                float factor = 1.0f + scalingDistance / startingScaleFactorDistance;
+
+                glm::vec3 factors = glm::vec3(1.0f, 1.0f, 1.0f);
 
                 switch(m_gizmoAction.value()){
                     case GizmoAction::SCALE_X:{
-                        scaled.x += scalingDistance / startingScaleFactorDistance;
+                        factors.x = factor;
                     }break;
                     case GizmoAction::SCALE_Y:{
-                        scaled.y += scalingDistance / startingScaleFactorDistance;
+                        factors.y = factor;
                     }break;
                     case GizmoAction::SCALE_Z:{
-                        scaled.z += scalingDistance / startingScaleFactorDistance;
+                        factors.z = factor;
                     }break;
                 }
-                //FIXME: IMPLEMENTAR SCALE EM CONJUNTO, NÃO TENHO IDEIA DE COMO
-                // NO MOMENTO SIMPLESMENTE PEGA O PRIMEIRO
-                auto it = m_operatingAssets.begin();
-                if(m_operatingAssets.size() > 0)
-                {
-                    it->second->getTransform()->setScale(scaled);
-                }
+
+                delta = glm::scale(glm::mat4(1.0f), factors);
 
                 std::cout << std::format("Scaling gizmo: {} distance: {}", toString(m_gizmoAction.value()), scalingDistance) << std::endl;
             }
 
+            for(const auto& [id, initialWorldMatrix] : m_initialWorldMatricesOperatingAssets)
+            {
+                auto operatingAsset = m_operatingAssets.find(id);
+                if(operatingAsset == m_operatingAssets.end()) continue;
+
+                // Individual: cada objeto é seu próprio pivô (a translação da
+                // world matrix inicial). Conjunto: o pivô comum congelado.
+                glm::vec3 pivot = m_indiviualTransformApply
+                    ? glm::vec3(initialWorldMatrix[3])
+                    : m_groupPivot;
+
+                glm::mat4 transformAroundPivot =
+                        glm::translate(glm::mat4(1.0f), pivot)
+                    *   delta
+                    *   glm::translate(glm::mat4(1.0f), -pivot);
+
+                operatingAsset->second->getTransform()->setWorldMatrix(
+                    transformAroundPivot * initialWorldMatrix
+                );
+            }
         }
     }
 
@@ -647,13 +650,19 @@ public:
     void setOperatingAssets(std::vector<Asset3dInstance<TransformType>*> assets)
     {
         m_operatingAssets.clear();
-        m_initialLocationsOperatingAssets.clear();
+        m_initialWorldMatricesOperatingAssets.clear();
         for(Asset3dInstance<TransformType>* instance : assets)
         {
             m_operatingAssets.emplace(instance->getId(), instance);
-            m_initialLocationsOperatingAssets.emplace(instance->getId(), instance->getTransform()->getPosition(true));
+            m_initialWorldMatricesOperatingAssets.emplace(instance->getId(), instance->getTransform()->getWorldMatrix());
         }
     }
+
+    // false = transformar em relação ao centro do CONJUNTO (objetos orbitam o
+    // pivô comum na rotação e se afastam/aproximam dele na escala).
+    // true  = cada objeto em relação ao próprio centro.
+    bool getIndiviualTransformApply() { return m_indiviualTransformApply; }
+    void setIndiviualTransformApply(bool indiviualTransformApply) { m_indiviualTransformApply = indiviualTransformApply; }
 
     std::optional<GizmoAction> getCurrentGizmoAction(){
         return m_gizmoAction;
@@ -733,7 +742,14 @@ protected:
 
     std::map<int, Asset3dInstance<TransformType>*> m_operatingAssets;
 
-    std::map<int, glm::vec3> m_initialLocationsOperatingAssets;
+    // Snapshot do início do drag: a world matrix carrega posição, rotação e
+    // escala de uma vez, e o delta é aplicado sobre ela (world' = M · world0).
+    std::map<int, glm::mat4> m_initialWorldMatricesOperatingAssets;
+
+    // Pivô do conjunto, congelado no início do drag (centroid das posições).
+    glm::vec3 m_groupPivot { glm::vec3(0, 0, 0) };
+
+    bool m_indiviualTransformApply = false;
 
     glm::vec3 startingGizmoLocation;
     // glm::vec3 startingDragginObjectLocation;

@@ -30,6 +30,7 @@ public:
 
     // Full transform matrix
     virtual void setLocalMatrix(const glm::mat4& matrix) = 0;
+    virtual void setWorldMatrix(const glm::mat4& matrix) = 0;
     virtual glm::mat4 getLocalMatrix() = 0;
     virtual glm::mat4 getWorldMatrix() = 0;
 
