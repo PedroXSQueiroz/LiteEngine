@@ -21,6 +21,10 @@ std::vector<glm::vec3> FilamentMeshAsset3dInstance::getVertex() const {
     return cpuPositions;
 }
 
+std::vector<glm::vec3> FilamentMeshAsset3dInstance::getNormals() const {
+    return cpuNormals;
+}
+
 std::vector<int64_t> FilamentMeshAsset3dInstance::getIndex() const {
     return std::vector<int64_t>(cpuIndices.begin(), cpuIndices.end());
 }

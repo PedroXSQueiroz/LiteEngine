@@ -139,4 +139,15 @@ glm::mat4 FilamentAsset3dTransform::getWorldMatrix() {
     return result;
 }
 
+bool FilamentAsset3dTransform::setParent(const Asset3dTransform* parentTransform) {
+    
+    const FilamentAsset3dTransform* filamentParentTrans = dynamic_cast<const FilamentAsset3dTransform*>(parentTransform);
+    auto thisInstance = m_transformManager.getInstance(m_entity.value());
+    auto parentInstance = m_transformManager.getInstance(filamentParentTrans->m_entity.value());
+    
+    m_transformManager.setParent(thisInstance, parentInstance);
+
+    return true;
+}
+
 } // namespace lite

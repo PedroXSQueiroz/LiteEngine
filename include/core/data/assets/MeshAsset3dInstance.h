@@ -29,6 +29,13 @@ public:
     virtual void setBoundingBox(const std::vector<glm::vec3>& bounds) = 0;
     virtual std::vector<glm::vec3> calcBoundingBox() const = 0;
 
+    // Declarado por ÚLTIMO de propósito: acrescentar um virtual no MEIO da
+    // lista desloca o slot de vtable de todos os seguintes, e um build
+    // incremental que deixe algum .obj desatualizado passa a despachar pelo
+    // índice antigo — chamada aterrissa na função errada. Virtual novo entra
+    // sempre no fim.
+    virtual std::vector<glm::vec3> getNormals() const = 0;
+
     // AABB {min, max} agregada deste nó + TODOS os meshes descendentes, no
     // espaço LOCAL deste nó (a world transform do próprio nó é excluída: cada
     // mesh entra pela sua transform RELATIVA a este nó, então o resultado

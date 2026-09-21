@@ -34,6 +34,8 @@ public:
     virtual glm::mat4 getLocalMatrix() = 0;
     virtual glm::mat4 getWorldMatrix() = 0;
 
+    virtual bool setParent(const Asset3dTransform* parentTransform) = 0;
+
 };
 
 } // namespace lite

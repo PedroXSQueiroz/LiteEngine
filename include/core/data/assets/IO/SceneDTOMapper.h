@@ -74,18 +74,23 @@ public:
             // Transform NOVO, não o do pai: o factory religa este wrapper ao
             // entity recém-criado (rootTransform.of(...)), e a pose do nó já
             // viaja no instanceData — é o localTransform que veio do DTO.
+            TransformType currentTransform = TransformUtils<TransformType>::build();
             int newAssetId = scene->create(
                 *instanceData,
                 std::vector<std::unique_ptr<MaterialData>>(),
                 TransformUtils<TransformType>::build()
             );
-
+            
             // get() devolve a INSTÂNCIA (AssetType), não o dado. Bloqueia até a
             // render thread instanciar o id.
             AssetType* newAsset = scene->get(newAssetId);
 
             if(root)
             {
+                TransformType* currentTransform = newAsset->getTransform();
+                Asset3dInstance<TransformType>* rootInstance = dynamic_cast<Asset3dInstance<TransformType>*>(root);
+                currentTransform->setParent(rootInstance->getTransform());
+                
                 root->addChild(newAsset);
             }
 

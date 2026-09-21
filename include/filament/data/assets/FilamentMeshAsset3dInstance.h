@@ -27,6 +27,7 @@ public:
 
     // Geometry access (MeshAsset3dInstance interface)
     std::vector<glm::vec3> getVertex() const override;
+    std::vector<glm::vec3> getNormals() const override;
     std::vector<int64_t> getIndex() const override;
     std::vector<glm::vec2> getUVS(int index) const override;
     std::vector<glm::vec3> getBoundingBox() override;

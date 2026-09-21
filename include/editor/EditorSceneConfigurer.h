@@ -201,27 +201,27 @@ namespace lite{
                 >* m_sceneMapper;
 
         SceneType* loadScene3dInstances(SceneType* scene){
-            Asset3dData rootNode;
-            std::vector<std::unique_ptr<MaterialData>> materials;
+            // Asset3dData rootNode;
+            // std::vector<std::unique_ptr<MaterialData>> materials;
             
-            if (m_assets3dImporter->import(
-                // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
-                "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
-                , rootNode, materials)) {
-                scene->create(
-                    rootNode,
-                    materials,
-                    TransformUtils<TransformType>::build(),
-                    true
-                );
+            // if (m_assets3dImporter->import(
+            //     // "D:/Workspace/LiteEngine/test-resources/simple_sphere.fbx"
+            //     "C:/Users/pixqu/Downloads/Jason Stalhart/Base_Mesh/Aiden_Stallhart_BaseMesh_skeleton_Ver1.fbx"
+            //     , rootNode, materials)) {
+            //     scene->create(
+            //         rootNode,
+            //         materials,
+            //         TransformUtils<TransformType>::build(),
+            //         true
+            //     );
                 
-            }
-
-            // std::optional<SceneDTO> sceneDtoResult = m_serializer->load(SCENE_PATH);
-            // if(sceneDtoResult.has_value())
-            // {
-            //     m_sceneMapper->populateFromDto(scene, sceneDtoResult.value());
             // }
+
+            std::optional<SceneDTO> sceneDtoResult = m_serializer->load(SCENE_PATH);
+            if(sceneDtoResult.has_value())
+            {
+                m_sceneMapper->populateFromDto(scene, sceneDtoResult.value());
+            }
 
             // if( sceneDtoResult.has_value() ) 
             // {

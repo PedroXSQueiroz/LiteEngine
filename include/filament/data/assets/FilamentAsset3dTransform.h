@@ -46,6 +46,8 @@ public:
         this->m_entity.emplace(entity);
     };
 
+    virtual bool setParent(const Asset3dTransform* parentTransform) override;
+
 
 private:
     void modifyComponent(
