@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <typeindex>
 
 #include <glm/glm.hpp>
 
@@ -33,6 +34,11 @@ struct Asset3dInstanceDTO {
     bool visible = true;
 
     std::vector<std::unique_ptr<Asset3dInstanceDTO>> children;
+
+    // std::type_index não é default-construtível, e sem um valor aqui o
+    // construtor default de todo o DTO (e das filhas) sai deletado. typeid(void)
+    // é o sentinela de "não preenchido".
+    std::type_index assetTypeIndex = std::type_index(typeid(void));
 };
 
 } // namespace lite

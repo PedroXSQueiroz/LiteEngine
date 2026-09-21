@@ -27,6 +27,7 @@
 #include <core/data/assets/MaterialData.h>
 #include <core/data/assets/Asset3dInstance.h>
 #include <core/data/assets/MeshAsset3dInstance.h>
+#include <core/data/DTOs/MeshAsset3dInstanceDTO.h>
 #include <core/data/assets/IO/SceneSerializer.h>
 #include <core/data/assets/IO/SceneDTOMapper.h>
 #include <core/data/assets/IO/Asset3dDTOMapper.h>
@@ -169,12 +170,12 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
     // Par (entidade, DTO) que este mapper atende: o nó "puro" da cena Filament
     // e o DTO base. typeid do TIPO (não de instância) — é o que o registry
     // compara com typeid(*entity) na hora de escolher o mapper.
-    virtual std::type_index getEntityTypeIndex()
+    virtual std::type_index getEntityTypeIndex() override
     {
         return std::type_index(typeid(FilamentAsset3dInstance));
     }
 
-    virtual std::type_index getDTOTypeIndex()
+    virtual std::type_index getDTOTypeIndex() override
     {
         return std::type_index(typeid(Asset3dInstanceDTO));
     }
@@ -183,6 +184,11 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
     virtual Node* fromDto(const Asset3dInstanceDTO& dto)
     {
         return nullptr;
+    }
+
+    virtual std::unique_ptr<Asset3dData> fromDtoToData(const Asset3dInstanceDTO& dto) override
+    {
+        return std::make_unique<Asset3dData>(dto.name, dto.localTransform);
     }
 
     virtual std::unique_ptr<Asset3dInstanceDTO> nodeToDto(Node* node)
@@ -198,6 +204,92 @@ class DummyAsset3dDTOMapper : public Asset3dDTOMapper {
         dto->name           = instance->name;
         dto->localTransform = instance->getLocalMatrix();
         dto->visible        = instance->isVisible();
+
+        // children fica vazio de propósito: a recursão é do toDto, não daqui.
+        return dto;
+    }
+};
+
+class DummyMeshAsset3dDTOMapper : public DummyAsset3dDTOMapper 
+{
+    virtual std::type_index getEntityTypeIndex() override
+    {
+        return std::type_index(typeid(FilamentMeshAsset3dInstance));
+    }
+
+    virtual std::type_index getDTOTypeIndex() override
+    {
+        return std::type_index(typeid(MeshAsset3dInstanceDTO));
+    }
+
+    virtual std::unique_ptr<Asset3dData> fromDtoToData(const Asset3dInstanceDTO& dto) override
+    {
+        // MeshAsset3dData não herda os construtores de Asset3dData, então
+        // nome e transform entram por atribuição.
+        auto data = std::make_unique<MeshAsset3dData>();
+        data->name           = dto.name;
+        data->localTransform = dto.localTransform;
+
+        // A geometria só existe na filha do DTO e o parâmetro é a base. Cast
+        // falho = DTO que não é de mesh: devolve o nó com nome/transform e sem
+        // geometria, mesmo critério do nodeToDto acima.
+        const auto* meshDto = dynamic_cast<const MeshAsset3dInstanceDTO*>(&dto);
+        if (!meshDto) return data;
+
+        data->positions    = meshDto->positions;
+        data->normals      = meshDto->normals;
+        data->uvs          = meshDto->uvs;
+        data->indices      = meshDto->indices;
+        data->boundsMin    = meshDto->boundsMin;
+        data->boundsMax    = meshDto->boundsMax;
+        data->materialName = meshDto->materialName;
+
+        // center/radius não viajam no DTO — recalculados com as mesmas fórmulas
+        // do AssimpImporter::populateMeshData.
+        data->center = (meshDto->boundsMin + meshDto->boundsMax) * 0.5f;
+        data->radius = glm::length(meshDto->boundsMax - meshDto->boundsMin) * 0.5f;
+
+        return data;
+    }
+
+    virtual std::unique_ptr<Asset3dInstanceDTO> nodeToDto(Node* node) override
+    {
+        auto dto = std::make_unique<MeshAsset3dInstanceDTO>();
+
+        // Cast para o contrato AGNÓSTICO de mesh — é dele que sai a geometria,
+        // então qualquer implementação de mesh serve, não só a Filament.
+        auto* mesh = dynamic_cast<MeshAsset3dInstance<FilamentAsset3dTransform>*>(node);
+        if (!mesh) return dto;
+
+        // Campos base: mesmo conjunto que o mapper pai copia.
+        dto->id             = mesh->getId();
+        dto->name           = mesh->name;
+        dto->localTransform = mesh->getLocalMatrix();
+        dto->visible        = mesh->isVisible();
+        dto->materialName   = mesh->materialName;
+
+        dto->positions = mesh->getVertex();
+        dto->normals   = mesh->getNormals();
+
+        // Sai VAZIO por enquanto: a implementação Filament não guarda UVs
+        // CPU-side (não há cpuUvs), então getUVS() devolve vetor vazio.
+        dto->uvs = mesh->getUVS(0);
+
+        // O contrato agnóstico devolve int64_t; o DTO — e o IndexBuffer da
+        // Filament, que é UINT32 — trabalham com uint32_t.
+        const std::vector<int64_t> indices = mesh->getIndex();
+        dto->indices.reserve(indices.size());
+        for (int64_t index : indices) {
+            dto->indices.push_back(static_cast<uint32_t>(index));
+        }
+
+        // {min, max} no espaço LOCAL do mesh. getBoundingBox() é lazy: calcula
+        // a partir das posições na primeira chamada.
+        const std::vector<glm::vec3> bounds = mesh->getBoundingBox();
+        if (bounds.size() >= 2) {
+            dto->boundsMin = bounds[0];
+            dto->boundsMax = bounds[1];
+        }
 
         // children fica vazio de propósito: a recursão é do toDto, não daqui.
         return dto;
@@ -276,6 +368,7 @@ int main(int argc, char** argv){
         FilamentScene>* sceneMapper = new DummySceneDTOMapper();
 
     sceneMapper->registerMapper( new DummyAsset3dDTOMapper() );
+    sceneMapper->registerMapper( new DummyMeshAsset3dDTOMapper() );
     
     
     /*----------------------------------------------------------------------------

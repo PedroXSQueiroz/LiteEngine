@@ -166,12 +166,14 @@ namespace lite{
             });
 
             UIButtonElement<UIRendererType>* saveSceneButton = createButton(uiRenderer, "Salvar");
-            saveSceneButton->registerEvent("click",  [&](UIRendererType*, int, std::string){
+            saveSceneButton->registerEvent("click",  [
+                scene, 
+                sceneMapper = m_sceneMapper, 
+                serializer = m_serializer,
+                savePath = SCENE_PATH](UIRendererType*, int, std::string){
 
-                // m_serializer->sa;
-                
-                SceneDTO sceneDto = m_sceneMapper->toDto(scene);
-                m_serializer->save(sceneDto, SCENE_PATH);
+                SceneDTO sceneDto = sceneMapper->toDto(scene);
+                serializer->save(sceneDto, savePath);
 
             });
 
@@ -214,6 +216,22 @@ namespace lite{
                 );
                 
             }
+
+            // std::optional<SceneDTO> sceneDtoResult = m_serializer->load(SCENE_PATH);
+            // if(sceneDtoResult.has_value())
+            // {
+            //     m_sceneMapper->populateFromDto(scene, sceneDtoResult.value());
+            // }
+
+            // if( sceneDtoResult.has_value() ) 
+            // {
+            //     SceneDTO sceneDto = sceneDtoResult.value();
+
+            //     for( std::unique_ptr<Asset3dInstanceDTO> instanceDto: sceneDto.instances ) 
+            //     {
+            //         m_sceneMapper->
+            //     }
+            // }
 
             return scene;
         };

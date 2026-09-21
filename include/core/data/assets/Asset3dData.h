@@ -13,6 +13,15 @@ namespace lite {
 // This IS the node - no separate SceneNode concept
 class Asset3dData {
 public:
+    
+    Asset3dData(
+        std::string name = "",
+        glm::mat4 localTransform = glm::mat4(1.0f),
+        Asset3dData* parent = nullptr
+    )   :name(name)
+        ,localTransform(localTransform)
+        ,parent(parent){}
+
     virtual ~Asset3dData() = default;
 
     // Node identification
