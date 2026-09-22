@@ -223,16 +223,6 @@ namespace lite{
                 m_sceneMapper->populateFromDto(scene, sceneDtoResult.value());
             }
 
-            // if( sceneDtoResult.has_value() ) 
-            // {
-            //     SceneDTO sceneDto = sceneDtoResult.value();
-
-            //     for( std::unique_ptr<Asset3dInstanceDTO> instanceDto: sceneDto.instances ) 
-            //     {
-            //         m_sceneMapper->
-            //     }
-            // }
-
             return scene;
         };
 

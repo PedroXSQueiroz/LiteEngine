@@ -47,6 +47,14 @@ public:
         return ptr;
     }
 
+    // Sobrecarga para adotar um filho JÁ CONSTRUÍDO (ex.: vindo de um DTOMapper),
+    // diferente do addChild<T> acima, que sempre CRIA um filho novo a partir dos
+    // argumentos do construtor. Paliativo — ver memory addchild-needs-refactor.
+    void addChild(std::unique_ptr<Asset3dData> child) {
+        child->parent = this;
+        children.push_back(std::move(child));
+    }
+
     // Type identification
     virtual bool isMesh() const { return false; }
 

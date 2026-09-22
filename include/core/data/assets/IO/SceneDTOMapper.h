@@ -48,17 +48,32 @@ public:
     // dto por referência const: SceneDTO tem vector<unique_ptr>, copiar é deletado.
     void populateFromDto(SceneType* scene, const SceneDTO& dto)
     {
-        populateInstancesIntoSceneFromDto(scene, dto.instances, nullptr);
+        for(const std::unique_ptr<Asset3dInstanceDTO>& instanceDto : dto.instances)
+        {
+            std::vector<std::unique_ptr<Asset3dData>> assetData = populateInstancesIntoSceneFromDto(scene, dto.instances);
+
+            for(const std::unique_ptr<Asset3dData>& currentAssetData: assetData)
+            {
+                scene->create(
+                    *currentAssetData.get(),
+                    std::vector<std::unique_ptr<MaterialData>>(),
+                    TransformUtils<TransformType>::build(),
+                    true
+                );
+            }
+        }
+
     }
 
     // instancesDtos por referência const pelo mesmo motivo — e porque este
     // método só LÊ os DTOs, a posse continua sendo de quem chamou.
     // root nulo = nível raiz (não há pai a quem pendurar).
-    void populateInstancesIntoSceneFromDto(
+    std::vector<std::unique_ptr<Asset3dData>> populateInstancesIntoSceneFromDto(
         SceneType* scene,
-        const std::vector<std::unique_ptr<lite::Asset3dInstanceDTO>>& instancesDtos,
-        Node* root)
+        const std::vector<std::unique_ptr<lite::Asset3dInstanceDTO>>& instancesDtos)
     {
+        std::vector<std::unique_ptr<Asset3dData>> dataTree;
+        
         for( const std::unique_ptr<lite::Asset3dInstanceDTO>& currentInstanceDto: instancesDtos )
         {
             // typeid(*dto) dá o tipo DINÂMICO do DTO. O readNode do serializer
@@ -71,36 +86,52 @@ public:
 
             std::unique_ptr<Asset3dData> instanceData = mapperToAsset->fromDtoToData(*currentInstanceDto);
 
-            // Transform NOVO, não o do pai: o factory religa este wrapper ao
-            // entity recém-criado (rootTransform.of(...)), e a pose do nó já
-            // viaja no instanceData — é o localTransform que veio do DTO.
-            TransformType currentTransform = TransformUtils<TransformType>::build();
-            int newAssetId = scene->create(
-                *instanceData,
-                std::vector<std::unique_ptr<MaterialData>>(),
-                TransformUtils<TransformType>::build()
+            std::vector<std::unique_ptr<Asset3dData>> childrenOfCurrentNode = populateInstancesIntoSceneFromDto(
+                scene,
+                currentInstanceDto->children
             );
             
-            // get() devolve a INSTÂNCIA (AssetType), não o dado. Bloqueia até a
-            // render thread instanciar o id.
-            AssetType* newAsset = scene->get(newAssetId);
-
-            if(root)
+            for( std::unique_ptr<Asset3dData>& currentChild : childrenOfCurrentNode )
             {
-                TransformType* currentTransform = newAsset->getTransform();
-                Asset3dInstance<TransformType>* rootInstance = dynamic_cast<Asset3dInstance<TransformType>*>(root);
-                currentTransform->setParent(rootInstance->getTransform());
-                
-                root->addChild(newAsset);
+                instanceData->addChild(std::move(currentChild));
             }
 
-            populateInstancesIntoSceneFromDto(
-                scene,
-                currentInstanceDto->children,
-                newAsset
-            );
+            dataTree.push_back(std::move(instanceData));
+
+            
+            // // Transform NOVO, não o do pai: o factory religa este wrapper ao
+            // // entity recém-criado (rootTransform.of(...)), e a pose do nó já
+            // // viaja no instanceData — é o localTransform que veio do DTO.
+            // TransformType currentTransform = TransformUtils<TransformType>::build();
+            // int newAssetId = scene->create(
+            //     *instanceData,
+            //     std::vector<std::unique_ptr<MaterialData>>(),
+            //     TransformUtils<TransformType>::build()
+            // );
+            
+            // // get() devolve a INSTÂNCIA (AssetType), não o dado. Bloqueia até a
+            // // render thread instanciar o id.
+            // AssetType* newAsset = scene->get(newAssetId);
+
+            // if(root)
+            // {
+            //     TransformType* currentTransform = newAsset->getTransform();
+            //     Asset3dInstance<TransformType>* rootInstance = dynamic_cast<Asset3dInstance<TransformType>*>(root);
+            //     currentTransform->setParent(rootInstance->getTransform());
+                
+            //     root->addChild(newAsset);
+                
+            //     populateInstancesIntoSceneFromDto(
+            //         scene,
+            //         currentInstanceDto->children,
+            //         newAsset
+            //     );
+            // }
+
 
         }
+
+        return dataTree;
     }
 
     SceneDTO toDto(SceneType* scene)
