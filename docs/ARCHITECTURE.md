@@ -6,7 +6,7 @@
 
 | Documento | Conteúdo |
 |---|---|
-| **este arquivo** | Visão geral, estrutura de diretórios, build, modelo de threads, dívidas técnicas globais, roadmap |
+| **este arquivo** | Visão geral, estrutura de diretórios, build, modelo de threads, dívidas técnicas globais, roadmap, regras de design |
 | [core.md](core.md) | A camada agnóstica: **concepts em detalhe**, hierarquias completas de classes, `Scene`, UI abstrata, input, sistemas |
 | [rendering/filament.md](rendering/filament.md) | Implementação de renderização com Google Filament — quais interfaces do core cada classe implementa |
 | [ui/cef.md](ui/cef.md) | Implementação de UI com CEF + React — quais interfaces do core cada classe implementa |
@@ -199,3 +199,24 @@ Notas de planejamento escritas durante o desenvolvimento — úteis para entende
 - `extraindo_concepts.txt` — plano (executado) de deduplicação dos concepts para `include/core/concepts/`.
 - `refactor.txt` — plano (executado) de mover implementações de headers para `.cpp` (o que pode e o que não pode por ser template).
 - `deletion_assets.txt` — plano de deleção cross-thread com Treiber stack lock-free (**não implementado assim**; a solução atual é marcação + flush pós-frame no factory).
+
+## 8. Regras de design
+
+Regras que o código **não consegue amarrar**, pelo menos por enquanto: valem por convenção. Por isso ficam documentadas aqui e no `CLAUDE.md`, e quem encontrar uma violação deve apontá-la.
+
+### 8.1 A UI do editor não observa a cena (2026-09-23)
+
+- **O setup fica de fora.** Enquanto a cena é montada (`configure`, `loadScene3dInstances`, `populateFromDto`...), ela recebe assets sem avisar a UI.
+- **Carga inicial: uma única vez**, no hook `postInit` do `EditorUIController` ([core.md §4.18](core.md)). Ele roda no primeiro `Scene::update`, logo depois do `instantiate()`, então os assets enfileirados durante o configure já existem.
+- **Com a cena "viva" em runtime** (depois do `postInit`), toda mudança na cena que deve aparecer na UI é feita **explicitamente, em dois passos, nesta ordem**:
+  1. a mudança na cena;
+  2. a mudança correspondente na UI, **através do `EditorUIController`**.
+- Vale para **adições** (`create`), **remoções** (`destroy`) e **atualizações** (nome ou valor exibido). A UI guarda **cópias** (a tree guarda o `label` por valor e o React mantém o próprio estado), então mudar o objeto, a referência ou o ponteiro na cena não chega à UI: é preciso mandar a mensagem ao React.
+- Hoje a UI afetada é só a treeview da cena; outros elementos seguem a mesma regra, sempre pelo controller.
+- **Setup × runtime:** um handler **registrado** durante o setup (ex.: `registerEvent("click", ...)` dentro do `configureUI`) **executa** em runtime, então o corpo dele está sujeito à regra.
+- **O que conta como violação:**
+  - handler que chama `scene->create`/`destroy` sem passar pelo controller;
+  - atualização de algo exibido sem passar pelo controller;
+  - código que mexe na tree direto (`createNode`/`updateNode`/`removeNode` fora do controller);
+  - qualquer mecanismo que sincronize a UI automaticamente a partir da cena (system varrendo `getAll()` por frame, callback de instanciação alimentando a UI etc.).
+- **Estado em 2026-09-23:** a API do controller para as mudanças em runtime **ainda não existe** (será desenhada). Até lá, o botão "Carregar" do `EditorSceneConfigurer::configureUI` é uma violação conhecida: faz `scene->create` e a tree não fica sabendo.

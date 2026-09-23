@@ -220,14 +220,15 @@ SceneFactory<SceneConcept> [T][A]                 # build() → cena; SEM implem
 View [A]                                          # janela/superfície — §9
 └── SDLFilamentView (F)                           # SDL_Init + janela + handle nativo
 
-SceneScopeSystem [A]                              # 6 hooks de frame (onFrameBegin..onFrameEnd)
+SceneScopeSystem [A]                              # postInit (uma vez) + 6 hooks de frame (onFrameBegin..onFrameEnd)
 ├── WireframeSystem<MeshAsset3dConcept> [T][A]    # overlay wireframe agnóstico (editor)
 │   └── FilamentWireframeSystem (F)
 ├── ObjectSelectorSystem<SceneType, Transform> [T] # picking por raio, 100% GLM (editor)
 │   └── FilamentObjectSelectorSystem (F)          # só fixa os parâmetros de template
 ├── GizmoSystem<SceneType, Transform> [T][A]      # gizmo de transformação (dono de cena de overlay)
 │   └── FilamentGizmoSystem (F)
-└── EditorNavigationSystem                        # câmera FPS (NÃO-template; consome SDL_Event cru)
+├── EditorNavigationSystem                        # câmera FPS (NÃO-template; consome SDL_Event cru)
+└── EditorUIController<SceneType, Transform, UIRenderer> [T] # UI do editor; hoje popula a tree no postInit
 
 IBL [A]                                           # iluminação baseada em imagem
 └── FilamentIBL (F)
@@ -255,6 +256,8 @@ UIElement<URT:UIRendererConcept> [T]              # base de widget: id, draw(), 
 │   └── CEF_UIComboBoxInputElement (C)
 ├── UIButtonElement<URT> [T]
 │   └── CEF_UIButtonElement (C)
+├── UITreeElement<URT, DataType> [T][A]           # treeview; nós só nascem pela tree; redrawTree() puro
+│   └── CEF_UITreeElement<DataType> (C)           # header-only (é template)
 └── UITabElement<URT> [T]                         # vazio (placeholder)
 
 UIElementHandler                                  # type-erasure (void* + type_index)
@@ -361,7 +364,8 @@ O coração do core. Parametrizada pelos 4 concepts. **Possui** (unique_ptr) o f
 - `m_3dInstances : map<int, unique_ptr<Asset>>` — instâncias vivas, chaveadas por id crescente (`m_lastId`);
 - `m_creatingObjects : vector<CreationEntry>` — fila de criação (`{id, clone dos dados, materiais, transform}`);
 - `m_instancesMutex` + `m_instantiatedCV` — protegem ambos e acordam quem espera em `get()`;
-- `m_systems : vector<unique_ptr<SceneScopeSystem>>` (**dono** desde 2026-09-19, sem lock) — **único mecanismo de extensão do frame** (§4.10); `addSystem`/`removeSystem` antes do `start()` ou via `postCommand`.
+- `m_systems : vector<unique_ptr<SceneScopeSystem>>` (**dono** desde 2026-09-19, sem lock) — **único mecanismo de extensão do frame** (§4.10); `addSystem`/`removeSystem` antes do `start()` ou via `postCommand`;
+- `m_postInitDone : bool` — marca que o `postInit` dos systems já foi despachado. Só a render thread toca, por isso não é atomic.
 
 **API thread-safe de assets**:
 - `create(data, materials, transform, deepIds=false) → int` — `materials` é `const vector<unique_ptr<MaterialData>>&` e a fila leva uma **cópia própria** dele (`clone()` polimórfico por elemento, mesmo tratamento que `data.clone()` dá à árvore); clona `data`, enfileira, retorna id **imediatamente** (a instanciação real acontece na render thread, dentro de `update`). O id retornado é estampado na raiz da instância (`getId()`) no `instantiate()`; com `deepIds=true`, **todos** os nós da árvore recebem ids do mesmo espaço de numeração (`m_lastId`, sob o mesmo mutex), em ordem determinística de percurso — base para endereçar subobjetos (usado pelo picking do `ObjectSelectorSystem` e pelo gizmo). **Nota**: o índice definitivo de subobjetos por id segue adiado (dupla posse e tipo impedem filhos em `m_3dInstances`; ver memória do projeto) — o paliativo é o `getNode` abaixo;
@@ -383,6 +387,8 @@ O coração do core. Parametrizada pelos 4 concepts. **Possui** (unique_ptr) o f
 
 ```
 instantiate()                    // drena fila → factory->instantiateAsset → m_3dInstances (+notify CV)
+[só no 1º update]
+  systems[].postInit()           // UMA vez; retorno ignorado (TODO) e m_postInitDone = true de qualquer forma
 systems[].onFrameBegin(dt)       // assets criados neste frame já visíveis
 m_uiRenderer->update()           // UI é responsabilidade INTERNA da Scene (ela possui o renderer)
 if (prepareRender())             // virtual — ex.: beginFrame
@@ -429,16 +435,23 @@ Os parâmetros resolvem o problema de `Scene` e `CameraAsset3dInstance` serem te
 
 ### 4.10 `SceneScopeSystem` — `include/core/SceneScopeSystem.h`
 
-**Único ponto de extensão do frame** (padrão Interceptor / lifecycle hooks — os antigos 4 vetores públicos de callbacks foram absorvidos aqui). Seis hooks com corpo vazio default — implemente só o que precisar:
+**Único ponto de extensão do frame** (padrão Interceptor / lifecycle hooks — os antigos 4 vetores públicos de callbacks foram absorvidos aqui). Sete hooks: o `postInit`, que roda uma única vez, e seis de frame. Todos têm implementação default que não faz nada — implemente só o que precisar:
 
 | Hook | Quando dispara | Roda com frame pulado? |
 |---|---|---|
+| `postInit() → bool` | **uma vez por Scene**, no 1º `update()`, logo após `instantiate()` e antes de `onFrameBegin` (fora do frame GPU) | ✅ |
 | `onFrameBegin(dt)` | após `instantiate()`, antes do `prepareRender` | ✅ |
 | `onRenderPrepared(dt)` | após `beginFrame` | ❌ |
 | `preRenderScene(dt)` | antes de `renderScene()` | ❌ |
 | `postRenderScene(dt)` | depois de `renderScene()` | ❌ |
 | `onSceneRendered(dt)` | após a composição da UI (`renderUI`), antes do `endFrame` | ❌ |
 | `onFrameEnd(dt)` | após `finishRender()` (deleções GPU já flushadas) | ✅ |
+
+**`postInit` (2026-09-23)** — ponto de inicialização que depende da cena já montada: roda depois do `configure` e antes de qualquer render.
+- **Posição**: logo após o `instantiate()` do primeiro `update`, e não antes do primeiro `renderFrame`. O `configure` só **enfileira** os assets (`create`), e eles nascem nesse `instantiate()`: um hook anterior veria a cena vazia. Fica também fora do frame GPU, onde criar recurso Filament é permitido.
+- **Sem parâmetros**: o hook não entrega a Scene. O `EditorUIController`, que precisa dela, a recebe pelo construtor (§4.18).
+- **Retorno**: `false` indica falha, mas **hoje a Scene ignora o retorno** (TODO no `Scene::update`): continua chamando os systems seguintes e marca `m_postInitDone` mesmo assim, então o hook não se repete.
+- ⚠️ **Pendente de decisão**: um system registrado **depois** do primeiro frame (via `postCommand`) **nunca** recebe `postInit`.
 
 Registrado por **`unique_ptr`** via `Scene::addSystem` — a `Scene` é a dona desde 2026-09-19 (antes era ponteiro não-dono); `removeSystem(ptr)` **destrói** o system. **Regras** (documentadas no header): hooks executam na render thread; registro/remoção antes do `start()` ou via `postCommand`; hook nunca chama `Scene::get()` de id ainda na fila (deadlock — `instantiate()` roda na mesma thread). Exemplo completo de uso das fases: `FilamentWireframeSystem` ([rendering/filament.md §8](rendering/filament.md)).
 
@@ -521,6 +534,17 @@ Utilitários geométricos estáticos, header-only, sem estado — o núcleo mate
 - `calcScreenPixelRay<TransformType>(camera, pixel, viewportSize, length) → vec3` — unprojection do pixel: viewport → NDC → clip → mundo por `inverse(proj · inverse(world))`, usando **dois depths** do mesmo pixel para ser imune à convenção de z da projeção (NO/ZO); orienta o resultado para a frente da câmera e escala pelo alcance. A câmera entra pelo contrato agnóstico (`CameraAsset3dInstance`), nunca pela view do renderer.
 - `centroid(const vector<vec3>&) → vec3` (2026-09-20) — média aritmética dos pontos (o "median point" do vocabulário de editores, não a mediana estatística). Conjunto **vazio devolve a origem**, sem dividir por zero. Ponto único de cálculo do pivô de um conjunto: usado pelo `ObjectSelectorSystem::getSelectionMedianPoint` (§4.12) e pelo `GizmoSystem` ao congelar `m_groupPivot` no início do drag (§4.15).
 
+### 4.18 `EditorUIController<SceneType, TransformType, UIRendererType>` — `include/editor/systems/EditorUIController.h`
+
+Controller da UI do editor (2026-09-23), header-only. Hoje só **popula a treeview de objetos da cena**, mas a intenção é concentrar a UI do editor em geral — por isso recebe o `UIInstance`, e não um elemento específico. É um `SceneScopeSystem` por enquanto; "controller" como conceito próprio da engine é uma possibilidade futura.
+
+- **Parâmetros explícitos**: `SceneType` (cena concreta, recebida pelo construtor), `TransformType` (o label vem do `name` de `Asset3dInstance<TransformType>`, base comum de raízes **e** meshes — um cast para o `AssetType` deixaria as meshes sem label) e `UIRendererType`.
+- **Construção**: `EditorUIController(SceneType*, UIInstance<UIRendererType>*, int sceneTreeId)`. O id da tree só é definitivo depois do `root->draw()` (todo `draw()` gera id novo), e a tree precisa estar registrada com `UIInstance::registerComponent` (§5.5). O `configureUI` do `EditorSceneConfigurer` faz as duas coisas e então registra o controller com `addSystem`, antes do `start()`.
+- **`postInit()`**: busca a tree com `getElementById(sceneTreeId)` e faz `dynamic_cast` para `UITreeElement<UIRendererType, Node*>*`. Depois percorre o `getAll()` da cena recebida no construtor e, para cada raiz, cria o nó e desce recursivamente pelos `children` (`populateSceneTree`, privado). O `data` de cada nó é o próprio `Node*`; se o cast para `Asset3dInstance<TransformType>` falhar, o nó entra com label vazia. Devolve `false` se a cena for nula ou se a busca da tree falhar.
+- **Regra de design**: a UI não observa a cena — ver [ARCHITECTURE.md §8](ARCHITECTURE.md). A API para as mudanças em runtime (adição, remoção e atualização explícitas) ainda não existe.
+- **Threading**: o `postInit` roda na render thread. A tree não tem lock, e as mudanças em runtime virão de handlers na thread do CEF.
+- **Custo**: cada `createNode` reenvia a árvore inteira ao React, então popular N nós manda N mensagens, cada uma com a árvore acumulada até ali.
+
 ## 5. UI abstrata — `include/core/ui/`
 
 A UI do core é totalmente template sobre `UIRendererConcept`, então os widgets abstratos não conhecem CEF nem Filament.
@@ -563,11 +587,12 @@ Container com filhos posicionados em grade: cada filho entra como `PanelGridCell
 | `UICheckBoxElement` | `isChecked()`, `setChecked(bool)` | lista `onCheckValueChange` (não usada pela base ainda) |
 | `UIComboBoxInputElement` | `addOption(key,label)`, `getSelectedOption()`, `updateInput(key)` (protegido) | `setSelectedOption()` = `updateInput` + `notifyChange`; lista `onSelectValueChange` |
 | `UIButtonElement` | — (não-abstrata) | `onClick()` percorre `onClickCallbacks` — mas o fluxo real usa `registerEvent("click", ...)` |
+| `UITreeElement<URT, DataType>` | `redrawTree()` (protegido) — envia a árvore inteira à UI concreta | guarda os nós (`m_nodes`) e é a **fábrica** deles: o struct aninhado `UITreeComponentNode` (`children`, `label`, `id`, `data`) tem construtor privado. `createNode(label, data, parentId=-1)` → `optional<nó>` (vazio se o pai não existe); `updateNode(label, data, nodeId)` → `bool`; `removeNode(nodeId)` → `bool`; `getNode(nodeId)` → `optional<nó>`. Nós voltam **por cópia**; ids vêm de um contador crescente, sem reaproveitar; toda alteração bem-sucedida chama `redrawTree()` |
 | `UITabElement` | vazio (placeholder) | — |
 
 ### 5.5 `UIInstance<URI>` — o "documento" de UI
 
-Representa uma UI montada sobre um renderer. `start()`: chama `uiRenderer->start()`, cria a raiz via **factory method** `createRoot()` (puro — a implementação concreta decide o painel raiz) e chama `root->draw()`. Mantém (parcialmente implementado) um registro `id → UIElement*` (`getElementById`, `registerComponent` — este com bug latente: usa `map::insert(k, v)` em vez de `emplace`, e nada o chama hoje).
+Representa uma UI montada sobre um renderer. `start()`: chama `uiRenderer->start()`, cria a raiz via **factory method** `createRoot()` (puro — a implementação concreta decide o painel raiz) e chama `root->draw()`. Mantém um registro `id → UIElement*` (`getElementById`, `registerComponent`). Desde 2026-09-23 o `registerComponent` usa `emplace` (antes usava `map::insert(k, v)`, que não compila quando instanciado) e é chamado pelo `configureUI` para a tree da cena, que o `EditorUIController` busca por id (§4.18). O registro **não acompanha re-draws**: todo `draw()` gera id novo, então só se registra depois do último `draw()`.
 
 ### 5.6 `UIElementHandler` — type erasure
 

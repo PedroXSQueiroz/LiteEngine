@@ -3,6 +3,8 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <optional>
+#include <algorithm>
 
 #include <core/concepts/UIRendererConcept.h>
 #include <core/ui/elements/UIElementHandler.h>
@@ -290,6 +292,120 @@ namespace lite{
         }
 
         std::vector<std::function<void(UIButtonElement*)>> onClickCallbacks;
+
+    };
+
+    template<UIRendererConcept URT, typename DataType>
+    class UITreeElement : public UIElement<URT>{
+
+    public:
+
+        struct UITreeComponentNode {
+
+            friend UITreeElement;
+
+        public:
+
+            std::vector<UITreeComponentNode> children;
+            std::string label;
+            int id;
+            DataType data;
+
+        private:
+
+            UITreeComponentNode(int id, std::string label, DataType data):
+                children(),
+                label(label),
+                id(id),
+                data(data) {};
+        };
+
+        UITreeElement(URT* uiRenderer): UIElement<URT>(uiRenderer) {};
+
+        std::optional<UITreeComponentNode> createNode(std::string label, DataType data, int parentId = -1){
+
+            std::vector<UITreeComponentNode>* targetList = &this->m_nodes;
+
+            if(parentId != -1)
+            {
+                std::vector<UITreeComponentNode>* parentList = this->findNodeList(this->m_nodes, parentId);
+                if(!parentList) return std::nullopt;
+
+                auto parent = std::find_if(parentList->begin(), parentList->end(),
+                    [parentId](const UITreeComponentNode& node) { return node.id == parentId; });
+
+                targetList = &parent->children;
+            }
+
+            UITreeComponentNode newNode(this->m_nextNodeId++, label, data);
+            targetList->push_back(newNode);
+
+            this->redrawTree();
+
+            return newNode;
+        }
+
+        bool updateNode(std::string label, DataType data, int nodeId){
+
+            std::vector<UITreeComponentNode>* nodeList = this->findNodeList(this->m_nodes, nodeId);
+            if(!nodeList) return false;
+
+            auto node = std::find_if(nodeList->begin(), nodeList->end(),
+                [nodeId](const UITreeComponentNode& currentNode) { return currentNode.id == nodeId; });
+
+            node->label = label;
+            node->data = data;
+
+            this->redrawTree();
+
+            return true;
+        }
+
+        bool removeNode(int nodeId){
+
+            std::vector<UITreeComponentNode>* nodeList = this->findNodeList(this->m_nodes, nodeId);
+            if(!nodeList) return false;
+
+            std::erase_if(*nodeList,
+                [nodeId](const UITreeComponentNode& currentNode) { return currentNode.id == nodeId; });
+
+            this->redrawTree();
+
+            return true;
+        }
+
+        std::optional<UITreeComponentNode> getNode(int nodeId){
+
+            std::vector<UITreeComponentNode>* nodeList = this->findNodeList(this->m_nodes, nodeId);
+            if(!nodeList) return std::nullopt;
+
+            return *std::find_if(nodeList->begin(), nodeList->end(),
+                [nodeId](const UITreeComponentNode& currentNode) { return currentNode.id == nodeId; });
+        }
+
+    protected:
+
+        // Envia a arvore inteira (m_nodes) de uma vez para a implementacao concreta.
+        virtual void redrawTree() = 0;
+
+        std::vector<UITreeComponentNode> m_nodes;
+        int m_nextNodeId{ 0 };
+
+    private:
+
+        // Devolve a lista (raizes ou children de algum no) que contem o no nodeId; nullptr se nao existir.
+        std::vector<UITreeComponentNode>* findNodeList(std::vector<UITreeComponentNode>& nodes, int nodeId){
+
+            for(UITreeComponentNode& currentNode : nodes)
+            {
+                if(currentNode.id == nodeId) return &nodes;
+
+                std::vector<UITreeComponentNode>* found = this->findNodeList(currentNode.children, nodeId);
+                if(found) return found;
+            }
+
+            return nullptr;
+        }
 
     };
 

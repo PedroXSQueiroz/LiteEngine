@@ -174,6 +174,22 @@ namespace lite
 
             instantiate();
 
+            // Uma única vez: primeiro update, com os assets enfileirados
+            // durante o configure já instanciados e antes de qualquer fase de
+            // render. Systems registrados depois disso nunca recebem postInit.
+            if(!m_postInitDone)
+            {
+                for(auto& system : m_systems)
+                {
+                    // TODO: tratamento de erro adequado quando postInit devolve
+                    // false. Hoje o retorno é ignorado: os systems seguintes são
+                    // chamados mesmo assim e a flag é marcada de qualquer forma.
+                    system->postInit();
+                }
+
+                m_postInitDone = true;
+            }
+
             for(auto& system : m_systems) system->onFrameBegin(deltaTime);
 
             if(this->m_uiRenderer) this->m_uiRenderer->update();
@@ -318,6 +334,8 @@ namespace lite
         }
 
         int m_lastId = 0;
+        // Só a render thread lê e escreve (dentro de update), por isso não é atomic
+        bool m_postInitDone = false;
         std::vector<std::unique_ptr<SceneScopeSystem>> m_systems;
         std::vector<CreationEntry> m_creatingObjects;
         std::mutex m_instancesMutex;

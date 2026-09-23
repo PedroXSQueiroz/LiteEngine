@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import type { ReactElement } from 'react';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Card, Row, Col, Form, Button } from 'react-bootstrap';
 
-import { getElements, setRenderCallback, UIElementDescriptor, sendToNative } from './uiStore';
+import { getElements, setRenderCallback, UIElementDescriptor, type UITreeNodeDescriptor, sendToNative } from './uiStore';
 import './UIRoot.css'
 
 function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDescriptor; allElements: UIElementDescriptor[] }) {
@@ -16,7 +17,7 @@ function PanelComponent({ descriptor, allElements }: { descriptor: UIElementDesc
     <div style={{
       display: 'grid',
       gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
-      gap: '4px',
+      gap: '6px',
       width: '100%'
     }}>
       {children.map(child => (
@@ -64,8 +65,8 @@ function TextInputComponent({ descriptor }: { descriptor: UIElementDescriptor })
   };
 
   return (
-    <Form.Group as={Row} data-ui-id={descriptor.id} style={{width:'100%'}}>
-      {descriptor.label && <Form.Label className='input-label'>{descriptor.label}</Form.Label>}
+    <Form.Group as={Row} data-ui-id={descriptor.id} style={{width:'100%'}} className="align-items-center">
+      {descriptor.label && <Form.Label column sm="auto" className='input-label'>{descriptor.label}</Form.Label>}
       <Col>
         <Form.Control
           type="text"
@@ -146,6 +147,56 @@ function ButtonComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
   );
 }
 
+function TreeComponent({ descriptor }: { descriptor: UIElementDescriptor }) {
+  // Expansão e seleção são estado local do React; nós começam recolhidos.
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const renderNodes = (nodes: UITreeNodeDescriptor[], depth: number): ReactElement[] =>
+    nodes.flatMap(node => {
+      const hasChildren = node.children.length > 0;
+      const isExpanded = !!expanded[node.id];
+      const isSelected = node.id === selectedId;
+
+      const row = (
+        <div
+          key={node.id}
+          className={`tree-row${isSelected ? ' selected' : ''}`}
+          style={{ paddingLeft: `${10 + depth * 16}px` }}
+          onClick={() => {
+            setSelectedId(node.id);
+            sendToNative({ id: descriptor.id, type: 'click', value: node.id.toString() });
+          }}
+        >
+          {hasChildren
+            ? (
+              <span
+                className="tree-caret"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded(prev => ({ ...prev, [node.id]: !prev[node.id] }));
+                }}
+              >
+                {isExpanded ? '▾' : '▸'}
+              </span>
+            )
+            : <span className="tree-caret" />}
+          <span className="tree-label">{node.label}</span>
+        </div>
+      );
+
+      return hasChildren && isExpanded
+        ? [row, ...renderNodes(node.children, depth + 1)]
+        : [row];
+    });
+
+  return (
+    <div data-ui-id={descriptor.id} className="tree">
+      {renderNodes(descriptor.nodes ?? [], 0)}
+    </div>
+  );
+}
+
 function UIElementRenderer({ descriptor, allElements }: { descriptor: UIElementDescriptor; allElements: UIElementDescriptor[] }) {
   switch (descriptor.type) {
     case 'panel':    return <PanelComponent descriptor={descriptor} allElements={allElements} />;
@@ -154,6 +205,7 @@ function UIElementRenderer({ descriptor, allElements }: { descriptor: UIElementD
     case 'checkbox': return <CheckboxComponent descriptor={descriptor} />;
     case 'combobox': return <ComboBoxComponent descriptor={descriptor} />;
     case 'button':   return <ButtonComponent descriptor={descriptor} />;
+    case 'tree':     return <TreeComponent descriptor={descriptor} />;
     default:         return null;
   }
 }

@@ -49,7 +49,7 @@ namespace lite {
 
         void registerComponent(UIElement<URI>* element)
         {
-            this->elements.insert(element->getId(), element);
+            this->elements.emplace(element->getId(), element);
         }
 
     protected:

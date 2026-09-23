@@ -21,7 +21,7 @@ Game engine em **C++20** com foco em **modularidade extrema**: um `core/` agnós
 
 ## Peças centrais
 
-- `lite::Scene<Asset, Transform, Factory, UIRenderer>` (`include/core/scene/Scene.h`) — dono das instâncias; criação de assets é **enfileirada** (`create()` retorna id; instanciação ocorre na render thread), deleção é **em duas fases** (marca + flush pós-frame). Nós têm `getId()` (raiz = id do `create()`; filhos só com `create(..., deepIds=true)`, mesmo espaço de numeração); consulta de subobjeto por id existe como **paliativo**: `getNode(id)` (busca linear recursiva, retorna o tipo base `Asset3dInstance<T>` e **não bloqueia**) — o índice definitivo segue como decisão adiada (ver roadmap em ARCHITECTURE.md §6). UI é integrada pelo próprio ciclo da Scene; extensões de frame entram por `SceneScopeSystem` (6 hooks).
+- `lite::Scene<Asset, Transform, Factory, UIRenderer>` (`include/core/scene/Scene.h`) — dono das instâncias; criação de assets é **enfileirada** (`create()` retorna id; instanciação ocorre na render thread), deleção é **em duas fases** (marca + flush pós-frame). Nós têm `getId()` (raiz = id do `create()`; filhos só com `create(..., deepIds=true)`, mesmo espaço de numeração); consulta de subobjeto por id existe como **paliativo**: `getNode(id)` (busca linear recursiva, retorna o tipo base `Asset3dInstance<T>` e **não bloqueia**) — o índice definitivo segue como decisão adiada (ver roadmap em ARCHITECTURE.md §6). UI é integrada pelo próprio ciclo da Scene; extensões de frame entram por `SceneScopeSystem` (6 hooks de frame + `postInit`, que roda uma única vez, no primeiro `update`, logo após o `instantiate()`).
 - `lite::SceneRenderer<SceneType>` (`include/core/scene/SceneRenderer.h`) — facade abstrato que possui a **render thread** (Template Method: `setup`/`renderFrame`/`cleanup` virtuais). `FilamentSceneRenderer` é a implementação. O `filament::Engine` só pode ser usado na thread que o criou; trabalho GPU de fora entra por `postCommand()`.
 - `CEF_Filament_UIRendererThreaded` — CEF roda em thread própria; pixels via double-buffer → textura Filament num quad translúcido. C++→JS: `window.liteUI.addElement/updateElement`; JS→C++: `cefQuery` com JSON `{id, type, value}`.
 - Concepts em `include/core/concepts/` (umbrella `EngineConcepts.h`) definem os contratos entre core e implementações.
@@ -37,11 +37,12 @@ Game engine em **C++20** com foco em **modularidade extrema**: um `core/` agnós
 ## Cuidados ao editar (resumo — detalhes em ARCHITECTURE.md §12)
 
 1. `Scene::get()` retorna ponteiro **emprestado** (dono é a Scene) e pode **bloquear** esperando a render thread — nunca envolver em `unique_ptr`, nunca chamar da render thread antes da instanciação.
-2. Sistemas (`SceneScopeSystem`, único mecanismo de extensão do frame — 6 hooks) devem ser registrados/removidos **antes** de `sceneRenderer.start()` ou via `postCommand` (vetor sem lock); hooks rodam na render thread e nunca podem chamar `Scene::get()` de id ainda na fila.
+2. Sistemas (`SceneScopeSystem`, único mecanismo de extensão do frame — 6 hooks de frame + `postInit` único) devem ser registrados/removidos **antes** de `sceneRenderer.start()` ou via `postCommand` (vetor sem lock); hooks rodam na render thread e nunca podem chamar `Scene::get()` de id ainda na fila.
 3. Recursos GPU (materiais, wireframe, buffers) só podem ser criados/destruídos na render thread — usar `postCommand()`.
 4. `CefExecuteProcess` deve permanecer a **primeira** instrução do `main()` (subprocessos CEF).
 5. Há paths absolutos `D:/Workspace/LiteEngine/...` hardcoded (materiais, IBL, HTML) — não espalhar mais; existe intenção de criar sistema de resource paths.
 6. Stubs quebrados que não devem entrar no build sem conserto: `SceneFactory.h`, `UIEvenetsManager.h`, `CEF_UIEditor.h` (e cpps órfãos listados na doc).
+7. **A UI do editor não observa a cena** (regra de design que o código não amarra — ARCHITECTURE.md §8): o setup não conta, e a carga inicial da UI acontece uma única vez, no `postInit` do `EditorUIController`. Com a cena viva em runtime, toda adição/remoção/atualização na cena que deve aparecer na UI é explícita: primeiro na cena, depois na UI pelo `EditorUIController`. Ao lidar com UI, avisar se perceber a regra sendo quebrada.
 
 ## Estado atual
 

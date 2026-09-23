@@ -376,9 +376,6 @@ int main(int argc, char** argv){
     ----------------------------------------------------------------------------*/
     lite::UIInstance<CEF_Filament_UIRendererThreaded>* uiInstance = new lite::CEF_Filament_UIInstance(uiRenderer);
 
-    sceneRenderer.start();
-
-
     std::cout << "Starting main loop..." << std::endl;
 
     lite::EditorSceneConfigurer<
@@ -400,6 +397,8 @@ int main(int argc, char** argv){
         );
 
     currentScene = configurer->configure(currentScene);
+
+    sceneRenderer.start();
 
 
     /*----------------------------------------------------------------------------

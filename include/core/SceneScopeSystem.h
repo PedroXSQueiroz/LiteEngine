@@ -16,6 +16,17 @@ class SceneScopeSystem {
 public:
     virtual ~SceneScopeSystem() = default;
 
+    // ---- Uma única vez por Scene, antes do primeiro frame renderizado ----
+
+    // Chamado no PRIMEIRO Scene::update(), logo após o instantiate() (os assets
+    // enfileirados durante o configure já existem) e antes de qualquer fase de
+    // render, fora do frame GPU. Retorna false em falha.
+    // A Scene hoje ignora o retorno (TODO no Scene::update): chama os systems
+    // seguintes mesmo assim e não repete o hook.
+    // Systems registrados depois do primeiro frame NUNCA recebem este hook.
+    // Default: não faz nada e devolve true.
+    virtual bool postInit() { return true; }
+
     // ---- Bordas do frame: rodam SEMPRE, mesmo se o frame GPU for pulado ----
 
     // Após instantiate() (assets criados neste frame já existem), antes do

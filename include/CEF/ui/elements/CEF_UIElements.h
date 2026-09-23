@@ -3,6 +3,15 @@
 #include <core/ui/elements/UIElements.h>
 #include <CEF/ui/CEF_Filament_UIRendererThreaded.h>
 
+// Filament macros collide with nlohmann/json internals; restored right after the include
+#pragma push_macro("assert_invariant")
+#pragma push_macro("UTILS_VERY_LIKELY")
+#undef assert_invariant
+#undef UTILS_VERY_LIKELY
+#include <nlohmann/json.hpp>
+#pragma pop_macro("UTILS_VERY_LIKELY")
+#pragma pop_macro("assert_invariant")
+
 namespace lite {
 
 // --- Panel ---
@@ -81,6 +90,67 @@ public:
     virtual int draw(int parentId, int line, int column, int lineSpan = 1, int columnSpan = 1) override;
 private:
     std::string m_label;
+};
+
+// --- Tree ---
+template<typename DataType>
+class CEF_UITreeElement : public UITreeElement<CEF_Filament_UIRendererThreaded, DataType> {
+public:
+    using UITreeComponentNode = typename UITreeElement<CEF_Filament_UIRendererThreaded, DataType>::UITreeComponentNode;
+
+    CEF_UITreeElement(CEF_Filament_UIRendererThreaded* renderer)
+        : UITreeElement<CEF_Filament_UIRendererThreaded, DataType>(renderer) {};
+
+    virtual bool isFoccused() override { return false; }
+
+    virtual int draw(int parentId, int line, int column, int lineSpan = 1, int columnSpan = 1) override {
+
+        UIElement<CEF_Filament_UIRendererThreaded>::draw(parentId, line, column, lineSpan, columnSpan);
+
+        nlohmann::json j = {
+            {"id", this->m_currentId},
+            {"type", "tree"},
+            {"parentId", parentId},
+            {"line", line},
+            {"column", column},
+            {"lineSpan", lineSpan},
+            {"columnSpan", columnSpan},
+            {"nodes", nlohmann::json::array()}
+        };
+
+        this->m_uiRenderer->executeJavaScript("window.liteUI.addElement(" + j.dump() + ")");
+
+        // Nos criados antes do draw() vao agora, de uma vez
+        this->redrawTree();
+
+        return this->m_currentId;
+    }
+
+protected:
+
+    virtual void redrawTree() override {
+
+        // Ainda sem id no CEF: os nos ficam guardados e o draw() os envia
+        if (this->m_currentId == UIElement<CEF_Filament_UIRendererThreaded>::EMPTY_ELEMENT_ID) return;
+
+        // So id, label e children vao para o React; data fica no C++
+        auto toJson = [](auto& self, const std::vector<UITreeComponentNode>& nodes) -> nlohmann::json {
+            nlohmann::json nodesArr = nlohmann::json::array();
+            for (const UITreeComponentNode& node : nodes) {
+                nlohmann::json nodeJson = {
+                    {"id", node.id},
+                    {"label", node.label},
+                    {"children", self(self, node.children)}
+                };
+                nodesArr.push_back(nodeJson);
+            }
+            return nodesArr;
+        };
+
+        nlohmann::json j = {{"nodes", toJson(toJson, this->m_nodes)}};
+        this->m_uiRenderer->executeJavaScript(
+            "window.liteUI.updateElement(" + std::to_string(this->m_currentId) + "," + j.dump() + ")");
+    }
 };
 
 } // namespace lite

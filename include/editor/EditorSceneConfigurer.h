@@ -15,6 +15,7 @@
 #include <editor/WireframeSystem.h>
 #include <editor/ObjectSelectorSystem.h>
 #include <editor/systems/EditorNavigationSystem.h>
+#include <editor/systems/EditorUIController.h>
 
 #include <filament/data/assets/FilamentAsset3dTransform.h>
 
@@ -70,9 +71,9 @@ namespace lite{
             scene->addSystem(getWireframeSystem(scene));
             scene->addSystem(getNavigationSystem());
 
-            scene = configureUI(scene);
-
             scene = loadScene3dInstances(scene);
+            
+            scene = configureUI(scene);
 
             /*----------------------------------------------------------------------------
             SETUP LIGHTING (posted to render thread command queue)
@@ -122,6 +123,8 @@ namespace lite{
 
         virtual UIButtonElement<UIRendererType>* createButton(UIRendererType* renderer, std::string label) = 0;
 
+        virtual UITreeElement<UIRendererType, Node*>* createTreeView(UIRendererType* renderer) = 0;
+
         SceneType* configureUI(SceneType* scene){
             UIRendererType* uiRenderer = getUIRenderer();
             UIInstance<UIRendererType>* uiInstance = this->getUIInstance(scene);
@@ -133,7 +136,7 @@ namespace lite{
             }
 
             UIPanelElement<UIRendererType>* leftPanel = createPanel(uiRenderer);
-            root->addChildComponent(leftPanel, 0, 0);
+            root->addChildComponent(leftPanel, 0, 1);
 
             UITextElement<UIRendererType>* uiText = createText(uiRenderer);
             leftPanel->addChildComponent(uiText, 0, 0, 1, 2);
@@ -143,16 +146,20 @@ namespace lite{
 
 
             UIButtonElement<UIRendererType>* loadModelButton = createButton(uiRenderer, "Carregar");
-            loadModelButton->registerEvent("click", [&](UIRendererType*, int, std::string) {
+            loadModelButton->registerEvent("click", [
+                    uiInput
+                ,   importer = m_assets3dImporter
+                ,   scene](UIRendererType*, int, std::string) {
                 std::cout << "load model invoked" << std::endl;
                 Asset3dData rootNode;
                 std::vector<std::unique_ptr<MaterialData>> materials;
                 
-                if (m_assets3dImporter->import(uiInput->getText(), rootNode, materials)) {
+                if (importer->import(uiInput->getText(), rootNode, materials)) {
                     scene->create(
                         rootNode,
                         materials,
-                        TransformUtils<FilamentAsset3dTransform>::build()
+                        TransformUtils<FilamentAsset3dTransform>::build(),
+                        true
                     );
                 }
             });
@@ -181,7 +188,23 @@ namespace lite{
             leftPanel->addChildComponent(deleteModelButton, 2, 1);
             leftPanel->addChildComponent(saveSceneButton, 3, 0);
 
+            UIPanelElement<UIRendererType>* treeScenePanel = createPanel(uiRenderer);
+            root->addChildComponent(treeScenePanel, 0, 0);
+
+            UITreeElement<UIRendererType, Node*>* treeScene = createTreeView(uiRenderer);
+            treeScenePanel->addChildComponent(treeScene, 0, 0, 1, 1);
+
             root->draw();
+
+            // O id da tree só é definitivo depois do draw() (todo draw gera id novo)
+            uiInstance->registerComponent(treeScene);
+
+            // A tree é populada no postInit do controller, quando a cena já tem instâncias
+            scene->addSystem(std::make_unique<EditorUIController<SceneType, TransformType, UIRendererType>>(
+                scene,
+                uiInstance,
+                treeScene->getId()
+            ));
 
             return scene;
         };

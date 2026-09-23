@@ -158,6 +158,10 @@ namespace lite{
             return new CEF_UIButtonElement(renderer, label);
         };
 
+        virtual UITreeElement<CEF_Filament_UIRendererThreaded, Node*>* createTreeView(CEF_Filament_UIRendererThreaded* renderer) override {
+            return new CEF_UITreeElement<Node*>(renderer);
+        }
+
         int m_width = 0, m_height = 0;
 
         UIInstance<CEF_Filament_UIRendererThreaded>* m_uiInstance = nullptr;

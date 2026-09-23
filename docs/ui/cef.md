@@ -18,11 +18,14 @@ Implementação concreta da UI usando **CEF (Chromium Embedded Framework)** em m
 | `lite::UICheckBoxElement<URT>` | `lite::CEF_UICheckBoxElement` | checkbox — implementa `draw/isChecked/setChecked` | idem |
 | `lite::UIComboBoxInputElement<URT>` | `lite::CEF_UIComboBoxInputElement` | combo — implementa `draw/addOption/getSelectedOption/updateInput` | idem |
 | `lite::UIButtonElement<URT>` | `lite::CEF_UIButtonElement` | botão — implementa `draw` (com label) | idem |
+| `lite::UITreeElement<URT, DataType>` | `lite::CEF_UITreeElement<DataType>` | treeview — implementa `draw` e o hook `redrawTree()` (a base do core guarda os nós e gera os ids) | `include/CEF/ui/elements/CEF_UIElements.h` (header-only: é template) |
 | — (infra CEF, sem contraparte no core) | `CEF_UIApp` (`CefApp`) | bootstrap dos processos CEF | `include/CEF/CEF_UIApp.h` + `CEF/CEF_UIApp.cpp` |
 | — (infra CEF) | `CEF_UIRenderProcessHandler` (`CefRenderProcessHandler`) | lado renderer-process do MessageRouter | `include/CEF/ui/CEF_UIRenderProcessHandler.h` + `CEF/ui/CEF_UIRenderProcessHandler.cpp` |
 | — (frontend) | app React `cef-ui` | os widgets DOM de fato | `CEF/ui/resources/cef-ui/` |
 
 Em todas as linhas acima, `URT = CEF_Filament_UIRendererThreaded`. Todo widget concreto **deve chamar `UIElement::draw()` da base** dentro do seu `draw()` (é a base que gera o id e registra o `UIElementHandler` no renderer — sem isso os eventos JS→C++ não roteiam).
+
+`CEF_UITreeElement` é template em `DataType`, então vive inteiro no header, fora do `CEF_UIElements.cpp`. Por isso o `CEF_UIElements.h` inclui o nlohmann/json entre `#pragma push_macro`/`#pragma pop_macro` de `assert_invariant` e `UTILS_VERY_LIKELY` (macros do Filament que colidem com o nlohmann): o `#undef` vale só durante o include, e quem inclui o header continua com as macros do Filament.
 
 ## 2. Arquitetura de processos e threads do CEF
 
@@ -99,7 +102,9 @@ window.liteUI.updateElement(id, { ...propsParciais })
 // também expostos: removeElement(id), clearElements()
 ```
 
-`type` ∈ `panel | text | textInput | checkbox | combobox | button`. Props por tipo: `text` (text/textInput), `label` (textInput/button), `checked` (checkbox), `options: [{key,label}]` + `selectedOption` (combobox). `parentId = -1` = raiz. `CEF_UITextElement::setText` usa a variante *throttled* (30 ms) por ser candidata a updates por-frame.
+`type` ∈ `panel | text | textInput | checkbox | combobox | button | tree`. Props por tipo: `text` (text/textInput), `label` (textInput/button), `checked` (checkbox), `options: [{key,label}]` + `selectedOption` (combobox), `nodes: [{id, label, children}]` (tree, recursivo). `parentId = -1` = raiz. `CEF_UITextElement::setText` usa a variante *throttled* (30 ms) por ser candidata a updates por-frame.
+
+A tree manda **a árvore inteira de uma vez**: cada `createNode`/`updateNode`/`removeNode` bem-sucedido chama `redrawTree()`, que envia um único `updateElement(id, {nodes})`. O `data` de cada nó (o `DataType`) **nunca** é serializado: fica só no C++. Antes do `draw()` o elemento ainda não tem id no CEF, então o `redrawTree()` não envia nada e os nós ficam guardados. O `draw()` manda o `addElement` com `nodes: []` e em seguida chama o `redrawTree()`, que envia a árvore já montada.
 
 ### JS → C++ (eventos)
 Frontend chama `window.cefQuery({request: JSON.stringify(payload)})` (função injetada pelo MessageRouter). O `OnQuery` no browser process parseia:
@@ -109,7 +114,7 @@ Frontend chama `window.cefQuery({request: JSON.stringify(payload)})` (função i
 | `{event: "ui_ready"}` | seta `m_uiAppReady` — destrava o `start()` (enviado pelo React ao montar) |
 | `{id, type, value?}` | `m_uiElements[id].invokeEvents<UIRenderer<filament::Renderer>>(type, value)` → dispara os callbacks registrados via `UIElement::registerEvent(type, cb)` |
 
-Nomes de evento em uso: `"click"` (botões), `"changeValue"` (inputs/combos/checkbox — os widgets concretos já registram um handler interno de `changeValue` no construtor para sincronizar o estado C++ e disparar `notifyChange`). O fluxo completo de um clique: DOM `onClick` → `sendToNative({id, type:'click'})` → `cefQuery` → IPC → `OnQuery` → `UIElementHandler::invokeEvents` → `UIElement::invokeEvent("click")` → lambda registrada na main.
+Nomes de evento em uso: `"click"` (botões; na tree, `{id: <id da tree>, type: 'click', value: '<id do nó>'}` — o id do nó chega como string no `value`, e o clique na seta de expandir/recolher não gera evento), `"changeValue"` (inputs/combos/checkbox — os widgets concretos já registram um handler interno de `changeValue` no construtor para sincronizar o estado C++ e disparar `notifyChange`). O fluxo completo de um clique: DOM `onClick` → `sendToNative({id, type:'click'})` → `cefQuery` → IPC → `OnQuery` → `UIElementHandler::invokeEvents` → `UIElement::invokeEvent("click")` → lambda registrada na main.
 
 ## 6. Input (core → CEF)
 
@@ -124,7 +129,8 @@ Nomes de evento em uso: `"click"` (botões), `"changeValue"` (inputs/combos/chec
 React 19 + Vite + TypeScript + react-bootstrap (+ react-router). Build: `npm install && npm run build` → `dist/index.html` (o que o C++ carrega). **Sem rebuild do frontend, mudanças em `.tsx` não aparecem.**
 
 - **`src/engine/uiStore.ts`** — a ponte: mantém `UIElementDescriptor[]` (espelho dos descriptors JSON), expõe `window.liteUI.{addElement,updateElement,removeElement,clearElements}` para o C++ e `sendToNative(data)` (promise sobre `cefQuery`) para os componentes. `addElement` faz upsert por id; mutações chamam `renderCallback` para re-render.
-- **`src/engine/UIRoot.tsx`** — renderiza a árvore: filtra filhos por `parentId`; painéis viram CSS **grid** (`gridColumn/gridRow` a partir de `line/column/lineSpan/columnSpan` — mesma semântica do `UIPanelElement` do core); raiz é transparente (a cena 3D aparece atrás), painéis não-raiz viram `Card` bootstrap. Componentes por tipo: Panel/Text/TextInput (debounce 400 ms antes de `sendToNative` com `changeValue`)/Checkbox/Combobox/Button (`type:'click'`).
+- **`src/engine/UIRoot.tsx`** — renderiza a árvore: filtra filhos por `parentId`; painéis viram CSS **grid** (`gridColumn/gridRow` a partir de `line/column/lineSpan/columnSpan` — mesma semântica do `UIPanelElement` do core); raiz é transparente (a cena 3D aparece atrás), painéis não-raiz viram `Card` bootstrap. Componentes por tipo: Panel/Text/TextInput (debounce 400 ms antes de `sendToNative` com `changeValue`)/Checkbox/Combobox/Button (`type:'click'`)/Tree (`type:'click'` com o id do nó em `value`).
+- **Tree** (`TreeComponent`): aparece só como lista, sem card próprio (para ter o visual de card, põe-se a tree dentro de um painel). Os nós começam **recolhidos**; expansão e seleção são estado **local do React** (o C++ não sabe quais nós estão abertos nem qual está destacado). Recuo de `10 + 16 × profundidade` px; estilos `.tree*` em `src/engine/UIRoot.css`, seguindo o painel "Scene Objects" da referência de design do editor. O tipo `UITreeNodeDescriptor` fica em `uiStore.ts`.
 - Evento `ui_ready` é enviado na montagem do app — é o handshake que o `start()` C++ espera.
 
 ## 8. Ordem de inicialização da UI (quem chama o quê)

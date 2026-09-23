@@ -1,6 +1,12 @@
+export interface UITreeNodeDescriptor {
+  id: number;
+  label: string;
+  children: UITreeNodeDescriptor[];
+};
+
 export class UIElementDescriptor {
   public id: number = 0;
-  public type: 'panel' | 'text' | 'textInput' | 'checkbox' | 'combobox' | 'button' = 'panel';
+  public type: 'panel' | 'text' | 'textInput' | 'checkbox' | 'combobox' | 'button' | 'tree' = 'panel';
   public parentId: number = -1; // -1 = root
   public line: number = 0;
   public column: number = 0;
@@ -12,6 +18,7 @@ export class UIElementDescriptor {
   options?: { key: string; label: string }[];
   selectedOption?: string;
   label?: string;
+  nodes?: UITreeNodeDescriptor[];
 };
 
 let elements: UIElementDescriptor[] = [];

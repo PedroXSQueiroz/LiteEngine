@@ -2,21 +2,25 @@
    THEME VARIABLES
 ========================= */
 :root {
-  
+
   font-size: small;
-  
-  --bs-body-bg: #e8e6e2;
-  --bs-body-color: #3a3a3a;
 
-  --bs-primary: #e8590c;
-  --bs-secondary: #d4d1cc;
+  --bs-body-bg: #1c1f22;
+  --bs-body-color: #e9ecef;
 
-  --card-bg: #f6f5f3;
-  --border-clear: #ffffff;
-  --border-dark: #6b6b6b;
-  --border-width: 0.75px;
-  --border-radius-external: 8px;
-  --border-radius-internal: 8px;
+  --bs-primary: #0d6efd;
+  --bs-secondary: #33373a;
+
+  --card-bg: #26292c;
+  --panel-header-bg: #2b2f32;
+  --text-secondary: #c9ccce;
+  --text-muted: #9aa0a5;
+  --text-dim: #767c81;
+  --border-clear: rgba(255,255,255,0.06);
+  --border-dark: rgba(255,255,255,0.03);
+  --border-width: 1px;
+  --border-radius-external: 9px;
+  --border-radius-internal: 4px;
 
   --bs-gutter-x: 1px !important;
   --bs-gutter-y: 1px !important;
@@ -28,15 +32,13 @@
 body {
   background: var(--bs-body-bg);
   color: var(--bs-body-color);
-  font-family: "Inter", "Helvetica Neue", sans-serif;
+  font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-weight: 400;
-  letter-spacing: -0.01em;
 }
 
 /* Headings */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
-  letter-spacing: -0.02em;
 }
 
 /* =========================
@@ -44,18 +46,25 @@ h1, h2, h3, h4, h5, h6 {
 ========================= */
 .card {
   background: var(--card-bg);
-  border: var(--border-width) solid var(--border-clear);
+  border: var(--border-width) solid var(--border-dark);
   border-radius: var(--border-radius-external);
-  box-shadow:
-    0 14px 28px rgba(0,0,0,0.20),
-    0 6px 10px rgba(0,0,0,0.12);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.4);
   overflow: hidden;
 }
 
 .card-header {
-  background: transparent;
-  border-bottom: 2px solid var(--border-dark);
-  font-weight: 500;
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid rgba(255,255,255,0.022);
+  padding: 4px 8px;
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.card-body {
+  padding: 7px 8px;
 }
 
 /* =========================
@@ -63,40 +72,42 @@ h1, h2, h3, h4, h5, h6 {
 ========================= */
 .btn {
   border-radius: var(--border-radius-internal);
-  font-weight: 500;
-  padding: 0.3rem 0.7rem;
+  font-weight: 600;
+  padding: 0.3rem 0.6rem;
   transition: all 0.2s ease;
   border: var(--border-width) solid var(--border-dark);
-  margin: 0.5rem 0;
+  margin: 0;
 }
 
 .btn-primary {
   background: var(--bs-primary);
   color: white;
+  border-color: transparent;
 }
 
 .btn-primary:hover {
-  background: #d14e0a;
+  background: #0b5ed7;
   transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: #f0f0f0;
-  color: var(--bs-body-color);
+  background: var(--bs-secondary);
+  color: var(--text-secondary);
 }
 
 .btn-secondary:hover {
-  background: #e2e2e2;
+  background: #3d4144;
 }
 
 /* =========================
    INPUTS
 ========================= */
 .form-control {
-  background: white;
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
   border: var(--border-width) solid var(--border-dark);
   border-radius: var(--border-radius-internal);
-  padding: 0.25rem;
+  padding: 0.3rem 0.5rem;
   margin: 0;
 }
 
@@ -106,8 +117,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .input-label {
-    font-size: medium;
-    font-weight: bold;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-dim);
     margin-bottom: 0;
 }
 
@@ -115,41 +127,44 @@ h1, h2, h3, h4, h5, h6 {
    NAVBAR
 ========================= */
 .navbar {
-  background: #f6f6f6 !important;
-  border-bottom: 2px solid var(--border-dark);
+  background: #212529 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.022);
 }
 
 .navbar-brand {
   font-weight: 600;
+  color: var(--bs-body-color);
 }
 
 .nav-link {
-  color: var(--bs-body-color) !important;
+  color: var(--text-secondary) !important;
   font-weight: 500;
 }
 
 .nav-link:hover {
-  color: var(--bs-primary) !important;
+  color: #f1f3f5 !important;
 }
 
 /* =========================
    TABLES
 ========================= */
 .table {
-  background: white;
+  background: var(--card-bg);
+  color: var(--bs-body-color);
   border-radius: 12px;
   overflow: hidden;
 }
 
 .table th {
-  background: #f2f2f2;
-  border-bottom: 2px solid var(--border-dark);
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
   font-weight: 600;
+  color: var(--text-muted);
 }
 
 .table td,
 .table th {
-  border-color: #dcdcdc;
+  border-color: rgba(255,255,255,0.03);
 }
 
 /* =========================
@@ -160,6 +175,7 @@ h1, h2, h3, h4, h5, h6 {
 .row {
   --bs-gutter-x: 1px !important;
   --bs-gutter-y: 1px !important;
+  gap: 8px;
   padding: 0;
   margin: 0;
 }
@@ -168,6 +184,46 @@ h1, h2, h3, h4, h5, h6 {
 .col,
 [class*="col-"] {
   padding: 0;
+}
+
+/* =========================
+   TREE
+========================= */
+.tree {
+  padding: 2px 0;
+  width: 100%;
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  font-size: 12.5px;
+  cursor: default;
+  color: var(--text-secondary);
+  background: transparent;
+  border-left: 2px solid transparent;
+}
+
+.tree-row.selected {
+  background: rgba(13,110,253,0.16);
+  color: #ffffff;
+  border-left-color: var(--bs-primary);
+}
+
+.tree-caret {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: #7d8388;
+  flex: none;
+}
+
+.tree-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* =========================
@@ -181,7 +237,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .modal-header,
 .modal-footer {
-  border-color: #dcdcdc;
+  border-color: rgba(255,255,255,0.03);
 }
 
 /* =========================
@@ -194,7 +250,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* =========================
-   SPECIAL BLOCK (laranja)
+   SPECIAL BLOCK (accent)
 ========================= */
 .block-accent {
   background: var(--bs-primary);
@@ -202,4 +258,25 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 18px;
   padding: 2rem;
   border: 2px solid var(--border-dark);
+}
+
+/* =========================
+   SCROLLBARS
+========================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #454a4e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #565c60;
 }
